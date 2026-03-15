@@ -144,13 +144,92 @@ def generate_fallback_reply(lead_data, business_profile):
     return reply
 
 
-def send_reply(email_id, reply_text):
+def send_reply(email_data, reply_text, from_email=None):
     """
     Send reply via Gmail API on the original thread
 
     Args:
-        email_id: Original email ID to reply to
+        email_data: Original email data dict containing:
+            - id: Email ID
+            - thread_id: Thread ID for threading
+            - from: Sender email/name
+            - subject: Original subject
         reply_text: Generated reply text
+        from_email: Email address to send from (defaults to Config.GMAIL_USER_EMAIL)
+
+    Returns:
+        dict: Sent message data or None if failed
     """
-    # TODO: Implement in Step 6
-    pass
+    from gmail_listener import get_service, mark_as_read
+    import base64
+    from email.mime.text import MIMEText
+
+    if from_email is None:
+        from_email = Config.GMAIL_USER_EMAIL
+
+    service = get_service()
+
+    try:
+        # Extract recipient from original sender
+        original_from = email_data.get('from', '')
+
+        # Parse email from "Name <email@example.com>" format
+        import re
+        email_match = re.search(r'<(.+?)>', original_from)
+        if email_match:
+            to_email = email_match.group(1)
+        else:
+            to_email = original_from
+
+        # Get original subject
+        original_subject = email_data.get('subject', '')
+
+        # Add "Re:" prefix if not already present
+        if not original_subject.lower().startswith('re:'):
+            subject = f"Re: {original_subject}"
+        else:
+            subject = original_subject
+
+        # Create message
+        message = MIMEText(reply_text)
+        message['to'] = to_email
+        message['from'] = from_email
+        message['subject'] = subject
+
+        # Add threading headers
+        thread_id = email_data.get('thread_id')
+        message_id = email_data.get('id')
+
+        # Add In-Reply-To and References headers for proper threading
+        if message_id:
+            message['In-Reply-To'] = f'<{message_id}>'
+            message['References'] = f'<{message_id}>'
+
+        # Encode message
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+
+        # Send message with thread ID for proper threading
+        send_request_body = {
+            'raw': raw_message,
+            'threadId': thread_id
+        }
+
+        sent_message = service.users().messages().send(
+            userId='me',
+            body=send_request_body
+        ).execute()
+
+        print(f"✓ Reply sent to {to_email}")
+        print(f"  Subject: {subject}")
+        print(f"  Message ID: {sent_message['id']}")
+
+        # Mark original email as read
+        mark_as_read(email_data['id'])
+
+        return sent_message
+
+    except Exception as e:
+        print(f"✗ Error sending reply: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
