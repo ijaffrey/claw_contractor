@@ -19,6 +19,46 @@ from config import Config
 _gmail_service = None
 
 
+def get_credentials_path():
+    """
+    Get path to credentials file
+    On Railway: Creates temp file from GMAIL_CREDENTIALS_JSON env var
+    Locally: Uses credentials.json file
+    """
+    # Check if running on Railway
+    if os.getenv('RAILWAY_ENVIRONMENT'):
+        creds_json = os.getenv('GMAIL_CREDENTIALS_JSON')
+        if creds_json:
+            # Write to temporary file
+            temp_path = '/tmp/credentials.json'
+            with open(temp_path, 'w') as f:
+                json.dump(json.loads(creds_json), f)
+            return temp_path
+
+    # Default to local file
+    return 'credentials.json'
+
+
+def get_token_path():
+    """
+    Get path to token file
+    On Railway: Creates temp file from GMAIL_TOKEN_JSON env var
+    Locally: Uses token.json file
+    """
+    # Check if running on Railway
+    if os.getenv('RAILWAY_ENVIRONMENT'):
+        token_json = os.getenv('GMAIL_TOKEN_JSON')
+        if token_json:
+            # Write to temporary file
+            temp_path = '/tmp/token.json'
+            with open(temp_path, 'w') as f:
+                json.dump(json.loads(token_json), f)
+            return temp_path
+
+    # Default to local file
+    return 'token.json'
+
+
 def authenticate_gmail():
     """
     Authenticate with Gmail using OAuth2
@@ -33,7 +73,7 @@ def authenticate_gmail():
         return _gmail_service
 
     creds = None
-    token_path = 'token.json'
+    token_path = get_token_path()
 
     # Load existing token if available
     if os.path.exists(token_path):
