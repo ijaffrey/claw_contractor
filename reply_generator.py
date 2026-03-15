@@ -59,10 +59,10 @@ Write a warm, personalized reply email that:
 2. Acknowledges their specific issue ({job_type})
 3. Shows you understand the urgency
 4. Asks EXACTLY ONE qualifying question to collect information (NOT to commit to specific times):
-   - For urgent/emergency: Ask for their preferred times/availability (e.g., "What times work best for you today? We'll check our schedule and get back to you right away.")
-   - For normal requests: Ask about their general timing preference (e.g., "What days or times typically work best for you? We'll coordinate with our schedule and confirm.")
+   - For urgent/emergency: Ask for their preferred times/availability (e.g., "What times work best for you today? Share your availability and we'll follow up to coordinate.")
+   - For normal requests: Ask about their general timing preference (e.g., "What days or times typically work best for you? Let us know and we'll be in touch to schedule.")
    - For leak repairs: Ask about severity (e.g., "Is the leak currently causing water damage, or is it a slow drip?")
-   - For installations: Ask about their preferred timeline (e.g., "What timeframe are you thinking? Let us know what works for you and we'll make it happen.")
+   - For installations: Ask about their preferred timeline (e.g., "What timeframe are you thinking? Share what works for you and we'll reach out to coordinate.")
 5. Keep it UNDER 100 words
 6. Sound human and conversational, not robotic
 7. Match the brand voice above
@@ -70,8 +70,9 @@ Write a warm, personalized reply email that:
 
 CRITICAL RULES:
 - NEVER promise specific availability or commit to specific times (e.g., don't say "we can come this afternoon", "we're available tomorrow", "we'll get someone out today", "I'll have someone call you")
-- NEVER say when you'll respond or when someone will call (e.g., don't say "I'll call you in 15 minutes" or "we'll get back to you shortly")
-- Instead, ALWAYS ASK for the customer's preferred times/availability FIRST, then say you'll coordinate with the schedule
+- NEVER say WHEN you'll respond or follow up (e.g., don't say "I'll call you in 15 minutes", "we'll get back to you shortly", "soon", "right away", "quickly")
+- Instead, use neutral language like "we'll follow up to coordinate", "we'll be in touch to schedule", "we'll reach out to confirm"
+- ALWAYS ASK for the customer's preferred times/availability FIRST, then say you'll coordinate
 - The contractor (not the AI) confirms all appointments and timing
 - Only ask ONE question
 - Keep it friendly and natural
@@ -127,11 +128,11 @@ def generate_fallback_reply(lead_data, business_profile):
 
     # Select question based on urgency - collect customer's preferred times
     if urgency == 'emergency':
-        question = "What times work best for you today? We'll check our schedule and get back to you right away."
+        question = "What times work best for you today? Share your availability and we'll follow up to coordinate."
     elif urgency == 'urgent':
-        question = "What times work best for you over the next day or two? We'll coordinate with our schedule and confirm with you shortly."
+        question = "What times work best for you over the next day or two? Let us know and we'll be in touch to schedule."
     else:
-        question = "What days or times typically work best for you? We'll make sure to coordinate with our schedule and get back to you soon."
+        question = "What days or times typically work best for you? Share what works for you and we'll reach out to coordinate."
 
     reply = f"Hi {customer_name}!\n\n"
     reply += f"Thanks for reaching out about the {job_type}. We can definitely help with that.\n\n"
