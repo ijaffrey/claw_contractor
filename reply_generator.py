@@ -58,17 +58,21 @@ Write a warm, personalized reply email that:
 1. Greets the customer by name
 2. Acknowledges their specific issue ({job_type})
 3. Shows you understand the urgency
-4. Asks EXACTLY ONE qualifying question appropriate for a plumber:
-   - For urgent/emergency: Ask about availability/timing (e.g., "Are you available for us to come by this afternoon?")
-   - For normal requests: Ask about timing preference (e.g., "Would this week or next week work better for you?")
+4. Asks EXACTLY ONE qualifying question to collect information (NOT to commit to specific times):
+   - For urgent/emergency: Ask for their preferred times/availability (e.g., "What times work best for you today? We'll check our schedule and get back to you right away.")
+   - For normal requests: Ask about their general timing preference (e.g., "What days or times typically work best for you? We'll coordinate with our schedule and confirm.")
    - For leak repairs: Ask about severity (e.g., "Is the leak currently causing water damage, or is it a slow drip?")
-   - For installations: Ask about timeline (e.g., "Do you have a preferred timeline for this installation?")
+   - For installations: Ask about their preferred timeline (e.g., "What timeframe are you thinking? Let us know what works for you and we'll make it happen.")
 5. Keep it UNDER 100 words
 6. Sound human and conversational, not robotic
 7. Match the brand voice above
 8. Do NOT include a signature (we'll add that separately)
 
-IMPORTANT:
+CRITICAL RULES:
+- NEVER promise specific availability or commit to specific times (e.g., don't say "we can come this afternoon", "we're available tomorrow", "we'll get someone out today", "I'll have someone call you")
+- NEVER say when you'll respond or when someone will call (e.g., don't say "I'll call you in 15 minutes" or "we'll get back to you shortly")
+- Instead, ALWAYS ASK for the customer's preferred times/availability FIRST, then say you'll coordinate with the schedule
+- The contractor (not the AI) confirms all appointments and timing
 - Only ask ONE question
 - Keep it friendly and natural
 - Don't use overly formal language
@@ -121,13 +125,13 @@ def generate_fallback_reply(lead_data, business_profile):
     business_name = business_profile.get('name', 'Our Team')
     business_phone = business_profile.get('phone')
 
-    # Select question based on urgency
+    # Select question based on urgency - collect customer's preferred times
     if urgency == 'emergency':
-        question = "Are you available for us to come by within the next 2 hours?"
+        question = "What times work best for you today? We'll check our schedule and get back to you right away."
     elif urgency == 'urgent':
-        question = "Would you be available for us to come by this afternoon or tomorrow morning?"
+        question = "What times work best for you over the next day or two? We'll coordinate with our schedule and confirm with you shortly."
     else:
-        question = "Would this week or next week work better for your schedule?"
+        question = "What days or times typically work best for you? We'll make sure to coordinate with our schedule and get back to you soon."
 
     reply = f"Hi {customer_name}!\n\n"
     reply += f"Thanks for reaching out about the {job_type}. We can definitely help with that.\n\n"
