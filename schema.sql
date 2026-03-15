@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS businesses (
     brand_voice TEXT,
     email VARCHAR(255) NOT NULL,
     phone VARCHAR(50),
+    owner_name VARCHAR(255),
+    service_area VARCHAR(255),
     address TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
