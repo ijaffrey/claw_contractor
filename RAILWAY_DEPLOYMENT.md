@@ -32,32 +32,7 @@ You should see `token.json` in your project directory. This file contains your O
 
 **IMPORTANT:** Keep this file secure - it has access to your Gmail account!
 
-## Step 2: Prepare credentials.json
-
-Your `credentials.json` file (from Google Cloud Console) needs to be available to Railway.
-
-### Option A: Environment Variable (Recommended)
-
-Convert credentials.json to a single-line string:
-
-```bash
-cat credentials.json | jq -c '.'
-```
-
-Copy the output - you'll paste this into Railway as `GMAIL_CREDENTIALS_JSON`.
-
-### Option B: Commit to private repo
-
-If using a private GitHub repo, you can commit credentials.json:
-
-```bash
-git add credentials.json
-git commit -m "Add Gmail credentials for Railway deployment"
-```
-
-**WARNING:** Never commit credentials to a public repo!
-
-## Step 3: Prepare token.json
+## Step 2: Prepare token.json
 
 Convert token.json to a single-line string:
 
@@ -67,15 +42,17 @@ cat token.json | jq -c '.'
 
 Copy the output - you'll paste this into Railway as `GMAIL_TOKEN_JSON`.
 
-## Step 4: Push to GitHub (Recommended)
+**Note:** The token JSON contains everything needed (token, refresh_token, client_id, client_secret, scopes). You do NOT need to set GMAIL_CREDENTIALS_JSON separately!
+
+## Step 3: Push to GitHub (Recommended)
 
 Railway works best with GitHub integration.
 
-### 4.1 Create a new GitHub repository
+### 3.1 Create a new GitHub repository
 
 Go to https://github.com/new and create a private repository called `openclaw`.
 
-### 4.2 Push your code
+### 3.2 Push your code
 
 ```bash
 git remote add origin https://github.com/YOUR_USERNAME/openclaw.git
@@ -83,22 +60,22 @@ git branch -M main
 git push -u origin main
 ```
 
-## Step 5: Deploy to Railway
+## Step 4: Deploy to Railway
 
-### 5.1 Create Railway account
+### 4.1 Create Railway account
 
 1. Go to [railway.app](https://railway.app)
 2. Click "Login" and sign in with GitHub
 3. Authorize Railway to access your GitHub account
 
-### 5.2 Create new project
+### 4.2 Create new project
 
 1. Click "New Project"
 2. Select "Deploy from GitHub repo"
 3. Choose your `openclaw` repository
 4. Railway will automatically detect the project and start building
 
-### 5.3 Configure environment variables
+### 4.3 Configure environment variables
 
 Click on your deployed service, then go to "Variables" tab. Add these variables:
 
@@ -108,65 +85,40 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_key
 ANTHROPIC_API_KEY=your_anthropic_key
 GMAIL_USER_EMAIL=your_gmail_address
-```
-
-**OAuth credentials (if using environment variables):**
-```
-GMAIL_CREDENTIALS_JSON={"installed":{"client_id":"...","project_id":"...",...}}
-GMAIL_TOKEN_JSON={"token":"...","refresh_token":"...","token_uri":"...",...}
+GMAIL_TOKEN_JSON={"token":"...","refresh_token":"...","token_uri":"...","client_id":"...","client_secret":"...",...}
 ```
 
 **Notes:**
-- Paste the entire single-line JSON strings you created in Steps 2 and 3
-- No quotes around the JSON strings in Railway's UI
+- Paste the entire single-line JSON string from Step 2
+- No quotes around the JSON in Railway's UI - paste the raw JSON
 - Click "Add" after each variable
+- **You do NOT need GMAIL_CREDENTIALS_JSON** - the token JSON has everything!
 
-## Step 6: Update gmail_listener.py for Railway
+## Step 5: How Gmail OAuth Works on Railway
 
-Railway needs to load credentials from environment variables instead of files.
-
-Add this helper function to `gmail_listener.py`:
+The app automatically detects it's running on Railway and loads credentials from environment variables:
 
 ```python
-import os
-import json
+# 1. Load token from GMAIL_TOKEN_JSON environment variable
+gmail_token_json = os.getenv('GMAIL_TOKEN_JSON')
+token_data = json.loads(gmail_token_json)
+creds = Credentials.from_authorized_user_info(token_data, SCOPES)
 
-def get_credentials_path():
-    """Get credentials, from env var or file"""
-    # Check if running on Railway (RAILWAY_ENVIRONMENT is set)
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        # Load from environment variable
-        creds_json = os.getenv('GMAIL_CREDENTIALS_JSON')
-        if creds_json:
-            # Write to temporary file
-            with open('/tmp/credentials.json', 'w') as f:
-                json.dump(json.loads(creds_json), f)
-            return '/tmp/credentials.json'
+# 2. Auto-refresh if token is expired (no browser needed!)
+if creds.expired and creds.refresh_token:
+    creds.refresh(Request())  # Silent refresh using refresh_token
 
-    # Default to local file
-    return 'credentials.json'
-
-def get_token_path():
-    """Get token, from env var or file"""
-    # Check if running on Railway
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        # Load from environment variable
-        token_json = os.getenv('GMAIL_TOKEN_JSON')
-        if token_json:
-            # Write to temporary file
-            with open('/tmp/token.json', 'w') as f:
-                json.dump(json.loads(token_json), f)
-            return '/tmp/token.json'
-
-    # Default to local file
-    return 'token.json'
+# 3. Build Gmail service
+service = build('gmail', 'v1', credentials=creds)
 ```
 
-Then update the `get_service()` function to use these helpers.
+**Key features:**
+- ✅ No browser needed on Railway
+- ✅ Auto-refreshes expired tokens using refresh_token
+- ✅ Works entirely headless
+- ✅ Only needs GMAIL_TOKEN_JSON (has everything)
 
-**Alternative:** Commit credentials.json and token.json to your private repo if you used Option B in Steps 2-3.
-
-## Step 7: Configure the Procfile
+## Step 6: Configure the Procfile
 
 Railway uses the `Procfile` to know how to run your app. It should contain:
 
@@ -176,9 +128,11 @@ worker: python3 main.py
 
 This tells Railway to run `main.py` as a worker process (not a web server).
 
-## Step 8: Deploy and Monitor
+**Note:** The Procfile is already in the repository, so you don't need to create it.
 
-### 8.1 Trigger deployment
+## Step 7: Deploy and Monitor
+
+### 7.1 Trigger deployment
 
 Railway auto-deploys when you push to GitHub:
 
@@ -194,7 +148,7 @@ Railway will automatically:
 3. Install dependencies from requirements.txt
 4. Start the worker process
 
-### 8.2 Monitor logs
+### 7.2 Monitor logs
 
 1. Go to your Railway project
 2. Click on your service
@@ -204,26 +158,29 @@ Railway will automatically:
 
 You should see:
 ```
-🦞 OpenClaw Trade Assistant - Lead Processor
+Loading Gmail credentials from GMAIL_TOKEN_JSON environment variable...
+✓ Gmail token loaded from environment
+✓ Gmail service initialized
+🦞 OpenClaw Trade Assistant
 ✓ Supabase connection successful
-✓ Gmail service authenticated
 Polling for new leads every 30 seconds...
 ```
 
-### 8.3 Check for errors
+### 7.3 Check for errors
 
 Common issues:
-- **Authentication failed:** Check GMAIL_CREDENTIALS_JSON and GMAIL_TOKEN_JSON
+- **Authentication failed:** Check GMAIL_TOKEN_JSON is set correctly (should be valid JSON)
+- **Token refresh failed:** Regenerate token locally and update GMAIL_TOKEN_JSON
 - **Database connection failed:** Check SUPABASE_URL and SUPABASE_KEY
 - **Import errors:** Make sure requirements.txt is complete
 
-## Step 9: Test the Deployment
+## Step 8: Test the Deployment
 
-### 9.1 Send a test email
+### 8.1 Send a test email
 
 Send a test lead email to your monitored Gmail address.
 
-### 9.2 Check Railway logs
+### 8.2 Check Railway logs
 
 You should see:
 ```
@@ -234,11 +191,11 @@ You should see:
 ✓ Reply sent to <email>
 ```
 
-### 9.3 Verify in Supabase
+### 8.3 Verify in Supabase
 
-Check your Supabase dashboard - you should see the new lead in the `leads` table.
+Check your Supabase dashboard - you should see the new lead in the `leads` table and messages in the `conversations` table.
 
-## Step 10: Keep It Running
+## Step 9: Keep It Running
 
 Railway's free tier includes:
 - 500 hours/month of runtime (enough for 24/7 operation)
