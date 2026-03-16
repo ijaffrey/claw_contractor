@@ -19,53 +19,13 @@ from config import Config
 _gmail_service = None
 
 
-def get_credentials_path():
-    """
-    Get path to credentials file
-    On Railway: Creates temp file from GMAIL_CREDENTIALS_JSON env var
-    Locally: Uses credentials.json file
-    """
-    # Check if running on Railway
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        creds_json = os.getenv('GMAIL_CREDENTIALS_JSON')
-        if creds_json:
-            # Write to temporary file
-            temp_path = '/tmp/credentials.json'
-            with open(temp_path, 'w') as f:
-                json.dump(json.loads(creds_json), f)
-            return temp_path
-
-    # Default to local file
-    return 'credentials.json'
-
-
-def get_token_path():
-    """
-    Get path to token file
-    On Railway: Creates temp file from GMAIL_TOKEN_JSON env var
-    Locally: Uses token.json file
-    """
-    # Check if running on Railway
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        token_json = os.getenv('GMAIL_TOKEN_JSON')
-        if token_json:
-            # Write to temporary file
-            temp_path = '/tmp/token.json'
-            with open(temp_path, 'w') as f:
-                json.dump(json.loads(token_json), f)
-            return temp_path
-
-    # Default to local file
-    return 'token.json'
-
-
 def authenticate_gmail():
     """
     Authenticate with Gmail using OAuth2
     Returns authenticated Gmail service
 
-    First time: Opens browser for OAuth consent
-    Subsequent times: Uses saved token.json
+    In production (Railway): Uses GMAIL_TOKEN_JSON environment variable
+    Locally: Uses token.json file or prompts for OAuth if needed
     """
     global _gmail_service
 
@@ -73,45 +33,89 @@ def authenticate_gmail():
         return _gmail_service
 
     creds = None
-    token_path = get_token_path()
 
-    # Load existing token if available
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, Config.GMAIL_SCOPES)
+    # Check for environment variable (Railway/production)
+    gmail_token_json = os.getenv('GMAIL_TOKEN_JSON')
 
-    # If no valid credentials, authenticate
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            print("Refreshing expired token...")
-            creds.refresh(Request())
+    if gmail_token_json:
+        # Production mode: Load from environment variable
+        print("Loading Gmail credentials from GMAIL_TOKEN_JSON environment variable...")
+        try:
+            token_data = json.loads(gmail_token_json)
+            creds = Credentials.from_authorized_user_info(token_data, Config.GMAIL_SCOPES)
+            print("✓ Gmail token loaded from environment")
+        except Exception as e:
+            print(f"✗ Error parsing GMAIL_TOKEN_JSON: {e}")
+            raise RuntimeError("Invalid GMAIL_TOKEN_JSON environment variable")
+    else:
+        # Local development mode: Use token.json file
+        token_path = 'token.json'
+
+        if os.path.exists(token_path):
+            print(f"Loading Gmail credentials from {token_path}...")
+            creds = Credentials.from_authorized_user_file(token_path, Config.GMAIL_SCOPES)
         else:
-            # Create credentials.json from environment variables
-            client_config = {
-                "installed": {
-                    "client_id": Config.GMAIL_CLIENT_ID,
-                    "client_secret": Config.GMAIL_CLIENT_SECRET,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                    "redirect_uris": ["http://localhost"]
-                }
+            # Check if we're running on Railway (headless environment)
+            if os.getenv('RAILWAY_ENVIRONMENT'):
+                raise RuntimeError(
+                    "No valid Gmail token found. "
+                    "Please set GMAIL_TOKEN_JSON environment variable in Railway. "
+                    "Generate token locally with: python3 test_gmail_listener.py"
+                )
+
+    # Refresh token if expired
+    if creds and creds.expired and creds.refresh_token:
+        print("Token expired. Refreshing...")
+        try:
+            creds.refresh(Request())
+            print("✓ Token refreshed successfully")
+
+            # Save refreshed token back to file (local only)
+            if not os.getenv('GMAIL_TOKEN_JSON') and os.path.exists('token.json'):
+                with open('token.json', 'w') as token:
+                    token.write(creds.to_json())
+                print("✓ Refreshed token saved to token.json")
+        except Exception as e:
+            print(f"✗ Token refresh failed: {e}")
+            raise RuntimeError("Failed to refresh Gmail token. Please regenerate token locally.")
+
+    # If still no valid credentials, try interactive OAuth (local only)
+    if not creds or not creds.valid:
+        # Check if we're in a headless environment
+        if os.getenv('RAILWAY_ENVIRONMENT'):
+            raise RuntimeError(
+                "No valid Gmail token found. "
+                "Cannot run interactive OAuth on Railway. "
+                "Please set GMAIL_TOKEN_JSON environment variable."
+            )
+
+        # Local development: Run interactive OAuth
+        print("\n" + "=" * 60)
+        print("FIRST TIME SETUP: Gmail OAuth Authentication")
+        print("=" * 60)
+        print("A browser window will open for you to authorize access.")
+        print("Sign in with:", Config.GMAIL_USER_EMAIL)
+        print("-" * 60)
+
+        client_config = {
+            "installed": {
+                "client_id": Config.GMAIL_CLIENT_ID,
+                "client_secret": Config.GMAIL_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "redirect_uris": ["http://localhost"]
             }
+        }
 
-            print("\n" + "=" * 60)
-            print("FIRST TIME SETUP: Gmail OAuth Authentication")
-            print("=" * 60)
-            print("A browser window will open for you to authorize access.")
-            print("Sign in with:", Config.GMAIL_USER_EMAIL)
-            print("-" * 60)
-
-            flow = InstalledAppFlow.from_client_config(client_config, Config.GMAIL_SCOPES)
-            creds = flow.run_local_server(port=0)
-            print("✓ Authentication successful!")
+        flow = InstalledAppFlow.from_client_config(client_config, Config.GMAIL_SCOPES)
+        creds = flow.run_local_server(port=0)
+        print("✓ Authentication successful!")
 
         # Save credentials for next run
-        with open(token_path, 'w') as token:
+        with open('token.json', 'w') as token:
             token.write(creds.to_json())
-        print(f"✓ Token saved to {token_path}")
+        print(f"✓ Token saved to token.json")
 
     # Build Gmail service
     _gmail_service = build('gmail', 'v1', credentials=creds)
