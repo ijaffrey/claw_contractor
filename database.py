@@ -345,15 +345,26 @@ def get_lead_by_thread_id(thread_id):
     client = get_client()
 
     try:
+        print(f"🔍 DEBUG (database.py): Looking up lead by thread_id: {thread_id}")
         response = client.table('leads').select('*').eq('email_thread_id', thread_id).execute()
 
+        print(f"🔍 DEBUG (database.py): Thread lookup response")
+        print(f"   Found {len(response.data) if response.data else 0} leads")
+
         if response.data:
-            return response.data[0]
+            lead = response.data[0]
+            print(f"   Lead ID: {lead['id']}")
+            print(f"   Customer: {lead.get('customer_name')}")
+            print(f"   Qualification step: {lead.get('qualification_step')}")
+            return lead
         else:
+            print(f"   No lead found with thread_id: {thread_id}")
             return None
 
     except Exception as e:
         print(f"✗ Error retrieving lead by thread ID: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -386,17 +397,29 @@ def insert_conversation_message(lead_id, role, message, email_id=None):
         conversation_data['email_id'] = email_id
 
     try:
+        print(f"🔍 DEBUG (database.py): Inserting conversation message")
+        print(f"   lead_id: {lead_id}")
+        print(f"   role: {role}")
+        print(f"   message length: {len(message)}")
+        print(f"   email_id: {email_id}")
+
         response = client.table('conversations').insert(conversation_data).execute()
+
+        print(f"🔍 DEBUG (database.py): Response received")
+        print(f"   response.data: {response.data}")
 
         if response.data:
             print(f"✓ Conversation message added: {role} - {len(message)} chars")
             return response.data[0]
         else:
-            print(f"✗ Failed to insert conversation message")
+            print(f"✗ Failed to insert conversation message - response.data is empty")
             return None
 
     except Exception as e:
         print(f"✗ Error inserting conversation message: {e}")
+        print(f"🔍 DEBUG: Exception type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

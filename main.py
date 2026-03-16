@@ -26,20 +26,34 @@ def process_lead(email_data, business):
         bool: True if processed successfully
     """
     try:
+        print(f"\n  🔍 DEBUG: Processing email")
+        print(f"     Email ID:   {email_data['id']}")
+        print(f"     Thread ID:  {email_data['thread_id']}")
+        print(f"     From:       {email_data['from']}")
+        print(f"     Subject:    {email_data['subject']}")
+
         # Check if this exact email was already processed
+        print(f"  🔍 DEBUG: Checking if email ID already processed...")
         existing_email = db.get_lead_by_email_id(email_data['id'])
         if existing_email:
             print(f"  ⊙ Already processed (Lead ID: {existing_email['id']})")
             return False
+        print(f"  🔍 DEBUG: Email ID not found - this is a new email")
 
         # Check if this is a reply to an existing conversation
+        print(f"  🔍 DEBUG: Checking for existing lead by thread_id: {email_data['thread_id']}")
         existing_lead = db.get_lead_by_thread_id(email_data['thread_id'])
 
         if existing_lead:
             # This is a REPLY to an existing conversation
+            print(f"  🔍 DEBUG: Found existing lead! This is a REPLY")
+            print(f"     Lead ID: {existing_lead['id']}")
+            print(f"     Customer: {existing_lead.get('customer_name')}")
+            print(f"     Current step: {existing_lead.get('qualification_step')}")
             return process_reply(email_data, existing_lead, business)
         else:
             # This is a NEW lead
+            print(f"  🔍 DEBUG: No existing lead found - this is a NEW LEAD")
             return process_new_lead(email_data, business)
 
     except Exception as e:
@@ -100,12 +114,20 @@ def process_new_lead(email_data, business):
 
     # Store initial customer message in conversations
     print(f"  💬 Storing initial message in conversation history...")
-    db.insert_conversation_message(
+    print(f"  🔍 DEBUG: Attempting to store customer message")
+    print(f"     Lead ID: {saved_lead['id']}")
+    print(f"     Role: customer")
+    print(f"     Message length: {len(email_data['body'])} chars")
+    conversation_msg = db.insert_conversation_message(
         lead_id=saved_lead['id'],
         role='customer',
         message=email_data['body'],
         email_id=email_data['id']
     )
+    if conversation_msg:
+        print(f"  🔍 DEBUG: Customer message stored successfully (ID: {conversation_msg['id']})")
+    else:
+        print(f"  ⚠️  WARNING: Failed to store customer message in conversations table")
 
     # Generate reply
     print(f"  🤖 Generating branded reply with Claude AI...")
@@ -130,12 +152,21 @@ def process_new_lead(email_data, business):
         return False
 
     # Store assistant's reply in conversations
-    db.insert_conversation_message(
+    print(f"  💬 Storing assistant reply in conversation history...")
+    print(f"  🔍 DEBUG: Attempting to store assistant message")
+    print(f"     Lead ID: {saved_lead['id']}")
+    print(f"     Role: assistant")
+    print(f"     Message length: {len(reply_text)} chars")
+    assistant_msg = db.insert_conversation_message(
         lead_id=saved_lead['id'],
         role='assistant',
         message=reply_text,
         email_id=sent_message['id']
     )
+    if assistant_msg:
+        print(f"  🔍 DEBUG: Assistant message stored successfully (ID: {assistant_msg['id']})")
+    else:
+        print(f"  ⚠️  WARNING: Failed to store assistant message in conversations table")
 
     # Update lead status to 'contacted'
     print(f"  ✅ Updating lead status to 'contacted'...")
@@ -175,16 +206,30 @@ def process_reply(email_data, lead, business):
 
     # Store customer's reply in conversations
     print(f"  💾 Storing customer reply in conversation history...")
-    db.insert_conversation_message(
+    print(f"  🔍 DEBUG: Attempting to store customer reply")
+    print(f"     Lead ID: {lead['id']}")
+    print(f"     Role: customer")
+    print(f"     Message length: {len(customer_reply)} chars")
+    customer_msg = db.insert_conversation_message(
         lead_id=lead['id'],
         role='customer',
         message=customer_reply,
         email_id=email_data['id']
     )
+    if customer_msg:
+        print(f"  🔍 DEBUG: Customer reply stored successfully (ID: {customer_msg['id']})")
+    else:
+        print(f"  ⚠️  WARNING: Failed to store customer reply in conversations table")
 
     # Load full conversation history
     print(f"  📜 Loading conversation history...")
     conversation_history = db.get_conversation_history(lead['id'])
+    print(f"  🔍 DEBUG: Loaded {len(conversation_history)} messages from conversation history")
+    if len(conversation_history) > 0:
+        print(f"  🔍 DEBUG: First message role: {conversation_history[0].get('role')}")
+        print(f"  🔍 DEBUG: Last message role: {conversation_history[-1].get('role')}")
+    else:
+        print(f"  ⚠️  WARNING: Conversation history is EMPTY - this is unexpected!")
     print(f"     Total messages: {len(conversation_history)}")
 
     # Determine next step
