@@ -5,6 +5,7 @@ Uses Claude API to generate branded responses to leads
 
 from anthropic import Anthropic
 from config import Config
+import conversation_manager as cm
 
 
 def generate_reply(lead_data, business_profile):
@@ -234,3 +235,138 @@ def send_reply(email_data, reply_text, from_email=None):
         import traceback
         traceback.print_exc()
         return None
+
+
+def generate_follow_up_reply(lead, business_profile, conversation_history, customer_reply):
+    """
+    Generate a contextual follow-up response based on qualification sequence
+
+    Args:
+        lead: Lead record from database
+        business_profile: Business information
+        conversation_history: List of conversation messages
+        customer_reply: Latest message from customer
+
+    Returns:
+        str: Generated follow-up reply text
+    """
+    client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
+
+    # Get current step and next step
+    current_step = lead.get('qualification_step', 1)
+    next_step = cm.determine_next_step(lead, conversation_history, customer_reply)
+    step_info = cm.get_step_info(next_step)
+
+    # Format conversation context
+    conversation_context = cm.format_conversation_context(lead, conversation_history)
+
+    # Build business context
+    business_name = business_profile.get('name', 'Our Team')
+    brand_voice = business_profile.get('brand_voice', 'Friendly and professional')
+    business_phone = business_profile.get('phone')
+
+    # Build the prompt based on next step
+    step_prompts = {
+        1: "Ask about urgency: Is this an emergency, needed soon, or are they planning ahead?",
+        2: "Ask for more specific details about the problem/job they described.",
+        3: "Ask for their service address/location.",
+        4: "Ask them to send photos of the issue if possible (mention they can reply with photos).",
+        5: "Ask what days/times typically work best for them.",
+        6: "Let them know you have all the info and the contractor will reach out directly to schedule."
+    }
+
+    next_question = step_prompts.get(next_step, step_prompts[1])
+
+    prompt = f"""You are writing a follow-up email on behalf of "{business_name}", a trade business.
+
+BRAND VOICE:
+{brand_voice}
+
+{conversation_context}
+
+CUSTOMER'S LATEST REPLY:
+{customer_reply}
+
+YOUR TASK:
+Write a warm, conversational follow-up email that:
+1. Acknowledges what they just said (be specific)
+2. {next_question}
+3. Keep it UNDER 75 words
+4. Sound natural and friendly, not robotic
+5. Match the brand voice above
+6. Do NOT include a signature (we'll add that separately)
+
+CRITICAL RULES:
+- NEVER promise specific availability or commit to specific times
+- NEVER say WHEN you'll respond or follow up
+- Use neutral language like "we'll follow up to coordinate", "we'll be in touch to schedule"
+- ALWAYS ASK for the customer's preferred times/availability FIRST
+- The contractor (not the AI) confirms all appointments
+- Keep it brief and conversational
+- Don't apologize excessively
+- Don't be overly formal
+
+Write ONLY the email body, nothing else:"""
+
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=250,
+            messages=[{
+                "role": "user",
+                "content": prompt
+            }]
+        )
+
+        reply_body = message.content[0].text.strip()
+
+        # Add signature
+        signature = f"\n\n- {business_name}"
+        if business_phone:
+            signature += f"\n{business_phone}"
+
+        full_reply = reply_body + signature
+
+        return full_reply
+
+    except Exception as e:
+        print(f"✗ Error generating follow-up reply with Claude: {e}")
+        # Fallback to simple template
+        return generate_fallback_follow_up(lead, business_profile, next_step, customer_reply)
+
+
+def generate_fallback_follow_up(lead, business_profile, next_step, customer_reply):
+    """
+    Fallback template-based follow-up if Claude API fails
+
+    Args:
+        lead: Lead record
+        business_profile: Business profile
+        next_step: Next qualification step number
+        customer_reply: Customer's message
+
+    Returns:
+        str: Template-based follow-up reply
+    """
+    business_name = business_profile.get('name', 'Our Team')
+    business_phone = business_profile.get('phone')
+    customer_name = lead.get('customer_name', 'there')
+
+    # Simple acknowledgment + next question templates
+    templates = {
+        1: f"Thanks for getting back to us! Quick question - is this something urgent that needs immediate attention, or are you planning ahead?",
+        2: f"Got it, thanks! Can you give me a bit more detail about what's going on?",
+        3: f"Perfect. What's the service address where you need this done?",
+        4: f"Thanks! If you can, send over a photo or two of the issue - that really helps us understand what we're dealing with.",
+        5: f"Sounds good! What days or times typically work best for you? Just let us know your general availability and we'll coordinate from there.",
+        6: f"Perfect, I've got everything we need. The contractor will reach out to you directly to confirm the schedule. Talk soon!"
+    }
+
+    reply = f"Hi {customer_name}!\n\n"
+    reply += templates.get(next_step, templates[1])
+    reply += f"\n\n- {business_name}"
+
+    if business_phone:
+        reply += f"\n{business_phone}"
+
+    return reply

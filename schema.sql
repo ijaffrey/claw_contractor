@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS leads (
     source VARCHAR(50),
     urgency VARCHAR(20),
     status VARCHAR(50) DEFAULT 'new',
+    qualification_step INTEGER DEFAULT 1,
     raw_subject TEXT,
     raw_body TEXT,
     email_thread_id VARCHAR(255),
@@ -37,11 +38,24 @@ CREATE TABLE IF NOT EXISTS leads (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create conversations table
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL, -- 'customer' or 'assistant'
+    message TEXT NOT NULL,
+    email_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_leads_business_id ON leads(business_id);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_leads_email_id ON leads(email_id);
+CREATE INDEX IF NOT EXISTS idx_leads_thread_id ON leads(email_thread_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_lead_id ON conversations(lead_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at DESC);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -79,3 +93,4 @@ ON CONFLICT DO NOTHING;
 -- Verify setup
 SELECT 'Businesses table created' AS status, COUNT(*) AS count FROM businesses;
 SELECT 'Leads table created' AS status, COUNT(*) AS count FROM leads;
+SELECT 'Conversations table created' AS status, COUNT(*) AS count FROM conversations;

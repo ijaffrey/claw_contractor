@@ -332,6 +332,128 @@ def get_lead_by_email_id(email_id):
         return None
 
 
+def get_lead_by_thread_id(thread_id):
+    """
+    Retrieve lead by Gmail thread ID (to find existing conversations)
+
+    Args:
+        thread_id: Gmail thread ID
+
+    Returns:
+        dict: Lead record or None
+    """
+    client = get_client()
+
+    try:
+        response = client.table('leads').select('*').eq('email_thread_id', thread_id).execute()
+
+        if response.data:
+            return response.data[0]
+        else:
+            return None
+
+    except Exception as e:
+        print(f"✗ Error retrieving lead by thread ID: {e}")
+        return None
+
+
+# ============================================================================
+# CONVERSATION OPERATIONS
+# ============================================================================
+
+def insert_conversation_message(lead_id, role, message, email_id=None):
+    """
+    Insert a conversation message
+
+    Args:
+        lead_id: UUID of the lead
+        role: 'customer' or 'assistant'
+        message: Message text
+        email_id: Optional Gmail email ID
+
+    Returns:
+        dict: Inserted conversation record or None
+    """
+    client = get_client()
+
+    conversation_data = {
+        'lead_id': lead_id,
+        'role': role,
+        'message': message
+    }
+
+    if email_id:
+        conversation_data['email_id'] = email_id
+
+    try:
+        response = client.table('conversations').insert(conversation_data).execute()
+
+        if response.data:
+            print(f"✓ Conversation message added: {role} - {len(message)} chars")
+            return response.data[0]
+        else:
+            print(f"✗ Failed to insert conversation message")
+            return None
+
+    except Exception as e:
+        print(f"✗ Error inserting conversation message: {e}")
+        return None
+
+
+def get_conversation_history(lead_id):
+    """
+    Retrieve full conversation history for a lead
+
+    Args:
+        lead_id: UUID of the lead
+
+    Returns:
+        list: Conversation messages ordered by creation time
+    """
+    client = get_client()
+
+    try:
+        response = client.table('conversations').select('*').eq(
+            'lead_id', lead_id
+        ).order('created_at', desc=False).execute()
+
+        return response.data or []
+
+    except Exception as e:
+        print(f"✗ Error retrieving conversation history: {e}")
+        return []
+
+
+def update_qualification_step(lead_id, step):
+    """
+    Update the qualification step for a lead
+
+    Args:
+        lead_id: UUID of the lead
+        step: Integer step number (1-6)
+
+    Returns:
+        dict: Updated lead record or None
+    """
+    client = get_client()
+
+    try:
+        response = client.table('leads').update({
+            'qualification_step': step
+        }).eq('id', lead_id).execute()
+
+        if response.data:
+            print(f"✓ Lead qualification step updated: {lead_id} -> Step {step}")
+            return response.data[0]
+        else:
+            print(f"✗ Failed to update qualification step")
+            return None
+
+    except Exception as e:
+        print(f"✗ Error updating qualification step: {e}")
+        return None
+
+
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
