@@ -438,6 +438,136 @@ SCENARIOS = {
                 'ai_must_not': ['Badmouth other contractor', 'Say "I understand your frustration"', 'Over-apologize']
             }
         ]
+    },
+
+    # Photo Request Test Scenarios
+    'roof_photo_request_success': {
+        'business': 'summit_roofing',
+        'urgency': 'medium',
+        'category': 'roofing',
+        'description': 'Roofing lead - test photo request and receipt',
+        'initial_email': {
+            'subject': 'Missing shingles after storm',
+            'from_name': 'Patricia Miller',
+            'from_email': 'pmiller@gmail.com',
+            'body': "Had a bad storm last night and I noticed some shingles missing from my roof this morning. Not leaking yet but want to get it fixed before it does. House is in Astoria."
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': "Not sure exactly how many. Maybe 5-6 shingles? On the south-facing side. This week would be great.",
+                'ai_should': ['Ask for photos (roofing ALWAYS needs photos)', 'Casual tone', 'ONE question'],
+                'ai_must_not': ['Skip photo request', 'Formal language like "submit photographs"', 'Multiple questions']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': "Sure, just sent you 3 photos from ground level showing the missing shingles.",
+                'ai_should': ['Acknowledge photos', 'Move to availability', 'Brief response'],
+                'ai_must_not': ['Re-ask for photos', 'Give technical roof diagnosis']
+            }
+        ]
+    },
+
+    'roof_photo_request_cant_access': {
+        'business': 'summit_roofing',
+        'urgency': 'medium',
+        'category': 'roofing',
+        'description': 'Roofing lead - test handling when customer cant provide photos',
+        'initial_email': {
+            'subject': 'Roof leak in bedroom',
+            'from_name': 'Edward Kim',
+            'from_email': 'ekim@yahoo.com',
+            'body': "I have water staining on my bedroom ceiling. Pretty sure it's a roof leak but haven't been up there to check. Need someone to come look. Flushing, Queens."
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': "Just started noticing it last week. Stain is maybe 12 inches across, light brown. Happens when it rains.",
+                'ai_should': ['Ask for photos of CEILING stain (visible damage)', 'Casual phrasing', 'ONE question'],
+                'ai_must_not': ['Ask to climb on roof', 'Diagnose leak source', 'Skip photo request entirely']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': "I can't really get up there to photograph the roof. I can send a pic of the ceiling stain if that helps?",
+                'ai_should': ['Accept ceiling photo gracefully', 'Move forward without making it awkward', 'Ask for availability'],
+                'ai_must_not': ['Insist on roof photos', 'Make them feel bad', 'Over-explain why photos matter']
+            }
+        ]
+    },
+
+    'plumb_emergency_no_photos': {
+        'business': 'mikes_plumbing',
+        'urgency': 'emergency',
+        'category': 'plumbing',
+        'description': 'Plumbing emergency - test NO photo request (dont slow them down)',
+        'initial_email': {
+            'subject': 'URGENT toilet overflowing',
+            'from_name': 'Sandra Lopez',
+            'from_email': 'slopez@gmail.com',
+            'body': "My toilet is overflowing and won't stop! I shut off the valve behind it but there's water all over the bathroom floor. Please help! 917-555-4821"
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': "Yes valve is off. It's the upstairs bathroom. Can someone come today??",
+                'ai_should': ['Be extremely brief', 'Validate shutoff', 'Ask availability', 'Skip photo request entirely'],
+                'ai_must_not': ['Ask for photos (emergency!)', 'Multiple questions', 'Slow them down with photo request']
+            }
+        ]
+    },
+
+    'plumb_visible_damage_photos': {
+        'business': 'mikes_plumbing',
+        'urgency': 'medium',
+        'category': 'plumbing',
+        'description': 'Plumbing visible damage - test photo request for ceiling stain',
+        'initial_email': {
+            'subject': 'Water stain on ceiling',
+            'from_name': 'Marcus Johnson',
+            'from_email': 'mjohnson84@gmail.com',
+            'body': "I have a water stain on my kitchen ceiling. Not actively dripping right now but it's definitely getting worse over the past few weeks. Probably a pipe leak from the bathroom above? Park Slope area."
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': "The stain is maybe 2 feet across, yellowish-brown. Bathroom is directly above the kitchen. Not dripping currently.",
+                'ai_should': ['Ask for photos (visible damage helps)', 'Casual tone', 'ONE question'],
+                'ai_must_not': ['Skip photo request for visible damage', 'Diagnose the problem', 'Multiple questions']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': "Just emailed you 2 photos - one of the ceiling stain, one showing where the bathroom is above it.",
+                'ai_should': ['Acknowledge photos', 'Move to availability', 'Brief'],
+                'ai_must_not': ['Diagnose leak location', 'Give repair estimate', 'Re-ask for address']
+            }
+        ]
+    },
+
+    'gc_remodel_kitchen_photos': {
+        'business': 'apex_construction',
+        'urgency': 'planning',
+        'category': 'general_contractor',
+        'description': 'GC kitchen remodel - test photo request for current space',
+        'initial_email': {
+            'subject': 'Kitchen remodel quote',
+            'from_name': 'Rachel Goldstein',
+            'from_email': 'rgoldstein@gmail.com',
+            'body': "We're looking to remodel our kitchen - new cabinets, countertops, possibly knock down a wall to open it up to the dining room. Looking for someone to come give us a quote and talk through options. Upper West Side."
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': "Hoping to start in the next 2-3 months. Kitchen is about 10x12, galley style. Want to modernize everything.",
+                'ai_should': ['Ask for photos of current kitchen', 'Helps scope the project', 'ONE question'],
+                'ai_must_not': ['Skip photo request for remodel', 'Give pricing guidance', 'Multiple questions']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': "Sure! Just sent 4 photos - overall layout, the wall we want to remove, current cabinets, and appliances.",
+                'ai_should': ['Acknowledge photos', 'Move to availability for consultation', 'Professional tone'],
+                'ai_must_not': ['Comment on current design', 'Estimate timeline', 'Give remodel advice']
+            }
+        ]
     }
 }
 
