@@ -147,9 +147,17 @@ def poll_inbox():
         if not messages:
             return []
 
+        # Deduplicate messages by ID (Gmail API can return duplicates)
+        seen_ids = set()
+        unique_messages = []
+        for msg in messages:
+            if msg['id'] not in seen_ids:
+                seen_ids.add(msg['id'])
+                unique_messages.append(msg)
+
         # Fetch full details for each message
         lead_emails = []
-        for msg in messages:
+        for msg in unique_messages:
             email_data = get_email_details(service, msg['id'])
 
             # Filter out auto-replies and non-lead emails

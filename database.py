@@ -336,6 +336,9 @@ def get_lead_by_thread_id(thread_id):
     """
     Retrieve lead by Gmail thread ID (to find existing conversations)
 
+    If multiple leads exist with the same thread_id (due to race conditions),
+    returns the OLDEST one (the original).
+
     Args:
         thread_id: Gmail thread ID
 
@@ -346,7 +349,9 @@ def get_lead_by_thread_id(thread_id):
 
     try:
         print(f"🔍 DEBUG (database.py): Looking up lead by thread_id: {thread_id}")
-        response = client.table('leads').select('*').eq('email_thread_id', thread_id).execute()
+        response = client.table('leads').select('*').eq(
+            'email_thread_id', thread_id
+        ).order('created_at', desc=False).limit(1).execute()
 
         print(f"🔍 DEBUG (database.py): Thread lookup response")
         print(f"   Found {len(response.data) if response.data else 0} leads")
@@ -356,6 +361,7 @@ def get_lead_by_thread_id(thread_id):
             print(f"   Lead ID: {lead['id']}")
             print(f"   Customer: {lead.get('customer_name')}")
             print(f"   Qualification step: {lead.get('qualification_step')}")
+            print(f"   Created: {lead.get('created_at')}")
             return lead
         else:
             print(f"   No lead found with thread_id: {thread_id}")
