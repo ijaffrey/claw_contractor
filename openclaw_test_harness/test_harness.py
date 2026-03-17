@@ -5,10 +5,17 @@ Simulates full multi-turn conversations against the Claude API,
 evaluates reply quality, and produces a detailed scorecard.
 
 Usage:
-    python3 test_harness.py                    # Run all scenarios
-    python3 test_harness.py --scenario plumb_emergency_burst_pipe  # Run one
-    python3 test_harness.py --trade plumbing   # Run all plumbing
+    python3 test_harness.py                    # Run all scenarios (hardcoded replies)
+    python3 test_harness.py --simulated        # Run with AI-simulated homeowner responses
+    python3 test_harness.py --scenario plumb_emergency_burst_pipe  # Run one scenario
+    python3 test_harness.py --scenario X --simulated  # Combine with simulated mode
+    python3 test_harness.py --trade plumbing   # Run all plumbing scenarios
     python3 test_harness.py --urgency emergency # Run all emergencies
+
+Modes:
+    - Default (hardcoded): Uses pre-written homeowner replies from test_scenarios.py
+    - Simulated (--simulated): AI generates homeowner replies based on persona traits
+      (personality, communication_style, regional_flavor) for more dynamic testing
 
 Output:
     results/YYYY-MM-DD_HHMMSS/
@@ -57,6 +64,7 @@ from test_scenarios import ALL_SCENARIOS, BUSINESS_PROFILES
 MODEL = "claude-sonnet-4-20250514"
 MAX_REPLY_WORDS = 100  # Hard cap from project spec
 EVALUATOR_MODEL = "claude-sonnet-4-20250514"
+HOMEOWNER_SIMULATOR_MODEL = "claude-3-5-haiku-20241022"  # Fast and cost-effective for simulation
 
 
 def get_client():
@@ -170,6 +178,78 @@ Sign off as: {business['owner_name']} and the team at {business['name']}
 Business phone: {business['phone']}"""
 
 
+# ─── Homeowner Simulator ───
+
+def simulate_homeowner_reply(client, scenario, business_profile, conversation_history, ai_last_message, step_number):
+    """
+    Simulate a realistic homeowner response using Claude API.
+
+    Args:
+        client: Anthropic client instance
+        scenario: The test scenario dict containing homeowner_persona
+        business_profile: The business profile dict
+        conversation_history: List of prior messages (list of dicts with 'role' and 'content')
+        ai_last_message: The AI's most recent message that homeowner is responding to
+        step_number: Current conversation step number
+
+    Returns:
+        str: Simulated homeowner reply
+    """
+    persona = scenario.get("homeowner_persona", {})
+    personality = persona.get("personality", "neutral")
+    communication_style = persona.get("communication_style", "casual")
+    regional_flavor = persona.get("regional_flavor", "general American")
+
+    # Build conversation history for context
+    history_text = ""
+    if conversation_history:
+        for msg in conversation_history:
+            role_label = "HOMEOWNER" if msg["role"] == "user" else "CONTRACTOR AI"
+            history_text += f"{role_label}: {msg['content']}\n\n"
+
+    # Build the system prompt for homeowner simulation
+    system_prompt = f"""You are simulating a homeowner responding to a contractor's AI assistant.
+
+HOMEOWNER PERSONA:
+- Personality: {personality}
+- Communication style: {communication_style}
+- Regional flavor: {regional_flavor}
+
+SCENARIO CONTEXT:
+Business: {business_profile['name']} ({business_profile['trade_type']})
+Initial situation: {scenario.get('description', 'Service inquiry')}
+Initial email subject: {scenario.get('initial_email', {}).get('subject', '')}
+
+CONVERSATION SO FAR:
+{history_text if history_text else "(This is the first exchange)"}
+
+LATEST MESSAGE FROM CONTRACTOR:
+{ai_last_message}
+
+Generate a realistic homeowner reply that:
+- Matches the persona's personality and communication style
+- Uses appropriate regional language/phrasing if specified
+- Responds naturally to what the contractor just asked
+- Stays in character throughout
+- Provides information that moves the conversation forward
+- Feels authentic to how real homeowners communicate (including typos, informal language, etc. if appropriate to the persona)
+
+IMPORTANT: Reply ONLY as the homeowner. Do not include any meta-commentary, explanations, or labels. Just write what the homeowner would write."""
+
+    # Call Claude API to generate homeowner response
+    response = client.messages.create(
+        model=HOMEOWNER_SIMULATOR_MODEL,
+        max_tokens=500,
+        system=system_prompt,
+        messages=[{
+            "role": "user",
+            "content": "Generate the homeowner's reply to the contractor's message above."
+        }],
+    )
+
+    return response.content[0].text.strip()
+
+
 # ─── Quality Evaluator ───
 
 EVALUATOR_PROMPT = """You are a quality evaluator for an AI lead qualification assistant used by trade businesses (plumbers, roofers, electricians, general contractors).
@@ -275,7 +355,7 @@ MUST NOT: {json.dumps(must_not_rules)}"""
 
 # ─── Conversation Runner ───
 
-def run_scenario(client, scenario, verbose=True):
+def run_scenario(client, scenario, verbose=True, simulated=False):
     """Run a full multi-turn conversation for one scenario and evaluate each step."""
     business = BUSINESS_PROFILES[scenario["business"]]
     system_prompt = build_system_prompt(business)
@@ -345,11 +425,27 @@ def run_scenario(client, scenario, verbose=True):
             )
             messages.append({"role": "user", "content": f"[SYSTEM: {follow_up_prompt}]"})
 
-        elif "homeowner_reply" in step_def:
-            # Add homeowner's reply to conversation
-            messages.append({"role": "user", "content": step_def["homeowner_reply"]})
-            if verbose:
-                print(f"    Customer (step {step_num}): {step_def['homeowner_reply'][:80]}...")
+        elif step_num > 1:
+            # For steps > 1, we need a homeowner reply to the previous AI message
+            if simulated:
+                # Generate simulated homeowner reply
+                ai_last_message = messages[-1]["content"] if messages else ""
+                homeowner_reply = simulate_homeowner_reply(
+                    client, scenario, business, messages[:-1] if len(messages) > 1 else [],
+                    ai_last_message, step_num
+                )
+                if verbose:
+                    print(f"    Customer (step {step_num}, simulated): {homeowner_reply[:80]}...")
+            else:
+                # Use hardcoded reply from scenario
+                if "homeowner_reply" not in step_def:
+                    print(f"    WARNING: No homeowner_reply defined for step {step_num} in non-simulated mode")
+                    continue
+                homeowner_reply = step_def["homeowner_reply"]
+                if verbose:
+                    print(f"    Customer (step {step_num}): {homeowner_reply[:80]}...")
+
+            messages.append({"role": "user", "content": homeowner_reply})
 
         # Generate AI reply
         response = client.messages.create(
@@ -527,6 +623,7 @@ def main():
     parser.add_argument("--urgency", help="Run all scenarios for an urgency level")
     parser.add_argument("--quiet", action="store_true", help="Minimal output")
     parser.add_argument("--no-eval", action="store_true", help="Skip AI evaluation (faster, just generate replies)")
+    parser.add_argument("--simulated", action="store_true", help="Use AI-simulated homeowner replies instead of hardcoded responses (enables dynamic conversation testing)")
     args = parser.parse_args()
 
     # Filter scenarios
@@ -560,6 +657,9 @@ def main():
     print(f"{'='*60}")
     print(f"Scenarios to run: {len(scenarios)}")
     print(f"Model: {MODEL}")
+    print(f"Homeowner mode: {'SIMULATED (AI)' if args.simulated else 'HARDCODED'}")
+    if args.simulated:
+        print(f"Simulator model: {HOMEOWNER_SIMULATOR_MODEL}")
     print(f"Evaluation: {'ON' if not args.no_eval else 'OFF'}")
     print(f"{'='*60}")
 
@@ -570,7 +670,7 @@ def main():
         if verbose:
             print(f"\n[{i+1}/{len(scenarios)}] Running: {scenario['name']}")
 
-        result = run_scenario(client, scenario, verbose=verbose)
+        result = run_scenario(client, scenario, verbose=verbose, simulated=args.simulated)
         results.append(result)
 
     # Write results
