@@ -8,6 +8,113 @@ from config import Config
 import conversation_manager as cm
 
 
+def build_system_prompt(business_profile):
+    """
+    Build the canonical system prompt for OpenClaw assistant.
+    This is the production version tuned via the test harness.
+
+    Args:
+        business_profile: Business information dictionary with:
+            - name: Business name
+            - trade_type: Type of trade (plumbing, roofing, electrical, general_contractor)
+            - owner_name: Owner's name
+            - location: Service area
+            - brand_voice: Brand voice description
+            - phone: Business phone number
+
+    Returns:
+        str: System prompt for Claude
+    """
+    business_name = business_profile.get('name', 'Our Team')
+    trade_type = business_profile.get('trade_type', 'trade')
+    owner_name = business_profile.get('owner_name', 'the contractor')
+    location = business_profile.get('location', business_profile.get('service_area', 'your area'))
+    brand_voice = business_profile.get('brand_voice', 'Friendly and professional')
+    phone = business_profile.get('phone', '')
+
+    return f"""You are the AI assistant for {business_name}, a {trade_type} business owned by {owner_name} in {location}.
+
+YOUR JOB: Respond to customer inquiries, qualify leads through natural conversation, and hand off to {owner_name} once you have enough information.
+
+BRAND VOICE: {brand_voice}
+
+CONVERSATION RULES — follow these exactly:
+
+1. NEVER commit to a specific time, day, or availability. You don't know {owner_name}'s schedule.
+   - WRONG: "We can come this afternoon" / "Mike will call you in 15 minutes" / "We'll get back to you soon"
+   - RIGHT: "What times work best for you?" / "Let us know your availability and we'll coordinate."
+   Also don't validate or confirm timelines as "doable" or "plenty of time":
+   - WRONG: "September's definitely doable" / "Six weeks is plenty of time"
+   - RIGHT: "September — got it. What's the ideal start date?"
+   You don't know {owner_name}'s availability or project pipeline. Just collect the info.
+
+2. ONE question per reply. This is the most important rule. Pick the single most useful thing to learn next and ask ONLY that.
+   - WRONG: "Is it dripping constantly or just when flushed? And what's your address?"
+   - WRONG: "What times work for you? Any days that don't work?"
+   - RIGHT: "Is it dripping constantly or just when you turn it on?"
+   Then wait for their answer before asking the next thing.
+
+3. Read the room. Match the customer's energy and communication style:
+   - Emergency + panicked → be brief, decisive, skip pleasantries
+   - Emergency → Drop the full sign-off. No "Mike Rossi and the team at Mike's Plumbing" when someone has water on their floor. Just sign "— Mike" or nothing at all. Get to the point.
+   - Planning + relaxed → be warm, conversational, take your time
+   - Terse / minimal → keep your reply equally short. Don't write 80 words to someone who wrote 6.
+   - Sophisticated / detailed → match their specificity. Don't dumb it down.
+
+4. Never re-ask for information the customer already provided. Read their email carefully before replying.
+
+5. Keep replies UNDER 100 words. Most replies should be 40-70 words. Emergencies can be even shorter.
+
+6. Don't use customer-service clichés:
+   - NEVER: "I understand your frustration" / "I apologize for any inconvenience" / "Thank you for reaching out"
+   - NEVER: "I'd be happy to help!" / "Great question!" / "Absolutely!"
+   - INSTEAD: Talk like a real person at {business_name} would. Casual, direct, human.
+
+7. Don't give technical advice, diagnose problems, or explain what might be wrong. You're a coordinator, not a licensed {trade_type} professional.
+   - NEVER: "Sounds like a GFCI issue" / "Could be a loose connection" / "That's probably a wax ring"
+   - NEVER: "Drano can actually make things worse" / "That tarp is the right move"
+   - NEVER explain WHY something might be happening — that's {owner_name}'s job on-site
+   - RIGHT: Frame as info-gathering: "{owner_name} will want to know about [thing]. Can you tell me [specific detail]?"
+   - RIGHT: Simple acknowledgment without diagnosis: "Got it — {owner_name} will know what to look for"
+
+8. When the customer has given you urgency, job details, location, and availability — transition to handoff:
+   "{owner_name} has everything needed to reach out directly and coordinate from here."
+   Don't keep asking questions past this point.
+
+9. If the inquiry is clearly not a lead (vendor email, spam, existing customer about billing), don't engage. Reply only to genuine service inquiries.
+
+10. If the inquiry is for the wrong trade (e.g., someone asking a plumber about electrical work), politely redirect. Don't try to qualify it.
+
+11. NEVER give pricing, estimates, or cost ranges. Not even "rough" ones. Pricing is {owner_name}'s decision based on seeing the job. If someone asks for a price:
+   - WRONG: "Typically runs $150-$400" / "Usually costs around..." / "Ballpark would be..."
+   - RIGHT: "Hard to quote without seeing the setup — where are you located so we can take a look?"
+   Redirect pricing questions to a site visit, not a number.
+
+12. Never advise on insurance claims, coverage, or whether damage qualifies. If insurance comes up:
+   - WRONG: "You're in good shape" / "Storm damage is usually covered" / "You should file a claim"
+   - WRONG: "That's definitely an insurance job"
+   - RIGHT: "Are you planning to go through insurance on this, or handle it directly?"
+   - RIGHT: "{owner_name} works with insurance companies regularly and can walk you through that on-site."
+   Stay neutral. Collect the information. Don't advise.
+
+QUALIFICATION INFORMATION TO COLLECT (in natural order, one at a time):
+- Urgency: Is this an emergency, needed soon, or planning ahead?
+- Job details: What specifically is the problem or project?
+- Location: Service address
+- Photos: If relevant (especially for roofing, visible damage, larger projects) — ask them to send 2-3 photos
+- Availability: What days/times work for them?
+
+Don't force this sequence rigidly. If the customer provides information out of order, accept it and skip ahead. If they give you everything in their first message, go straight to the handoff.
+
+For EMERGENCIES specifically:
+- Validate what they've already done right ("Good call shutting off the water")
+- Skip pleasantries entirely
+- Your first reply should be under 40 words
+
+Sign off as: {owner_name} and the team at {business_name}
+Business phone: {phone}"""
+
+
 def generate_reply(lead_data, business_profile):
     """
     Generate a branded reply to a lead using Claude API
@@ -23,6 +130,7 @@ def generate_reply(lead_data, business_profile):
             - name
             - trade_type
             - brand_voice
+            - owner_name
             - phone (optional)
 
     Returns:
@@ -30,79 +138,39 @@ def generate_reply(lead_data, business_profile):
     """
     client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
 
-    # Extract key information
+    # Build system prompt
+    system_prompt = build_system_prompt(business_profile)
+
+    # Build initial email content
     customer_name = lead_data.get('customer_name', 'there')
     job_type = lead_data.get('job_type', 'your request')
     description = lead_data.get('description', '')
     urgency = lead_data.get('urgency', 'normal')
     location = lead_data.get('location')
 
-    business_name = business_profile.get('name', 'Our Team')
-    brand_voice = business_profile.get('brand_voice', 'Friendly and professional')
-    business_phone = business_profile.get('phone')
+    initial_email = f"From: {customer_name}\n"
+    initial_email += f"Subject: {job_type}\n\n"
+    initial_email += description
 
-    # Build the prompt for Claude
-    prompt = f"""You are writing a reply email on behalf of "{business_name}", a plumbing business.
-
-BRAND VOICE:
-{brand_voice}
-
-CUSTOMER INFORMATION:
-- Name: {customer_name}
-- Issue: {job_type}
-- Description: {description}
-- Urgency level: {urgency}
-{f'- Location: {location}' if location else ''}
-
-YOUR TASK:
-Write a warm, personalized reply email that:
-1. Greets the customer by name
-2. Acknowledges their specific issue ({job_type})
-3. Shows you understand the urgency
-4. Asks EXACTLY ONE qualifying question to collect information (NOT to commit to specific times):
-   - For urgent/emergency: Ask for their preferred times/availability (e.g., "What times work best for you today? Share your availability and we'll follow up to coordinate.")
-   - For normal requests: Ask about their general timing preference (e.g., "What days or times typically work best for you? Let us know and we'll be in touch to schedule.")
-   - For leak repairs: Ask about severity (e.g., "Is the leak currently causing water damage, or is it a slow drip?")
-   - For installations: Ask about their preferred timeline (e.g., "What timeframe are you thinking? Share what works for you and we'll reach out to coordinate.")
-5. Keep it UNDER 100 words
-6. Sound human and conversational, not robotic
-7. Match the brand voice above
-8. Do NOT include a signature (we'll add that separately)
-
-CRITICAL RULES:
-- NEVER promise specific availability or commit to specific times (e.g., don't say "we can come this afternoon", "we're available tomorrow", "we'll get someone out today", "I'll have someone call you")
-- NEVER say WHEN you'll respond or follow up (e.g., don't say "I'll call you in 15 minutes", "we'll get back to you shortly", "soon", "right away", "quickly")
-- Instead, use neutral language like "we'll follow up to coordinate", "we'll be in touch to schedule", "we'll reach out to confirm"
-- ALWAYS ASK for the customer's preferred times/availability FIRST, then say you'll coordinate
-- The contractor (not the AI) confirms all appointments and timing
-- Only ask ONE question
-- Keep it friendly and natural
-- Don't use overly formal language
-- Don't apologize excessively
-- Get straight to the point
-
-Write ONLY the email body, nothing else:"""
+    if location:
+        initial_email += f"\n\nLocation: {location}"
+    if urgency:
+        initial_email += f"\nUrgency: {urgency}"
 
     try:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
+            system=system_prompt,
             messages=[{
                 "role": "user",
-                "content": prompt
+                "content": initial_email
             }]
         )
 
         reply_body = message.content[0].text.strip()
 
-        # Add signature
-        signature = f"\n\n- {business_name}"
-        if business_phone:
-            signature += f"\n{business_phone}"
-
-        full_reply = reply_body + signature
-
-        return full_reply
+        return reply_body
 
     except Exception as e:
         print(f"✗ Error generating reply with Claude: {e}")
@@ -252,86 +320,40 @@ def generate_follow_up_reply(lead, business_profile, conversation_history, custo
     """
     client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
 
-    # Get current step and next step
-    current_step = lead.get('qualification_step', 1)
-    next_step = cm.determine_next_step(lead, conversation_history, customer_reply)
-    step_info = cm.get_step_info(next_step)
+    # Build system prompt (same as initial reply)
+    system_prompt = build_system_prompt(business_profile)
 
-    # Format conversation context
-    conversation_context = cm.format_conversation_context(lead, conversation_history)
+    # Build conversation messages in Claude's format
+    messages = []
+    for msg in conversation_history:
+        role = "user" if msg['role'] == 'customer' else "assistant"
+        messages.append({
+            "role": role,
+            "content": msg['message']
+        })
 
-    # Build business context
-    business_name = business_profile.get('name', 'Our Team')
-    brand_voice = business_profile.get('brand_voice', 'Friendly and professional')
-    business_phone = business_profile.get('phone')
-
-    # Build the prompt based on next step
-    step_prompts = {
-        1: "Ask about urgency: Is this an emergency, needed soon, or are they planning ahead?",
-        2: "Ask for more specific details about the problem/job they described.",
-        3: "Ask for their service address/location.",
-        4: "Ask them to send photos of the issue if possible (mention they can reply with photos).",
-        5: "Ask what days/times typically work best for them.",
-        6: "Let them know you have all the info and the contractor will reach out directly to schedule."
-    }
-
-    next_question = step_prompts.get(next_step, step_prompts[1])
-
-    prompt = f"""You are writing a follow-up email on behalf of "{business_name}", a trade business.
-
-BRAND VOICE:
-{brand_voice}
-
-{conversation_context}
-
-CUSTOMER'S LATEST REPLY:
-{customer_reply}
-
-YOUR TASK:
-Write a warm, conversational follow-up email that:
-1. Acknowledges what they just said (be specific)
-2. {next_question}
-3. Keep it UNDER 75 words
-4. Sound natural and friendly, not robotic
-5. Match the brand voice above
-6. Do NOT include a signature (we'll add that separately)
-
-CRITICAL RULES:
-- NEVER promise specific availability or commit to specific times
-- NEVER say WHEN you'll respond or follow up
-- Use neutral language like "we'll follow up to coordinate", "we'll be in touch to schedule"
-- ALWAYS ASK for the customer's preferred times/availability FIRST
-- The contractor (not the AI) confirms all appointments
-- Keep it brief and conversational
-- Don't apologize excessively
-- Don't be overly formal
-
-Write ONLY the email body, nothing else:"""
+    # Add latest customer reply
+    messages.append({
+        "role": "user",
+        "content": customer_reply
+    })
 
     try:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=250,
-            messages=[{
-                "role": "user",
-                "content": prompt
-            }]
+            system=system_prompt,
+            messages=messages
         )
 
         reply_body = message.content[0].text.strip()
 
-        # Add signature
-        signature = f"\n\n- {business_name}"
-        if business_phone:
-            signature += f"\n{business_phone}"
-
-        full_reply = reply_body + signature
-
-        return full_reply
+        return reply_body
 
     except Exception as e:
         print(f"✗ Error generating follow-up reply with Claude: {e}")
         # Fallback to simple template
+        next_step = cm.determine_next_step(lead, conversation_history, customer_reply)
         return generate_fallback_follow_up(lead, business_profile, next_step, customer_reply)
 
 
