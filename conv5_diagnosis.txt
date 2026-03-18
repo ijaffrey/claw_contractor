@@ -1,0 +1,51 @@
+==> simulated_run_v4_fixed.log <==
+✓ Configuration loaded successfully
+
+============================================================
+OpenClaw Test Harness
+============================================================
+Scenarios to run: 50
+Model: claude-sonnet-4-20250514
+Homeowner mode: SIMULATED (AI)
+Simulator model: claude-3-haiku-20240307
+Evaluation: ON
+============================================================
+
+[1/50] Running: Emergency burst pipe - test brevity, no time commitment
+
+  📧 [plumb_emergency_burst_pipe] Emergency burst pipe - test brevity, no time commitment
+    Customer: We have a MAJOR emergency! Pipe burst in the basement and water is POURING out. ...
+    AI (step 1, 29w): Got it — you did the right thing shutting off the main. We need to get someone out there today.
+
+Wha...
+
+[2/50] Running: Medium urgency - test tone matching, acknowledge DIY attempts
+
+  📧 [plumb_medium_slow_drain] Medium urgency - test tone matching, acknowledge DIY attempts
+    Customer: Hey, my kitchen sink is draining really slow. Tried Drano twice, helped for a da...
+    AI (step 1, 31w): Got it — slow kitchen sink that's not responding to Drano. 
+
+Is it just the kitchen sink or are othe...
+
+[3/50] Running: Minimal info - test brevity matching
+
+  📧 [plumb_edge_minimal_info] Minimal info - test brevity matching
+    Customer: Need a plumber. Call me 555-0147....
+    AI (step 1, 13w): Got it — what's going on with your plumbing?
+
+— Mike Rossi
+718-555-0142...
+
+[4/50] Running: Angry customer - test direct confidence, no over-apologizing
+
+  📧 [plumb_edge_angry] Angry customer - test direct confidence, no over-apologizing
+    Customer: I need a plumber who actually shows up. Last guy was 3 hours late, charged me $4...
+    AI (step 1, 37w): I get it — nothing worse than paying good money to still have the same problem. We'll definitely get...
+
+[5/50] Running: Price shopper - test directness, minimal qualification
+
+  📧 [plumb_edge_price_shopper] Price shopper - test directness, minimal qualification
+    Customer: How much to install a toilet? Replacing existing one. Just need a straight answe...
+    AI (step 1, 22w): Hard to quote without seeing the setup — where are you located so we can take a look?
+
+— Mike Rossi

@@ -64,7 +64,7 @@ from test_scenarios import ALL_SCENARIOS, BUSINESS_PROFILES
 MODEL = "claude-sonnet-4-20250514"
 MAX_REPLY_WORDS = 100  # Hard cap from project spec
 EVALUATOR_MODEL = "claude-sonnet-4-20250514"
-HOMEOWNER_SIMULATOR_MODEL = "claude-3-5-haiku-20241022"  # Fast and cost-effective for simulation
+HOMEOWNER_SIMULATOR_MODEL = "claude-3-haiku-20240307"  # Use haiku for fast, cost-effective simulation
 
 
 def get_client():
