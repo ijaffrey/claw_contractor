@@ -172,12 +172,52 @@ def poll_inbox():
         return []
 
 
-def get_email_details(service, email_id):
+def extract_attachment(service, email_id, part):
     """
-    Fetch full email details including headers and body
+    Extract attachment data from email part
+
+    Args:
+        service: Gmail API service
+        email_id: Email message ID
+        part: Message part containing attachment
 
     Returns:
-        dict with id, thread_id, from, subject, date, body, snippet
+        dict with 'data' (bytes), 'content_type' (str), 'filename' (str) or None
+    """
+    try:
+        import base64
+
+        attachment_id = part['body'].get('attachmentId')
+        filename = part.get('filename', 'image.jpg')
+        mime_type = part.get('mimeType', 'image/jpeg')
+
+        # Download attachment data
+        attachment = service.users().messages().attachments().get(
+            userId='me',
+            messageId=email_id,
+            id=attachment_id
+        ).execute()
+
+        # Decode base64 data
+        file_data = base64.urlsafe_b64decode(attachment['data'])
+
+        return {
+            'data': file_data,
+            'content_type': mime_type,
+            'filename': filename
+        }
+
+    except Exception as e:
+        print(f"✗ Error extracting attachment: {e}")
+        return None
+
+
+def get_email_details(service, email_id):
+    """
+    Fetch full email details including headers, body, and photo attachments
+
+    Returns:
+        dict with id, thread_id, from, subject, date, body, snippet, attachments
     """
     try:
         message = service.users().messages().get(
@@ -195,12 +235,32 @@ def get_email_details(service, email_id):
 
         # Extract email body (simplified - handles plain text)
         body = ''
+        attachments = []
+
         if 'parts' in message['payload']:
             for part in message['payload']['parts']:
+                # Extract text body
                 if part['mimeType'] == 'text/plain' and 'data' in part['body']:
                     import base64
                     body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                    break
+
+                # Extract image attachments
+                elif part['mimeType'].startswith('image/') and 'attachmentId' in part['body']:
+                    attachment = extract_attachment(service, email_id, part)
+                    if attachment:
+                        attachments.append(attachment)
+
+                # Handle nested parts (multipart/mixed, multipart/alternative)
+                elif 'parts' in part:
+                    for subpart in part['parts']:
+                        if subpart['mimeType'] == 'text/plain' and 'data' in subpart['body']:
+                            import base64
+                            body = base64.urlsafe_b64decode(subpart['body']['data']).decode('utf-8')
+                        elif subpart['mimeType'].startswith('image/') and 'attachmentId' in subpart['body']:
+                            attachment = extract_attachment(service, email_id, subpart)
+                            if attachment:
+                                attachments.append(attachment)
+
         elif 'body' in message['payload'] and 'data' in message['payload']['body']:
             import base64
             body = base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
@@ -213,7 +273,8 @@ def get_email_details(service, email_id):
             'date': date_header,
             'body': body or message.get('snippet', ''),
             'snippet': message.get('snippet', ''),
-            'headers': headers
+            'headers': headers,
+            'attachments': attachments  # List of dicts with 'data' (bytes) and 'content_type' (str)
         }
 
     except HttpError as error:

@@ -11,6 +11,7 @@ import lead_parser
 import reply_generator
 import database as db
 import conversation_manager as cm
+import photo_analyzer
 
 
 def process_lead(email_data, business):
@@ -86,6 +87,27 @@ def process_new_lead(email_data, business):
     print(f"     Job type: {lead_data['job_type']}")
     print(f"     Urgency:  {lead_data['urgency']}")
     print(f"     Source:   {lead_data['source']}")
+
+    # Analyze photos if present
+    photo_analysis = None
+    if email_data.get('attachments'):
+        num_photos = len(email_data['attachments'])
+        print(f"\n  📷 Found {num_photos} photo(s) - analyzing with Claude Vision...")
+        photo_analysis = photo_analyzer.analyze_multiple_photos(
+            email_data['attachments'],
+            business['trade_type']
+        )
+        if photo_analysis:
+            print(f"\n  {'─' * 56}")
+            print(f"  PHOTO ANALYSIS:")
+            print(f"  {'─' * 56}")
+            for line in photo_analysis.split('\n'):
+                print(f"  {line}")
+            print(f"  {'─' * 56}")
+        else:
+            print(f"  ⚠️  Photo analysis failed")
+    else:
+        print(f"     Photos:   None attached")
 
     # Store in database
     print(f"  💾 Storing lead in database...")
@@ -203,6 +225,27 @@ def process_reply(email_data, lead, business):
 
     # Get customer's reply text
     customer_reply = email_data['body']
+
+    # Analyze photos if present in reply
+    photo_analysis = None
+    if email_data.get('attachments'):
+        num_photos = len(email_data['attachments'])
+        print(f"\n  📷 Found {num_photos} photo(s) in reply - analyzing with Claude Vision...")
+        photo_analysis = photo_analyzer.analyze_multiple_photos(
+            email_data['attachments'],
+            business['trade_type']
+        )
+        if photo_analysis:
+            print(f"\n  {'─' * 56}")
+            print(f"  PHOTO ANALYSIS:")
+            print(f"  {'─' * 56}")
+            for line in photo_analysis.split('\n'):
+                print(f"  {line}")
+            print(f"  {'─' * 56}")
+            # Append photo analysis to customer reply so AI can acknowledge it
+            customer_reply += f"\n\n[Photos received and analyzed]"
+        else:
+            print(f"  ⚠️  Photo analysis failed")
 
     # Store customer's reply in conversations
     print(f"  💾 Storing customer reply in conversation history...")

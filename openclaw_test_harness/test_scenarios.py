@@ -2054,6 +2054,295 @@ SCENARIOS = {
                 'ai_must_not': ['Commit to specific timeline']
             }
         ]
+    },
+
+    # ========================================
+    # PHOTO REQUEST/ACKNOWLEDGMENT SCENARIOS
+    # Testing photo request logic and phrasing
+    # ========================================
+
+    'plumb_photo_water_heater': {
+        'business': 'miller_plumbing',
+        'urgency': 'medium',
+        'category': 'plumbing',
+        'description': 'Plumbing - water heater issue, bot should ask for EQUIPMENT photo with specific guidance',
+        'homeowner_persona': {
+            'personality': 'practical and helpful',
+            'communication_style': 'cooperative',
+            'regional_flavor': 'Austin, TX'
+        },
+        'initial_email': {
+            'from_name': 'Mike Chen',
+            'from_email': 'mike.chen@email.com',
+            'subject': 'Water heater not heating',
+            'body': 'Hi, my water heater stopped making hot water yesterday. It\'s a gas unit in the garage, pilot light is on but no hot water. Can you come take a look?'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'Started yesterday morning. I tried the reset button but nothing changed. How soon can someone come out?',
+                'ai_should': ['Ask for photo of water heater label', 'Specify WHAT to photograph (manufacturer label)', 'Explain WHY (helps know what parts to bring)', 'Casual tone'],
+                'ai_must_not': ['Generic "send photos of the issue"', 'Skip photo request for EQUIPMENT', 'Ask multiple questions']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': 'Sure, just sent 2 photos of the label. Address is 4521 Riverside Drive. When works for you?',
+                'ai_should': ['Acknowledge photos received', 'Move to availability', 'Brief'],
+                'ai_must_not': ['Ignore that photos were sent', 'Ask for more photos']
+            }
+        ]
+    },
+
+    'elec_photo_panel': {
+        'business': 'bay_electric',
+        'urgency': 'medium',
+        'category': 'electrical',
+        'description': 'Electrical - panel upgrade, bot should ask for EQUIPMENT photo (panel with door open)',
+        'homeowner_persona': {
+            'personality': 'detail-oriented',
+            'communication_style': 'thorough',
+            'regional_flavor': 'Portland, OR'
+        },
+        'initial_email': {
+            'from_name': 'Sarah Martinez',
+            'from_email': 'sarah.m@email.com',
+            'subject': 'Need panel upgrade quote',
+            'body': 'Looking to upgrade my electrical panel to 200 amp. Current panel seems old and we\'re adding EV charger. What do you need from me to provide a quote?'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'It\'s in the basement. Not sure of the brand, kind of old looking. What info do you need?',
+                'ai_should': ['Ask for photo of panel with door open', 'Specify WHAT (panel with door open showing brand/breakers)', 'Explain WHY (know what replacement is needed)'],
+                'ai_must_not': ['Skip photo request', 'Vague "send some photos"']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': 'Just emailed you a photo. I see it says "Federal Pacific" on it. Address is 823 NW Maple Street.',
+                'ai_should': ['Acknowledge photo', 'Continue with next qualification step'],
+                'ai_must_not': ['Provide technical assessment of Federal Pacific', 'Diagnose safety issue']
+            }
+        ]
+    },
+
+    'roof_photo_storm': {
+        'business': 'summit_roofing',
+        'urgency': 'urgent',
+        'category': 'roofing',
+        'description': 'Roofing - ALWAYS needs photos, bot should ask even for urgent scenarios',
+        'homeowner_persona': {
+            'personality': 'stressed but organized',
+            'communication_style': 'efficient',
+            'regional_flavor': 'Oklahoma City'
+        },
+        'initial_email': {
+            'from_name': 'Tom Bradley',
+            'from_email': 'tom.bradley@email.com',
+            'subject': 'Storm damage - need inspection',
+            'body': 'Had bad storms last night. Got some shingles blown off and water stain appearing on bedroom ceiling. Need someone out ASAP.'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'Not actively dripping but the stain is growing. Maybe 10-12 shingles missing from what I can see from the ground. When can you come?',
+                'ai_should': ['Ask for photos (roof surface AND interior damage)', 'ROOFING always needs photos', 'Acknowledge urgency but still request photos'],
+                'ai_must_not': ['Skip photos because it\'s urgent', 'Just ask for address without photos']
+            }
+        ]
+    },
+
+    'gc_photo_kitchen_remodel': {
+        'business': 'pacific_builders',
+        'urgency': 'planning',
+        'category': 'general_contractor',
+        'description': 'GC - remodel project, should ask for CURRENT SPACE photos with layout/condition',
+        'homeowner_persona': {
+            'personality': 'enthusiastic planner',
+            'communication_style': 'detailed',
+            'regional_flavor': 'San Diego'
+        },
+        'initial_email': {
+            'from_name': 'Jennifer Park',
+            'from_email': 'jpark@email.com',
+            'subject': 'Kitchen remodel quote request',
+            'body': 'Want to remodel our dated 90s kitchen. New cabinets, counters, flooring, the works. Looking for a ballpark quote to start planning. Space is about 12x14.'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'Late summer or early fall. We\'re flexible on timing but want to get the budget nailed down first. What else do you need?',
+                'ai_should': ['Ask for photos of current kitchen', 'Specify WHAT (layout and current cabinets/condition)', 'Explain WHY (helps scope the project)'],
+                'ai_must_not': ['Skip photo request for REMODEL project', 'Generic photo request']
+            }
+        ]
+    },
+
+    'plumb_no_photo_slow_drain': {
+        'business': 'miller_plumbing',
+        'urgency': 'low',
+        'category': 'plumbing',
+        'description': 'Plumbing - slow drain, bot should NOT ask for photos (invisible issue)',
+        'homeowner_persona': {
+            'personality': 'practical',
+            'communication_style': 'brief',
+            'regional_flavor': 'Austin, TX'
+        },
+        'initial_email': {
+            'from_name': 'Dan Wilson',
+            'from_email': 'dan.w@email.com',
+            'subject': 'Slow kitchen drain',
+            'body': 'Kitchen sink draining really slow. Tried Drano, didn\'t help. Need a plumber to snake it out.'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'Just the kitchen sink. Been slow for about 2 weeks, getting worse. 1823 Oak Street. When could you come by?',
+                'ai_should': ['NOT ask for photos', 'Move to availability', 'Slow drain = invisible issue = no photos useful'],
+                'ai_must_not': ['Ask for photos of drain', 'Request photos']
+            }
+        ]
+    },
+
+    'elec_no_photo_flickering': {
+        'business': 'bay_electric',
+        'urgency': 'medium',
+        'category': 'electrical',
+        'description': 'Electrical - flickering lights, bot should NOT ask for photos (invisible issue)',
+        'homeowner_persona': {
+            'personality': 'concerned homeowner',
+            'communication_style': 'detailed',
+            'regional_flavor': 'Seattle'
+        },
+        'initial_email': {
+            'from_name': 'Amy Tran',
+            'from_email': 'amy.tran@email.com',
+            'subject': 'Lights flickering in living room',
+            'body': 'All the lights in our living room flicker when we turn on the TV. Worried it\'s a wiring issue. Can you diagnose this?'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'Started about a month ago. Only happens in the living room, rest of house is fine. 6634 Pine Avenue. Available most afternoons.',
+                'ai_should': ['NOT ask for photos', 'Move to scheduling', 'Flickering = invisible issue = nothing to photograph'],
+                'ai_must_not': ['Ask for photos', 'Request pictures of flickering lights']
+            }
+        ]
+    },
+
+    'plumb_photo_visible_damage': {
+        'business': 'miller_plumbing',
+        'urgency': 'urgent',
+        'category': 'plumbing',
+        'description': 'Plumbing - visible water damage, should ask for DAMAGE photos',
+        'homeowner_persona': {
+            'personality': 'stressed',
+            'communication_style': 'urgent',
+            'regional_flavor': 'Houston'
+        },
+        'initial_email': {
+            'from_name': 'Carlos Rivera',
+            'from_email': 'crivera@email.com',
+            'subject': 'Water leak - ceiling damage',
+            'body': 'Got a water stain on the ceiling under the upstairs bathroom. Seems to be getting worse. Need help ASAP.'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'About 2 feet across, brownish stain. Not dripping but definitely wet. 9234 Westheimer Road. Can you come today?',
+                'ai_should': ['Ask for photo of ceiling damage', 'Visible DAMAGE = photos helpful', 'Keep it brief given urgency'],
+                'ai_must_not': ['Skip photo request for visible damage', 'Lengthy photo instructions when urgent']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': '[Attaches 2 photos of ceiling stain] Here you go. Phone is 281-555-4433.',
+                'ai_should': ['Acknowledge photos', 'Proceed to handoff'],
+                'ai_must_not': ['Ignore photo acknowledgment']
+            }
+        ]
+    },
+
+    'roof_photo_acknowledge': {
+        'business': 'summit_roofing',
+        'urgency': 'medium',
+        'category': 'roofing',
+        'description': 'Roofing - customer proactively sends photos, bot should acknowledge them',
+        'homeowner_persona': {
+            'personality': 'organized and proactive',
+            'communication_style': 'efficient',
+            'regional_flavor': 'Denver'
+        },
+        'initial_email': {
+            'from_name': 'Linda Hayes',
+            'from_email': 'lhayes@email.com',
+            'subject': 'Roof inspection - photos attached',
+            'body': 'Need a roof inspection. I\'ve attached 3 photos showing some shingles that look damaged on the south-facing slope. Can you give me an estimate for repair?'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'House is about 15 years old. This is the original roof. 4422 Mountain View Drive. When could someone come by?',
+                'ai_should': ['Acknowledge photos were already provided', 'NOT ask for more photos', 'Move to availability'],
+                'ai_must_not': ['Ask for photos they already sent', 'Ignore that photos were attached initially']
+            }
+        ]
+    },
+
+    'plumb_photo_fixture_matching': {
+        'business': 'miller_plumbing',
+        'urgency': 'low',
+        'category': 'plumbing',
+        'description': 'Plumbing - fixture replacement where matching matters, should ask for FIXTURE photo',
+        'homeowner_persona': {
+            'personality': 'detail-oriented',
+            'communication_style': 'specific',
+            'regional_flavor': 'Austin'
+        },
+        'initial_email': {
+            'from_name': 'Rachel Green',
+            'from_email': 'rgreen@email.com',
+            'subject': 'Replace bathroom faucets',
+            'body': 'Want to replace all three bathroom faucets - they\'re old and corroded. Would like to keep a similar style if possible. Can you do this?'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'All three bathrooms. Chrome finish, two-handle style. They all match currently. 5521 River Oaks Boulevard. What\'s your availability?',
+                'ai_should': ['Ask for photo of current faucets', 'FIXTURE replacement where matching matters = ask for photo', 'Explain WHY (helps match style)'],
+                'ai_must_not': ['Skip photo request when matching is mentioned', 'Generic photo ask']
+            }
+        ]
+    },
+
+    'elec_photo_scorched_outlet': {
+        'business': 'bay_electric',
+        'urgency': 'urgent',
+        'category': 'electrical',
+        'description': 'Electrical - visible damage (scorched outlet), should ask for DAMAGE photo',
+        'homeowner_persona': {
+            'personality': 'safety-concerned',
+            'communication_style': 'worried',
+            'regional_flavor': 'Phoenix'
+        },
+        'initial_email': {
+            'from_name': 'Brad Thompson',
+            'from_email': 'bthompson@email.com',
+            'subject': 'URGENT - Outlet looks burned',
+            'body': 'One of the outlets in my home office has black marks around it and smells like burning plastic. Unplugged everything and flipped the breaker off. Need an electrician ASAP!'
+        },
+        'conversation_flow': [
+            {
+                'step': 1,
+                'homeowner_reply': 'Good question - no. I shut off the whole circuit. 8823 Desert Vista Lane. How soon can you get here?',
+                'ai_should': ['Ask for photo of outlet damage', 'Visible DAMAGE = photo helpful even when urgent', 'Safety issue but still get photo'],
+                'ai_must_not': ['Skip photo because of urgency', 'Provide safety instructions about breakers']
+            },
+            {
+                'step': 2,
+                'homeowner_reply': 'Just sent a close-up photo. Phone is 602-555-7788. Standing by.',
+                'ai_should': ['Acknowledge photo', 'Move to handoff'],
+                'ai_must_not': ['Diagnose from photo', 'Give technical assessment']
+            }
+        ]
     }
 }
 
