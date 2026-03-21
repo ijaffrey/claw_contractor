@@ -1,0 +1,376 @@
+import os
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import json
+
+from conversation_manager import ConversationManager
+from reply_generator import ReplyGenerator
+from lead_scorer import LeadScorer
+from notification_manager import NotificationManager
+from email_sender import EmailSender
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class ChatbotMain:
+    def __init__(self):
+        """Initialize the main chatbot application."""
+        try:
+            self.conversation_manager = ConversationManager()
+            self.reply_generator = ReplyGenerator()
+            self.lead_scorer = LeadScorer()
+            self.notification_manager = NotificationManager()
+            self.email_sender = EmailSender()
+            
+            # Configuration
+            self.max_conversation_age = timedelta(hours=24)
+            self.cleanup_interval = timedelta(hours=1)
+            self.last_cleanup = datetime.now()
+            
+            logger.info("Chatbot main application initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Error initializing chatbot: {e}")
+            raise
+    
+    def process_message(self, user_id: str, message: str, channel: str = 'web') -> Dict:
+        """
+        Process incoming message and return response.
+        
+        Args:
+            user_id: Unique identifier for the user
+            message: User's message text
+            channel: Communication channel (web, email, sms, etc.)
+            
+        Returns:
+            Dict containing response and metadata
+        """
+        try:
+            # Get or create conversation
+            conversation = self.conversation_manager.get_conversation(user_id)
+            if not conversation:
+                conversation = self.conversation_manager.create_conversation(user_id, channel)
+                logger.info(f"Created new conversation for user {user_id}")
+            
+            # Add user message to conversation
+            self.conversation_manager.add_message(
+                user_id, 
+                message, 
+                'user',
+                metadata={'channel': channel, 'timestamp': datetime.now().isoformat()}
+            )
+            
+            # Get conversation context
+            context = self.conversation_manager.get_conversation_context(user_id)
+            
+            # Generate reply
+            reply_data = self.reply_generator.generate_reply(message, context)
+            reply_text = reply_data.get('reply', '')
+            intent = reply_data.get('intent', 'unknown')
+            confidence = reply_data.get('confidence', 0.0)
+            
+            # Add bot reply to conversation
+            self.conversation_manager.add_message(
+                user_id,
+                reply_text,
+                'bot',
+                metadata={
+                    'intent': intent,
+                    'confidence': confidence,
+                    'timestamp': datetime.now().isoformat()
+                }
+            )
+            
+            # Score lead and update conversation
+            lead_score = self.lead_scorer.calculate_lead_score(user_id, context)
+            lead_data = self.lead_scorer.extract_lead_information(context)
+            
+            # Check for qualified lead and handle notifications
+            is_qualified = self.notification_manager.detect_qualified_lead(
+                user_id, lead_score, lead_data, context
+            )
+            
+            handoff_completed = False
+            if is_qualified:
+                logger.info(f"Qualified lead detected for user {user_id}")
+                
+                try:
+                    # Generate and send contractor notification
+                    contractor_email_data = self.notification_manager.generate_contractor_notification_email(
+                        user_id, lead_data, context
+                    )
+                    
+                    if contractor_email_data:
+                        contractor_success = self.email_sender.send_contractor_notification(
+                            contractor_email_data['recipient'],
+                            contractor_email_data['subject'],
+                            contractor_email_data['body'],
+                            contractor_email_data.get('attachments', [])
+                        )
+                        
+                        if contractor_success:
+                            # Log contractor notification
+                            self.notification_manager.log_notification(
+                                user_id,
+                                'contractor_notification',
+                                'sent',
+                                {'recipient': contractor_email_data['recipient']}
+                            )
+                            logger.info(f"Contractor notification sent for user {user_id}")
+                        else:
+                            logger.error(f"Failed to send contractor notification for user {user_id}")
+                    
+                    # Generate and send customer handoff message
+                    handoff_message_data = self.notification_manager.generate_customer_handoff_message(
+                        user_id, lead_data, context
+                    )
+                    
+                    if handoff_message_data:
+                        handoff_success = self.email_sender.send_customer_handoff(
+                            handoff_message_data['recipient'],
+                            handoff_message_data['subject'],
+                            handoff_message_data['body']
+                        )
+                        
+                        if handoff_success:
+                            # Log customer handoff
+                            self.notification_manager.log_notification(
+                                user_id,
+                                'customer_handoff',
+                                'sent',
+                                {'recipient': handoff_message_data['recipient']}
+                            )
+                            logger.info(f"Customer handoff message sent for user {user_id}")
+                            handoff_completed = True
+                        else:
+                            logger.error(f"Failed to send customer handoff message for user {user_id}")
+                    
+                    # Update lead status to completed if handoff was successful
+                    if handoff_completed:
+                        status_updated = self.notification_manager.update_lead_status(
+                            user_id, 'completed'
+                        )
+                        
+                        if status_updated:
+                            # Log status update
+                            self.notification_manager.log_notification(
+                                user_id,
+                                'status_update',
+                                'completed',
+                                {'new_status': 'completed'}
+                            )
+                            logger.info(f"Lead status updated to completed for user {user_id}")
+                        else:
+                            logger.error(f"Failed to update lead status for user {user_id}")
+                
+                except Exception as e:
+                    logger.error(f"Error handling qualified lead notifications for user {user_id}: {e}")
+            
+            # Update conversation state
+            self.conversation_manager.update_conversation_state(
+                user_id,
+                {
+                    'lead_score': lead_score,
+                    'lead_data': lead_data,
+                    'last_intent': intent,
+                    'last_confidence': confidence,
+                    'is_qualified': is_qualified,
+                    'handoff_completed': handoff_completed,
+                    'updated_at': datetime.now().isoformat()
+                }
+            )
+            
+            # Perform cleanup if needed
+            self._cleanup_old_conversations()
+            
+            # Prepare response
+            response = {
+                'reply': reply_text,
+                'intent': intent,
+                'confidence': confidence,
+                'lead_score': lead_score,
+                'conversation_id': user_id,
+                'is_qualified': is_qualified,
+                'handoff_completed': handoff_completed,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            logger.info(f"Processed message for user {user_id}: intent={intent}, score={lead_score}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error processing message for user {user_id}: {e}")
+            return {
+                'reply': "I'm sorry, I encountered an error processing your message. Please try again.",
+                'intent': 'error',
+                'confidence': 0.0,
+                'lead_score': 0.0,
+                'conversation_id': user_id,
+                'is_qualified': False,
+                'handoff_completed': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    def get_conversation_history(self, user_id: str, limit: int = 50) -> List[Dict]:
+        """Get conversation history for a user."""
+        try:
+            return self.conversation_manager.get_conversation_history(user_id, limit)
+        except Exception as e:
+            logger.error(f"Error getting conversation history for user {user_id}: {e}")
+            return []
+    
+    def get_lead_information(self, user_id: str) -> Dict:
+        """Get lead information for a user."""
+        try:
+            conversation = self.conversation_manager.get_conversation(user_id)
+            if not conversation:
+                return {}
+            
+            context = self.conversation_manager.get_conversation_context(user_id)
+            lead_score = self.lead_scorer.calculate_lead_score(user_id, context)
+            lead_data = self.lead_scorer.extract_lead_information(context)
+            
+            return {
+                'user_id': user_id,
+                'lead_score': lead_score,
+                'lead_data': lead_data,
+                'conversation_state': conversation.get('state', {}),
+                'message_count': len(conversation.get('messages', [])),
+                'created_at': conversation.get('created_at'),
+                'updated_at': conversation.get('updated_at')
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting lead information for user {user_id}: {e}")
+            return {}
+    
+    def get_system_stats(self) -> Dict:
+        """Get system statistics."""
+        try:
+            active_conversations = self.conversation_manager.get_active_conversations()
+            
+            # Calculate lead distribution
+            lead_distribution = {'low': 0, 'medium': 0, 'high': 0, 'qualified': 0}
+            total_score = 0
+            completed_handoffs = 0
+            
+            for conv in active_conversations:
+                state = conv.get('state', {})
+                score = state.get('lead_score', 0)
+                total_score += score
+                
+                if state.get('handoff_completed', False):
+                    completed_handoffs += 1
+                
+                if score >= 80:
+                    lead_distribution['qualified'] += 1
+                elif score >= 60:
+                    lead_distribution['high'] += 1
+                elif score >= 40:
+                    lead_distribution['medium'] += 1
+                else:
+                    lead_distribution['low'] += 1
+            
+            avg_score = total_score / len(active_conversations) if active_conversations else 0
+            
+            return {
+                'active_conversations': len(active_conversations),
+                'average_lead_score': round(avg_score, 2),
+                'lead_distribution': lead_distribution,
+                'completed_handoffs': completed_handoffs,
+                'system_uptime': datetime.now().isoformat(),
+                'last_cleanup': self.last_cleanup.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting system stats: {e}")
+            return {}
+    
+    def _cleanup_old_conversations(self):
+        """Clean up old conversations periodically."""
+        try:
+            now = datetime.now()
+            if now - self.last_cleanup < self.cleanup_interval:
+                return
+            
+            cutoff_time = now - self.max_conversation_age
+            cleaned_count = self.conversation_manager.cleanup_old_conversations(cutoff_time)
+            
+            if cleaned_count > 0:
+                logger.info(f"Cleaned up {cleaned_count} old conversations")
+            
+            self.last_cleanup = now
+            
+        except Exception as e:
+            logger.error(f"Error during conversation cleanup: {e}")
+    
+    def shutdown(self):
+        """Gracefully shutdown the application."""
+        try:
+            logger.info("Shutting down chatbot application")
+            
+            # Perform final cleanup
+            self._cleanup_old_conversations()
+            
+            # Close any open connections
+            if hasattr(self.conversation_manager, 'close'):
+                self.conversation_manager.close()
+            
+            if hasattr(self.notification_manager, 'close'):
+                self.notification_manager.close()
+            
+            if hasattr(self.email_sender, 'close'):
+                self.email_sender.close()
+            
+            logger.info("Chatbot application shutdown complete")
+            
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+
+def main():
+    """Main entry point for the application."""
+    chatbot = None
+    
+    try:
+        # Initialize chatbot
+        chatbot = ChatbotMain()
+        logger.info("Chatbot application started successfully")
+        
+        # Example usage - in production this would be replaced with actual message handling
+        print("Chatbot is ready to process messages...")
+        print("Use chatbot.process_message(user_id, message) to interact")
+        
+        # Keep the application running
+        import signal
+        import sys
+        
+        def signal_handler(sig, frame):
+            print("\nShutting down gracefully...")
+            if chatbot:
+                chatbot.shutdown()
+            sys.exit(0)
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        # In a real application, this would be replaced with a web server or message queue consumer
+        while True:
+            import time
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("\nReceived interrupt signal")
+    except Exception as e:
+        logger.error(f"Fatal error in main application: {e}")
+    finally:
+        if chatbot:
+            chatbot.shutdown()
+
+if __name__ == "__main__":
+    main()

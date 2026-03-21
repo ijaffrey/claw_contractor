@@ -1,428 +1,635 @@
-import os
-import smtplib
-import logging
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
-from email.mime.image import MimeImage
-from email.mime.base import MimeBase
-from email import encoders
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-import json
-import base64
-import mimetypes
+"""
+Notification service for handling contractor and customer notifications.
 
-logger = logging.getLogger(__name__)
+This module provides comprehensive notification functionality including:
+- Contractor notification emails with lead summaries
+- Customer handoff messages
+- Email sending with robust error handling
+- Notification logging with timestamps
+"""
+
+import logging
+import smtplib
+from datetime import datetime, timezone
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+from enum import Enum
+import json
+import asyncio
+import aiosmtplib
+from jinja2 import Template, Environment, FileSystemLoader
+import os
+
+from ..database.models import Contractor, Customer, Lead, NotificationLog
+from ..database.connection import get_db_session
+from ..config.settings import get_settings
+
+
+class NotificationType(Enum):
+    """Enumeration of notification types."""
+    CONTRACTOR_LEAD_ASSIGNMENT = "contractor_lead_assignment"
+    CONTRACTOR_LEAD_UPDATE = "contractor_lead_update"
+    CUSTOMER_HANDOFF = "customer_handoff"
+    CUSTOMER_FOLLOW_UP = "customer_follow_up"
+    SYSTEM_ALERT = "system_alert"
+
+
+class NotificationStatus(Enum):
+    """Enumeration of notification statuses."""
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+    RETRY = "retry"
+
+
+@dataclass
+class NotificationData:
+    """Data structure for notification information."""
+    recipient_email: str
+    recipient_name: str
+    subject: str
+    template_name: str
+    template_data: Dict[str, Any]
+    notification_type: NotificationType
+    priority: int = 1  # 1 = high, 2 = medium, 3 = low
+    attachments: Optional[List[Dict[str, Any]]] = None
+    send_after: Optional[datetime] = None
+
+
+@dataclass
+class LeadSummary:
+    """Data structure for lead summary information."""
+    lead_id: int
+    customer_name: str
+    customer_email: str
+    customer_phone: str
+    service_type: str
+    project_description: str
+    budget_range: str
+    location: str
+    urgency_level: str
+    created_at: datetime
+    additional_notes: Optional[str] = None
 
 
 class NotificationService:
-    """Service for handling contractor notifications and email communications."""
+    """Service for handling all notification operations."""
     
     def __init__(self):
-        self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-        self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
-        self.email_user = os.getenv('EMAIL_USER')
-        self.email_password = os.getenv('EMAIL_PASSWORD')
-        self.from_email = os.getenv('FROM_EMAIL', self.email_user)
-        self.contractor_email = os.getenv('CONTRACTOR_EMAIL')
-        self.company_name = os.getenv('COMPANY_NAME', 'CLAW Contractor Services')
+        """Initialize the notification service."""
+        self.settings = get_settings()
+        self.logger = logging.getLogger(__name__)
         
-        if not all([self.email_user, self.email_password, self.contractor_email]):
-            logger.error("Missing required email configuration")
-            raise ValueError("Email configuration incomplete")
+        # Initialize Jinja2 environment for templates
+        template_dir = os.path.join(os.path.dirname(__file__), '../templates/emails')
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=True
+        )
+        
+        # Email configuration
+        self.smtp_server = self.settings.SMTP_SERVER
+        self.smtp_port = self.settings.SMTP_PORT
+        self.smtp_username = self.settings.SMTP_USERNAME
+        self.smtp_password = self.settings.SMTP_PASSWORD
+        self.smtp_use_tls = self.settings.SMTP_USE_TLS
+        self.from_email = self.settings.FROM_EMAIL
+        self.from_name = self.settings.FROM_NAME
+        
+        # Retry configuration
+        self.max_retries = 3
+        self.retry_delays = [60, 300, 900]  # 1min, 5min, 15min
     
-    def send_contractor_notification(self, lead_data: Dict[str, Any]) -> bool:
+    async def send_contractor_lead_notification(
+        self, 
+        contractor: Contractor, 
+        lead_summary: LeadSummary,
+        assignment_type: str = "new"
+    ) -> bool:
         """
-        Send notification to contractor with lead details and attachments.
+        Send lead notification email to contractor.
         
         Args:
-            lead_data: Dictionary containing lead information
+            contractor: Contractor object
+            lead_summary: Lead summary data
+            assignment_type: Type of assignment ("new", "update", "reminder")
             
         Returns:
-            bool: True if notification sent successfully, False otherwise
+            bool: True if notification was sent successfully
         """
         try:
-            # Create message
-            msg = MimeMultipart('alternative')
-            msg['From'] = self.from_email
-            msg['To'] = self.contractor_email
-            msg['Subject'] = self._generate_subject(lead_data)
+            # Prepare template data
+            template_data = {
+                'contractor_name': contractor.name,
+                'contractor_first_name': contractor.name.split()[0],
+                'lead_id': lead_summary.lead_id,
+                'customer_name': lead_summary.customer_name,
+                'customer_email': lead_summary.customer_email,
+                'customer_phone': lead_summary.customer_phone,
+                'service_type': lead_summary.service_type,
+                'project_description': lead_summary.project_description,
+                'budget_range': lead_summary.budget_range,
+                'location': lead_summary.location,
+                'urgency_level': lead_summary.urgency_level,
+                'created_at': lead_summary.created_at,
+                'additional_notes': lead_summary.additional_notes,
+                'assignment_type': assignment_type,
+                'platform_name': self.settings.PLATFORM_NAME,
+                'contact_phone': self.settings.SUPPORT_PHONE,
+                'contact_email': self.settings.SUPPORT_EMAIL
+            }
             
-            # Generate email content
-            html_content = self._generate_html_template(lead_data)
-            text_content = self._generate_text_template(lead_data)
+            # Determine subject based on assignment type
+            subject_map = {
+                'new': f"New Lead Assignment - {lead_summary.service_type}",
+                'update': f"Lead Update - {lead_summary.customer_name}",
+                'reminder': f"Lead Follow-up Reminder - {lead_summary.customer_name}"
+            }
+            subject = subject_map.get(assignment_type, "Lead Notification")
             
-            # Attach content
-            msg.attach(MimeText(text_content, 'plain'))
-            msg.attach(MimeText(html_content, 'html'))
+            notification_data = NotificationData(
+                recipient_email=contractor.email,
+                recipient_name=contractor.name,
+                subject=subject,
+                template_name='contractor_lead_notification.html',
+                template_data=template_data,
+                notification_type=NotificationType.CONTRACTOR_LEAD_ASSIGNMENT,
+                priority=1 if assignment_type == 'new' else 2
+            )
             
-            # Handle photo attachments
-            if 'photos' in lead_data and lead_data['photos']:
-                self._attach_photos(msg, lead_data['photos'])
-            
-            # Send email
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.email_user, self.email_password)
-                server.send_message(msg)
-            
-            logger.info(f"Notification sent successfully for lead: {lead_data.get('customer_name', 'Unknown')}")
-            return True
+            return await self._send_notification(notification_data)
             
         except Exception as e:
-            logger.error(f"Failed to send contractor notification: {str(e)}")
+            self.logger.error(f"Error sending contractor lead notification: {str(e)}")
             return False
     
-    def format_lead_summary(self, lead: Dict[str, Any]) -> str:
+    async def send_customer_handoff_message(
+        self,
+        customer: Customer,
+        contractor: Contractor,
+        lead: Lead,
+        handoff_message: str
+    ) -> bool:
         """
-        Format lead data into a comprehensive summary string.
+        Send handoff message to customer with contractor information.
         
         Args:
-            lead: Dictionary containing lead information
+            customer: Customer object
+            contractor: Contractor object
+            lead: Lead object
+            handoff_message: Custom handoff message
             
         Returns:
-            str: Formatted lead summary
+            bool: True if notification was sent successfully
         """
-        summary_parts = []
-        
-        # Customer Information
-        if lead.get('customer_name'):
-            summary_parts.append(f"Customer: {lead['customer_name']}")
-        
-        if lead.get('phone'):
-            summary_parts.append(f"Phone: {lead['phone']}")
-        
-        if lead.get('email'):
-            summary_parts.append(f"Email: {lead['email']}")
-        
-        # Property Information
-        if lead.get('address'):
-            summary_parts.append(f"Address: {lead['address']}")
-        
-        if lead.get('property_type'):
-            summary_parts.append(f"Property Type: {lead['property_type']}")
-        
-        # Service Details
-        if lead.get('service_type'):
-            summary_parts.append(f"Service: {lead['service_type']}")
-        
-        if lead.get('urgency'):
-            summary_parts.append(f"Urgency: {lead['urgency']}")
-        
-        if lead.get('budget_range'):
-            summary_parts.append(f"Budget: {lead['budget_range']}")
-        
-        # Problem Description
-        if lead.get('description'):
-            summary_parts.append(f"Description: {lead['description']}")
-        
-        # Timeline
-        if lead.get('preferred_timeline'):
-            summary_parts.append(f"Timeline: {lead['preferred_timeline']}")
-        
-        # Contact Preferences
-        if lead.get('contact_preference'):
-            summary_parts.append(f"Preferred Contact: {lead['contact_preference']}")
-        
-        if lead.get('best_time_to_call'):
-            summary_parts.append(f"Best Time to Call: {lead['best_time_to_call']}")
-        
-        # Additional Information
-        if lead.get('additional_notes'):
-            summary_parts.append(f"Notes: {lead['additional_notes']}")
-        
-        # Lead Source and Timestamp
-        if lead.get('source'):
-            summary_parts.append(f"Source: {lead['source']}")
-        
-        if lead.get('timestamp'):
-            summary_parts.append(f"Received: {self._format_timestamp(lead['timestamp'])}")
-        
-        # Photos
-        if lead.get('photos'):
-            photo_count = len(lead['photos'])
-            summary_parts.append(f"Photos: {photo_count} attached")
-        
-        return "\n".join(summary_parts)
+        try:
+            template_data = {
+                'customer_name': customer.name,
+                'customer_first_name': customer.name.split()[0],
+                'contractor_name': contractor.name,
+                'contractor_email': contractor.email,
+                'contractor_phone': contractor.phone,
+                'contractor_company': getattr(contractor, 'company', ''),
+                'contractor_bio': getattr(contractor, 'bio', ''),
+                'contractor_rating': getattr(contractor, 'rating', 0),
+                'contractor_reviews_count': getattr(contractor, 'reviews_count', 0),
+                'service_type': lead.service_type,
+                'project_description': lead.project_description,
+                'handoff_message': handoff_message,
+                'lead_id': lead.id,
+                'platform_name': self.settings.PLATFORM_NAME,
+                'support_email': self.settings.SUPPORT_EMAIL,
+                'support_phone': self.settings.SUPPORT_PHONE
+            }
+            
+            notification_data = NotificationData(
+                recipient_email=customer.email,
+                recipient_name=customer.name,
+                subject=f"Your {lead.service_type} Project - Contractor Match Found",
+                template_name='customer_handoff_message.html',
+                template_data=template_data,
+                notification_type=NotificationType.CUSTOMER_HANDOFF,
+                priority=1
+            )
+            
+            return await self._send_notification(notification_data)
+            
+        except Exception as e:
+            self.logger.error(f"Error sending customer handoff message: {str(e)}")
+            return False
     
-    def generate_handoff_message(self, customer_name: str, next_steps: str) -> str:
+    async def send_bulk_contractor_notifications(
+        self,
+        contractors: List[Contractor],
+        lead_summary: LeadSummary,
+        max_concurrent: int = 5
+    ) -> Dict[str, List[str]]:
         """
-        Generate a handoff message for customer communication.
+        Send notifications to multiple contractors concurrently.
         
         Args:
-            customer_name: Name of the customer
-            next_steps: Description of next steps
+            contractors: List of contractor objects
+            lead_summary: Lead summary data
+            max_concurrent: Maximum concurrent email sends
             
         Returns:
-            str: Formatted handoff message
+            Dict with 'success' and 'failed' lists of contractor emails
         """
-        timestamp = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+        results = {'success': [], 'failed': []}
         
-        message = f"""
-Hello {customer_name},
-
-Thank you for contacting {self.company_name}. We have received your request and our team is reviewing your information.
-
-NEXT STEPS:
-{next_steps}
-
-Our contractor will be in touch with you shortly to discuss your project in detail and schedule a consultation if needed.
-
-If you have any immediate questions or concerns, please don't hesitate to reach out.
-
-Best regards,
-{self.company_name} Team
-
----
-This message was generated on {timestamp}
-        """.strip()
+        # Create semaphore to limit concurrent operations
+        semaphore = asyncio.Semaphore(max_concurrent)
         
-        return message
+        async def send_single_notification(contractor):
+            async with semaphore:
+                success = await self.send_contractor_lead_notification(contractor, lead_summary)
+                if success:
+                    results['success'].append(contractor.email)
+                else:
+                    results['failed'].append(contractor.email)
+        
+        # Execute all notifications concurrently
+        tasks = [send_single_notification(contractor) for contractor in contractors]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        self.logger.info(f"Bulk notification results: {len(results['success'])} success, {len(results['failed'])} failed")
+        return results
     
-    def _generate_subject(self, lead_data: Dict[str, Any]) -> str:
-        """Generate email subject line based on lead data."""
-        customer_name = lead_data.get('customer_name', 'New Customer')
-        service_type = lead_data.get('service_type', 'Service Request')
-        urgency = lead_data.get('urgency', '').upper()
+    async def _send_notification(self, notification_data: NotificationData) -> bool:
+        """
+        Internal method to send notification with error handling and logging.
         
-        if urgency in ['URGENT', 'EMERGENCY']:
-            priority_prefix = f"[{urgency}] "
-        else:
-            priority_prefix = ""
+        Args:
+            notification_data: Notification data structure
+            
+        Returns:
+            bool: True if notification was sent successfully
+        """
+        notification_log_id = None
         
-        return f"{priority_prefix}New Lead: {customer_name} - {service_type}"
-    
-    def _generate_html_template(self, lead_data: Dict[str, Any]) -> str:
-        """Generate HTML email template."""
-        lead_summary = self.format_lead_summary(lead_data)
-        handoff_message = ""
-        
-        if lead_data.get('customer_name'):
-            handoff_message = self.generate_handoff_message(
-                lead_data['customer_name'],
-                "Please review the lead details and contact the customer within 24 hours."
+        try:
+            # Log notification attempt to database
+            notification_log_id = await self._log_notification(
+                notification_data, 
+                NotificationStatus.PENDING
             )
-        
-        urgency_color = self._get_urgency_color(lead_data.get('urgency'))
-        
-        html_template = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
-        .container {{ max-width: 800px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .header {{ background-color: #2c3e50; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
-        .urgency {{ background-color: {urgency_color}; color: white; padding: 5px 10px; border-radius: 3px; display: inline-block; margin-bottom: 10px; }}
-        .section {{ margin-bottom: 20px; }}
-        .section h3 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }}
-        .info-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }}
-        .info-item {{ background-color: #f8f9fa; padding: 10px; border-radius: 3px; }}
-        .info-label {{ font-weight: bold; color: #34495e; }}
-        .description {{ background-color: #ecf0f1; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db; }}
-        .handoff {{ background-color: #e8f6f3; padding: 15px; border-radius: 5px; border: 1px solid #16a085; margin-top: 20px; }}
-        .footer {{ text-align: center; margin-top: 20px; padding: 15px; background-color: #95a5a6; color: white; border-radius: 5px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔨 New Lead Alert - {self.company_name}</h1>
-            <p>Lead received: {self._format_timestamp(lead_data.get('timestamp', datetime.now()))}</p>
-        </div>
-        
-        {f'<div class="urgency">Priority: {lead_data.get("urgency", "Normal").upper()}</div>' if lead_data.get('urgency') else ''}
-        
-        <div class="section">
-            <h3>📋 Lead Summary</h3>
-            <pre style="white-space: pre-wrap; font-family: inherit;">{lead_summary}</pre>
-        </div>
-        
-        {self._generate_customer_section_html(lead_data)}
-        {self._generate_service_section_html(lead_data)}
-        {self._generate_contact_section_html(lead_data)}
-        
-        {f'<div class="handoff"><h3>💬 Customer Handoff Message</h3><pre style="white-space: pre-wrap; font-family: inherit;">{handoff_message}</pre></div>' if handoff_message else ''}
-        
-        <div class="footer">
-            <p>This is an automated notification from {self.company_name} Lead Management System</p>
-            <p>Please respond to this lead promptly to maintain customer satisfaction</p>
-        </div>
-    </div>
-</body>
-</html>
-        """.strip()
-        
-        return html_template
-    
-    def _generate_text_template(self, lead_data: Dict[str, Any]) -> str:
-        """Generate plain text email template."""
-        lead_summary = self.format_lead_summary(lead_data)
-        handoff_message = ""
-        
-        if lead_data.get('customer_name'):
-            handoff_message = self.generate_handoff_message(
-                lead_data['customer_name'],
-                "Please review the lead details and contact the customer within 24 hours."
+            
+            # Render email template
+            email_content = await self._render_email_template(
+                notification_data.template_name,
+                notification_data.template_data
             )
-        
-        text_template = f"""
-🔨 NEW LEAD ALERT - {self.company_name}
-{'=' * 50}
-
-Lead Received: {self._format_timestamp(lead_data.get('timestamp', datetime.now()))}
-{f"Priority: {lead_data.get('urgency', 'Normal').upper()}" if lead_data.get('urgency') else ''}
-
-📋 LEAD SUMMARY
-{'-' * 20}
-{lead_summary}
-
-💬 CUSTOMER HANDOFF MESSAGE
-{'-' * 30}
-{handoff_message if handoff_message else 'Please contact the customer promptly.'}
-
----
-This is an automated notification from {self.company_name} Lead Management System
-Please respond to this lead promptly to maintain customer satisfaction
-        """.strip()
-        
-        return text_template
+            
+            # Send email
+            success = await self._send_email(
+                to_email=notification_data.recipient_email,
+                to_name=notification_data.recipient_name,
+                subject=notification_data.subject,
+                html_content=email_content,
+                attachments=notification_data.attachments
+            )
+            
+            # Update notification log
+            status = NotificationStatus.SENT if success else NotificationStatus.FAILED
+            await self._update_notification_log(notification_log_id, status)
+            
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error in _send_notification: {str(e)}")
+            if notification_log_id:
+                await self._update_notification_log(
+                    notification_log_id, 
+                    NotificationStatus.FAILED,
+                    error_message=str(e)
+                )
+            return False
     
-    def _generate_customer_section_html(self, lead_data: Dict[str, Any]) -> str:
-        """Generate customer information section for HTML email."""
-        customer_info = []
+    async def _send_email(
+        self,
+        to_email: str,
+        to_name: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        """
+        Send email using SMTP with retry logic.
         
-        if lead_data.get('customer_name'):
-            customer_info.append(f'<div class="info-item"><span class="info-label">Name:</span> {lead_data["customer_name"]}</div>')
-        
-        if lead_data.get('phone'):
-            customer_info.append(f'<div class="info-item"><span class="info-label">Phone:</span> <a href="tel:{lead_data["phone"]}">{lead_data["phone"]}</a></div>')
-        
-        if lead_data.get('email'):
-            customer_info.append(f'<div class="info-item"><span class="info-label">Email:</span> <a href="mailto:{lead_data["email"]}">{lead_data["email"]}</a></div>')
-        
-        if lead_data.get('address'):
-            customer_info.append(f'<div class="info-item"><span class="info-label">Address:</span> {lead_data["address"]}</div>')
-        
-        if customer_info:
-            return f"""
-            <div class="section">
-                <h3>👤 Customer Information</h3>
-                <div class="info-grid">
-                    {''.join(customer_info)}
-                </div>
-            </div>
-            """
-        return ""
-    
-    def _generate_service_section_html(self, lead_data: Dict[str, Any]) -> str:
-        """Generate service information section for HTML email."""
-        service_info = []
-        
-        if lead_data.get('service_type'):
-            service_info.append(f'<div class="info-item"><span class="info-label">Service:</span> {lead_data["service_type"]}</div>')
-        
-        if lead_data.get('property_type'):
-            service_info.append(f'<div class="info-item"><span class="info-label">Property:</span> {lead_data["property_type"]}</div>')
-        
-        if lead_data.get('budget_range'):
-            service_info.append(f'<div class="info-item"><span class="info-label">Budget:</span> {lead_data["budget_range"]}</div>')
-        
-        if lead_data.get('preferred_timeline'):
-            service_info.append(f'<div class="info-item"><span class="info-label">Timeline:</span> {lead_data["preferred_timeline"]}</div>')
-        
-        description_section = ""
-        if lead_data.get('description'):
-            description_section = f'<div class="description"><strong>Description:</strong><br>{lead_data["description"]}</div>'
-        
-        if service_info or description_section:
-            info_grid = f'<div class="info-grid">{"".join(service_info)}</div>' if service_info else ""
-            return f"""
-            <div class="section">
-                <h3>🔧 Service Details</h3>
-                {info_grid}
-                {description_section}
-            </div>
-            """
-        return ""
-    
-    def _generate_contact_section_html(self, lead_data: Dict[str, Any]) -> str:
-        """Generate contact preferences section for HTML email."""
-        contact_info = []
-        
-        if lead_data.get('contact_preference'):
-            contact_info.append(f'<div class="info-item"><span class="info-label">Preferred Contact:</span> {lead_data["contact_preference"]}</div>')
-        
-        if lead_data.get('best_time_to_call'):
-            contact_info.append(f'<div class="info-item"><span class="info-label">Best Time:</span> {lead_data["best_time_to_call"]}</div>')
-        
-        if lead_data.get('additional_notes'):
-            contact_info.append(f'<div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Notes:</span> {lead_data["additional_notes"]}</div>')
-        
-        if contact_info:
-            return f"""
-            <div class="section">
-                <h3>📞 Contact Preferences</h3>
-                <div class="info-grid">
-                    {''.join(contact_info)}
-                </div>
-            </div>
-            """
-        return ""
-    
-    def _attach_photos(self, msg: MimeMultipart, photos: List[Dict[str, Any]]):
-        """Attach photos to email message."""
-        for i, photo in enumerate(photos[:10]):  # Limit to 10 photos
+        Args:
+            to_email: Recipient email address
+            to_name: Recipient name
+            subject: Email subject
+            html_content: HTML content
+            text_content: Plain text content (optional)
+            attachments: List of attachment dictionaries
+            
+        Returns:
+            bool: True if email was sent successfully
+        """
+        for attempt in range(self.max_retries):
             try:
-                if 'data' in photo:
-                    # Handle base64 encoded images
-                    image_data = base64.b64decode(photo['data'])
-                    filename = photo.get('filename', f'photo_{i+1}.jpg')
-                    
-                    # Determine MIME type
-                    mime_type = photo.get('mime_type')
-                    if not mime_type:
-                        mime_type, _ = mimetypes.guess_type(filename)
-                        if not mime_type or not mime_type.startswith('image/'):
-                            mime_type = 'image/jpeg'
-                    
-                    # Create image attachment
-                    img = MimeImage(image_data)
-                    img.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-                    msg.attach(img)
-                    
-                elif 'url' in photo:
-                    # Handle image URLs (add as reference in email body)
-                    pass
-                    
+                # Create message
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = subject
+                msg['From'] = f"{self.from_name} <{self.from_email}>"
+                msg['To'] = f"{to_name} <{to_email}>"
+                
+                # Add text content if provided
+                if text_content:
+                    text_part = MIMEText(text_content, 'plain')
+                    msg.attach(text_part)
+                
+                # Add HTML content
+                html_part = MIMEText(html_content, 'html')
+                msg.attach(html_part)
+                
+                # Add attachments if provided
+                if attachments:
+                    for attachment in attachments:
+                        self._add_attachment(msg, attachment)
+                
+                # Send email using aiosmtplib for async support
+                await aiosmtplib.send(
+                    msg,
+                    hostname=self.smtp_server,
+                    port=self.smtp_port,
+                    username=self.smtp_username,
+                    password=self.smtp_password,
+                    use_tls=self.smtp_use_tls
+                )
+                
+                self.logger.info(f"Email sent successfully to {to_email}")
+                return True
+                
             except Exception as e:
-                logger.error(f"Failed to attach photo {i+1}: {str(e)}")
+                self.logger.error(f"Email send attempt {attempt + 1} failed: {str(e)}")
+                
+                if attempt < self.max_retries - 1:
+                    # Wait before retry
+                    await asyncio.sleep(self.retry_delays[attempt])
+                else:
+                    self.logger.error(f"Failed to send email to {to_email} after {self.max_retries} attempts")
+                    return False
     
-    def _get_urgency_color(self, urgency: Optional[str]) -> str:
-        """Get color code for urgency level."""
-        if not urgency:
-            return "#3498db"
+    def _add_attachment(self, msg: MIMEMultipart, attachment: Dict[str, Any]) -> None:
+        """
+        Add attachment to email message.
         
-        urgency = urgency.upper()
-        color_map = {
-            'EMERGENCY': '#e74c3c',
-            'URGENT': '#e67e22',
-            'HIGH': '#f39c12',
-            'NORMAL': '#3498db',
-            'LOW': '#27ae60'
-        }
-        return color_map.get(urgency, "#3498db")
+        Args:
+            msg: Email message object
+            attachment: Attachment dictionary with 'filename', 'content', 'content_type'
+        """
+        try:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(attachment['content'])
+            encoders.encode_base64(part)
+            
+            part.add_header(
+                'Content-Disposition',
+                f'attachment; filename= {attachment["filename"]}'
+            )
+            
+            msg.attach(part)
+            
+        except Exception as e:
+            self.logger.error(f"Error adding attachment: {str(e)}")
     
-    def _format_timestamp(self, timestamp: Any) -> str:
-        """Format timestamp for display."""
-        if isinstance(timestamp, str):
-            try:
-                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            except ValueError:
-                return timestamp
-        elif isinstance(timestamp, datetime):
-            dt = timestamp
-        else:
-            dt = datetime.now()
+    async def _render_email_template(self, template_name: str, template_data: Dict[str, Any]) -> str:
+        """
+        Render email template with provided data.
         
-        return dt.strftime("%B %d, %Y at %I:%M %p")
+        Args:
+            template_name: Name of the template file
+            template_data: Data to populate template
+            
+        Returns:
+            str: Rendered HTML content
+        """
+        try:
+            template = self.jinja_env.get_template(template_name)
+            return template.render(**template_data)
+            
+        except Exception as e:
+            self.logger.error(f"Error rendering template {template_name}: {str(e)}")
+            # Return fallback template
+            return self._get_fallback_template(template_data)
+    
+    def _get_fallback_template(self, template_data: Dict[str, Any]) -> str:
+        """
+        Generate fallback HTML template when main template fails.
+        
+        Args:
+            template_data: Template data
+            
+        Returns:
+            str: Fallback HTML content
+        """
+        return f"""
+        <html>
+            <body>
+                <h2>Notification</h2>
+                <p>This is an automated notification from {self.settings.PLATFORM_NAME}.</p>
+                <hr>
+                <p>Template data: {json.dumps(template_data, indent=2, default=str)}</p>
+                <hr>
+                <p>If you have any questions, please contact us at {self.settings.SUPPORT_EMAIL}</p>
+            </body>
+        </html>
+        """
+    
+    async def _log_notification(
+        self,
+        notification_data: NotificationData,
+        status: NotificationStatus,
+        error_message: Optional[str] = None
+    ) -> int:
+        """
+        Log notification to database.
+        
+        Args:
+            notification_data: Notification data
+            status: Notification status
+            error_message: Error message if failed
+            
+        Returns:
+            int: Notification log ID
+        """
+        try:
+            with get_db_session() as session:
+                notification_log = NotificationLog(
+                    recipient_email=notification_data.recipient_email,
+                    recipient_name=notification_data.recipient_name,
+                    subject=notification_data.subject,
+                    notification_type=notification_data.notification_type.value,
+                    template_name=notification_data.template_name,
+                    template_data=json.dumps(notification_data.template_data, default=str),
+                    status=status.value,
+                    priority=notification_data.priority,
+                    error_message=error_message,
+                    created_at=datetime.now(timezone.utc),
+                    send_after=notification_data.send_after
+                )
+                
+                session.add(notification_log)
+                session.commit()
+                session.refresh(notification_log)
+                
+                return notification_log.id
+                
+        except Exception as e:
+            self.logger.error(f"Error logging notification: {str(e)}")
+            return 0
+    
+    async def _update_notification_log(
+        self,
+        notification_log_id: int,
+        status: NotificationStatus,
+        error_message: Optional[str] = None
+    ) -> None:
+        """
+        Update notification log status.
+        
+        Args:
+            notification_log_id: Notification log ID
+            status: New status
+            error_message: Error message if failed
+        """
+        try:
+            with get_db_session() as session:
+                notification_log = session.query(NotificationLog).get(notification_log_id)
+                if notification_log:
+                    notification_log.status = status.value
+                    notification_log.sent_at = datetime.now(timezone.utc) if status == NotificationStatus.SENT else None
+                    if error_message:
+                        notification_log.error_message = error_message
+                    
+                    session.commit()
+                    
+        except Exception as e:
+            self.logger.error(f"Error updating notification log: {str(e)}")
+    
+    async def get_notification_history(
+        self,
+        recipient_email: Optional[str] = None,
+        notification_type: Optional[NotificationType] = None,
+        status: Optional[NotificationStatus] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Get notification history with optional filters.
+        
+        Args:
+            recipient_email: Filter by recipient email
+            notification_type: Filter by notification type
+            status: Filter by status
+            limit: Maximum number of records
+            offset: Number of records to skip
+            
+        Returns:
+            List of notification log dictionaries
+        """
+        try:
+            with get_db_session() as session:
+                query = session.query(NotificationLog)
+                
+                if recipient_email:
+                    query = query.filter(NotificationLog.recipient_email == recipient_email)
+                
+                if notification_type:
+                    query = query.filter(NotificationLog.notification_type == notification_type.value)
+                
+                if status:
+                    query = query.filter(NotificationLog.status == status.value)
+                
+                notifications = query.order_by(NotificationLog.created_at.desc())\
+                                   .limit(limit)\
+                                   .offset(offset)\
+                                   .all()
+                
+                return [
+                    {
+                        'id': n.id,
+                        'recipient_email': n.recipient_email,
+                        'recipient_name': n.recipient_name,
+                        'subject': n.subject,
+                        'notification_type': n.notification_type,
+                        'status': n.status,
+                        'priority': n.priority,
+                        'created_at': n.created_at,
+                        'sent_at': n.sent_at,
+                        'error_message': n.error_message
+                    }
+                    for n in notifications
+                ]
+                
+        except Exception as e:
+            self.logger.error(f"Error getting notification history: {str(e)}")
+            return []
+    
+    async def retry_failed_notifications(self, max_retries: int = 10) -> Dict[str, int]:
+        """
+        Retry failed notifications that haven't exceeded maximum retry count.
+        
+        Args:
+            max_retries: Maximum number of notifications to retry
+            
+        Returns:
+            Dict with retry statistics
+        """
+        results = {'attempted': 0, 'successful': 0, 'failed': 0}
+        
+        try:
+            with get_db_session() as session:
+                failed_notifications = session.query(NotificationLog)\
+                    .filter(NotificationLog.status == NotificationStatus.FAILED.value)\
+                    .limit(max_retries)\
+                    .all()
+                
+                for notification in failed_notifications:
+                    results['attempted'] += 1
+                    
+                    try:
+                        # Recreate notification data
+                        template_data = json.loads(notification.template_data)
+                        notification_data = NotificationData(
+                            recipient_email=notification.recipient_email,
+                            recipient_name=notification.recipient_name,
+                            subject=notification.subject,
+                            template_name=notification.template_name,
+                            template_data=template_data,
+                            notification_type=NotificationType(notification.notification_type),
+                            priority=notification.priority
+                        )
+                        
+                        # Update status to retry
+                        notification.status = NotificationStatus.RETRY.value
+                        session.commit()
+                        
+                        # Attempt to resend
+                        success = await self._send_notification(notification_data)
+                        
+                        if success:
+                            results['successful'] += 1
+                        else:
+                            results['failed'] += 1
+                            
+                    except Exception as e:
+                        self.logger.error(f"Error retrying notification {notification.id}: {str(e)}")
+                        results['failed'] += 1
+                        
+        except Exception as e:
+            self.logger.error(f"Error in retry_failed_notifications: {str(e)}")
+        
+        self.logger.info(f"Notification retry results: {results}")
+        return results
+
+
+# Global instance
+notification_service = NotificationService()

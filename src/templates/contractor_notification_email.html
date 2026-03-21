@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Qualified Lead - Claw Contractor</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .alert-banner {
+            background-color: #ff6b35;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .lead-summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2a5298;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .summary-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2a5298;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #2a5298;
+            padding-bottom: 8px;
+        }
+        .customer-details {
+            margin-bottom: 25px;
+        }
+        .detail-row {
+            display: flex;
+            margin-bottom: 10px;
+            align-items: flex-start;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #555;
+            width: 120px;
+            flex-shrink: 0;
+        }
+        .detail-value {
+            color: #333;
+            flex: 1;
+        }
+        .project-details {
+            margin-bottom: 25px;
+        }
+        .project-responses {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-top: 15px;
+        }
+        .response-item {
+            margin-bottom: 12px;
+        }
+        .response-question {
+            font-weight: bold;
+            color: #2a5298;
+            margin-bottom: 5px;
+        }
+        .response-answer {
+            color: #333;
+            padding-left: 15px;
+        }
+        .photos-section {
+            margin-top: 25px;
+        }
+        .photos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .photo-item {
+            text-align: center;
+        }
+        .photo-item img {
+            max-width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .photo-caption {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .cta-section {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+            margin: 30px 0;
+            border-radius: 8px;
+        }
+        .cta-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .cta-text {
+            font-size: 16px;
+            margin-bottom: 25px;
+            opacity: 0.95;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: white;
+            color: #28a745;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 0 10px 10px 0;
+            transition: all 0.3s ease;
+        }
+        .cta-button:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+        }
+        .urgency-note {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .urgency-note strong {
+            color: #d68910;
+        }
+        .footer {
+            background-color: #333;
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .footer-section {
+            margin-bottom: 20px;
+        }
+        .footer-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+        .contact-info {
+            margin-bottom: 15px;
+        }
+        .contact-info a {
+            color: #20c997;
+            text-decoration: none;
+        }
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+        .social-links {
+            margin: 20px 0;
+        }
+        .social-links a {
+            color: #20c997;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .disclaimer {
+            font-size: 12px;
+            color: #999;
+            margin-top: 20px;
+            line-height: 1.4;
+        }
+        @media only screen and (max-width: 480px) {
+            .container {
+                width: 100% !important;
+            }
+            .header, .content, .cta-section, .footer {
+                padding: 20px 15px !important;
+            }
+            .detail-row {
+                flex-direction: column;
+            }
+            .detail-label {
+                width: auto;
+                margin-bottom: 5px;
+            }
+            .photos-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .cta-button {
+                display: block;
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🏗️ CLAW CONTRACTOR</div>
+            <div class="tagline">Connecting Quality Contractors with Quality Projects</div>
+        </div>
+
+        <!-- Alert Banner -->
+        <div class="alert-banner">
+            🚨 NEW QUALIFIED LEAD ALERT 🚨
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <div class="greeting">
+                Hello {{ contractor_name }},
+            </div>
+
+            <p>Great news! We've found a qualified lead that matches your service area and expertise. This customer is actively seeking a contractor and has provided detailed information about their project.</p>
+
+            <!-- Lead Summary Section -->
+            <div class="lead-summary">
+                <div class="summary-title">📋 Lead Summary</div>
+
+                <!-- Customer Details -->
+                <div class="customer-details">
+                    <h3 style="color: #2a5298; margin-bottom: 15px;">Customer Information</h3>
+                    <div class="detail-row">
+                        <div class="detail-label">Name:</div>
+                        <div class="detail-value">{{ customer_name }}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Phone:</div>
+                        <div class="detail-value"><a href="tel:{{ customer_phone }}" style="color: #2a5298; text-decoration: none;">{{ customer_phone }}</a></div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Email:</div>
+                        <div class="detail-value"><a href="mailto:{{ customer_email }}" style="color: #2a5298; text-decoration: none;">{{ customer_email }}</a></div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Location:</div>
+                        <div class="detail-value">{{ project_location }}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Service Type:</div>
+                        <div class="detail-value"><strong>{{ service_type }}</strong></div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Timeline:</div>
+                        <div class="detail-value">{{ project_timeline }}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Budget Range:</div>
+                        <div class="detail-value"><strong>{{ budget_range }}</strong></div>
+                    </div>
+                </div>
+
+                <!-- Project Details -->
+                <div class="project-details">
+                    <h3 style="color: #2a5298; margin-bottom: 15px;">Project Details</h3>
+                    <div class="detail-row">
+                        <div class="detail-label">Description:</div>
+                        <div class="detail-value">{{ project_description }}</div>
+                    </div>
+
+                    <!-- Customer Responses -->
+                    {% if customer_responses %}
+                    <div class="project-responses">
+                        <h4 style="color: #2a5298; margin-bottom: 15px;">Customer Questionnaire Responses</h4>
+                        {% for response in customer_responses %}
+                        <div class="response-item">
+                            <div class="response-question">{{ response.question }}</div>
+                            <div class="response-answer">{{ response.answer }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Photos Section -->
+                {% if project_photos %}
+                <div class="photos-section">
+                    <h3 style="color: #2a5298; margin-bottom: 15px;">📸 Project Photos</h3>
+                    <div class="photos-grid">
+                        {% for photo in project_photos %}
+                        <div class="photo-item">
+                            <img src="{{ photo.url }}" alt="{{ photo.caption }}" />
+                            <div class="photo-caption">{{ photo.caption }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Urgency Note -->
+            <div class="urgency-note">
+                <strong>⏰ Time Sensitive:</strong> This lead was just submitted and the customer is actively comparing contractors. Quick response times significantly increase your chances of winning this project!
+            </div>
+
+            <!-- Call to Action -->
+            <div class="cta-section">
+                <div class="cta-title">Ready to Win This Project?</div>
+                <div class="cta-text">
+                    Contact this customer now to discuss their project and provide a competitive quote. 
+                    The faster you respond, the better your chances of securing this job!
+                </div>
+                <a href="tel:{{ customer_phone }}" class="cta-button">📞 Call Now</a>
+                <a href="mailto:{{ customer_email }}" class="cta-button">✉️ Send Email</a>
+                <a href="{{ lead_details_url }}" class="cta-button">📋 View Full Details</a>
+            </div>
+
+            <!-- Additional Information -->
+            <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #2a5298; margin-bottom: 15px;">💡 Tips for Success</h3>
+                <ul style="color: #333; line-height: 1.6;">
+                    <li><strong>Respond quickly:</strong> Studies show that leads contacted within 5 minutes are 9x more likely to convert.</li>
+                    <li><strong>Be professional:</strong> Reference specific details from their project description to show you've reviewed their needs.</li>
+                    <li><strong>Offer value:</strong> Provide helpful insights or suggestions even in your initial contact.</li>
+                    <li><strong>Follow up:</strong> If they don't answer initially, try again within a few hours using a different method (call vs. email).</li>
+                </ul>
+            </div>
+
+            <p style="margin-top: 30px;">
+                Best of luck with this lead! Remember, our success depends on your success. If you have any questions or need assistance, don't hesitate to reach out to our support team.
+            </p>
+
+            <p style="margin-top: 20px;">
+                <strong>The Claw Contractor Team</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-section">
+                <div class="footer-title">Contact Information</div>
+                <div class="contact-info">
+                    <div>📧 Email: <a href="mailto:support@clawcontractor.com">support@clawcontractor.com</a></div>
+                    <div>📞 Phone: <a href="tel:1-800-CLAW-PRO">1-800-CLAW-PRO</a></div>
+                    <div>🌐 Website: <a href="https://www.clawcontractor.com">www.clawcontractor.com</a></div>
+                </div>
+            </div>
+
+            <div class="footer-section">
+                <div class="footer-title">Support Hours</div>
+                <div>Monday - Friday: 6:00 AM - 10:00 PM EST</div>
+                <div>Saturday - Sunday: 8:00 AM - 6:00 PM EST</div>
+            </div>
+
+            <div class="social-links">
+                <a href="https://facebook.com/clawcontractor">Facebook</a> |
+                <a href="https://twitter.com/clawcontractor">Twitter</a> |
+                <a href="https://linkedin.com/company/clawcontractor">LinkedIn</a> |
+                <a href="https://instagram.com/clawcontractor">Instagram</a>
+            </div>
+
+            <div class="disclaimer">
+                <p>This email contains a qualified lead generated through our platform. Please review our <a href="https://www.clawcontractor.com/terms" style="color: #20c997;">Terms of Service</a> and <a href="https://www.clawcontractor.com/privacy" style="color: #20c997;">Privacy Policy</a>.</p>
+                
+                <p>To unsubscribe from lead notifications, please <a href="{{ unsubscribe_url }}" style="color: #20c997;">click here</a> or contact our support team. Note that unsubscribing will stop all lead notifications to your account.</p>
+                
+                <p>© {{ current_year }} Claw Contractor. All rights reserved. | 123 Construction Way, Builder City, BC 12345</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

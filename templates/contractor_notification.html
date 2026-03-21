@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Lead Notification - {{ company_name }}</title>
+    <style>
+        /* Reset styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Base styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+
+        .email-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Alert section */
+        .alert {
+            background-color: #e74c3c;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        /* Content sections */
+        .content {
+            padding: 30px 20px;
+        }
+
+        .section {
+            margin-bottom: 35px;
+            border-left: 4px solid #3498db;
+            padding-left: 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title .icon {
+            margin-right: 10px;
+            font-size: 24px;
+        }
+
+        /* Customer summary card */
+        .customer-card {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .customer-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #333;
+            font-size: 16px;
+        }
+
+        .contact-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            text-align: center;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Response table */
+        .response-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .response-table th {
+            background-color: #34495e;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .response-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .response-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Photo gallery */
+        .photo-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .photo-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #f8f9fa;
+        }
+
+        .photo-placeholder {
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(45deg, #ecf0f1, #bdc3c7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7f8c8d;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .photo-info {
+            padding: 10px;
+        }
+
+        .photo-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .photo-link {
+            color: #3498db;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        /* Qualification badges */
+        .qualification-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-qualified {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .badge-partial {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .badge-not-qualified {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        /* Next steps */
+        .next-steps {
+            background-color: #e8f6f3;
+            border: 1px solid #1abc9c;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .next-steps ul {
+            margin-left: 20px;
+        }
+
+        .next-steps li {
+            margin-bottom: 8px;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #34495e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            .customer-info {
+                grid-template-columns: 1fr;
+            }
+
+            .contact-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .photo-gallery {
+                grid-template-columns: 1fr;
+            }
+
+            .content {
+                padding: 20px 15px;
+            }
+
+            .header {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎯 New Lead Alert</h1>
+            <p class="subtitle">A qualified customer is ready to connect with you</p>
+        </div>
+
+        <!-- Priority Alert -->
+        {% if lead.priority == 'high' %}
+        <div class="alert">
+            ⚡ HIGH PRIORITY LEAD - Respond within 1 hour for best results
+        </div>
+        {% endif %}
+
+        <div class="content">
+            <!-- Customer Summary -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">👤</span>
+                    Customer Information
+                </h2>
+                
+                <div class="customer-card">
+                    <div class="customer-info">
+                        <div class="info-item">
+                            <span class="info-label">Customer Name</span>
+                            <span class="info-value">{{ customer.first_name }} {{ customer.last_name }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Phone Number</span>
+                            <span class="info-value">{{ customer.phone }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Email Address</span>
+                            <span class="info-value">{{ customer.email }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Service Location</span>
+                            <span class="info-value">{{ customer.address }}, {{ customer.city }}, {{ customer.state }} {{ customer.zip }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Preferred Contact Method</span>
+                            <span class="info-value">{{ customer.preferred_contact|title }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Best Time to Call</span>
+                            <span class="info-value">{{ customer.best_time|default:"Anytime" }}</span>
+                        </div>
+                    </div>
+
+                    <div class="contact-buttons">
+                        <a href="tel:{{ customer.phone }}" class="btn btn-primary">📞 Call Now</a>
+                        <a href="mailto:{{ customer.email }}" class="btn btn-secondary">✉️ Send Email</a>
+                        {% if customer.address %}
+                        <a href="https://maps.google.com/maps?q={{ customer.address|urlencode }}, {{ customer.city|urlencode }}, {{ customer.state|urlencode }}" class="btn btn-secondary" target="_blank">📍 View Location</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lead Qualification -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">✅</span>
+                    Lead Qualification
+                </h2>
+                
+                <div class="qualification-badges">
+                    {% for criteria in qualification_results %}
+                        <span class="badge badge-{{ criteria.status }}">
+                            {{ criteria.name }}: {{ criteria.status|title }}
+                        </span>
+                    {% endfor %}
+                </div>
+
+                <p style="margin-top: 15px; color: #555;">
+                    <strong>Overall Score:</strong> {{ qualification_score }}/{{ max_qualification_score }} 
+                    ({{ qualification_percentage }}%)
+                </p>
+            </div>
+
+            <!-- Customer Responses -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">💬</span>
+                    Customer Responses
+                </h2>
+                
+                <table class="response-table">
+                    <thead>
+                        <tr>
+                            <th>Question</th>
+                            <th>Customer Response</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for response in customer_responses %}
+                        <tr>
+                            <td><strong>{{ response.question }}</strong></td>
+                            <td>{{ response.answer }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Project Details -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">🏗️</span>
+                    Project Details
+                </h2>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <p><strong>Service Type:</strong> {{ lead.service_type }}</p>
+                    <p><strong>Project Size:</strong> {{ lead.project_size|default:"Not specified" }}</p>
+                    <p><strong>Timeline:</strong> {{ lead.timeline|default:"Not specified" }}</p>
+                    <p><strong>Budget Range:</strong> {{ lead.budget_range|default:"Not disclosed" }}</p>
+                </div>
+
+                {% if lead.description %}
+                <div>
+                    <h4 style="margin-bottom: 10px;">Additional Details:</h4>
+                    <p style="background-color: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+                        {{ lead.description }}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Photos and Attachments -->
+            {% if photos %}
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">📷</span>
+                    Customer Photos
+                </h2>
+                
+                <p style="margin-bottom: 15px; color: #555;">
+                    Customer has provided {{ photos|length }} photo(s) for your review:
+                </p>
+
+                <div class="photo-gallery">
+                    {% for photo in photos %}
+                    <div class="photo-item">
+                        <div class="photo-placeholder">
+                            📸 Photo {{ forloop.counter }}
+                        </div>
+                        <div class="photo-info">
+                            <div class="photo-name">{{ photo.name|default:"Photo "|add:forloop.counter }}</div>
+                            <a href="{{ photo.url }}" class="photo-link" target="_blank">View Full Size</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Next Steps -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">🚀</span>
+                    Next Steps
+                </h2>
+                
+                <div class="next-steps">
+                    <h4 style="margin-bottom: 15px;">Recommended Actions:</h4>
+                    <ul>
+                        <li><strong>Contact immediately:</strong> Call within 5 minutes for 400% better connection rates</li>
+                        <li><strong>Reference their responses:</strong> Show you've reviewed their specific needs</li>
+                        <li><strong>Schedule consultation:</strong> Offer specific times within 24-48 hours</li>
+                        {% if photos %}
+                        <li><strong>Review photos:</strong> Prepare informed questions about their project</li>
+                        {% endif %}
+                        <li><strong>Prepare estimate:</strong> Have ballpark figures ready based on their requirements</li>
+                        <li><strong>Follow up:</strong> If no answer, try again in 2 hours, then schedule callback</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Lead Source Information -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="icon">📊</span>
+                    Lead Information
+                </h2>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+                    <p><strong>Lead ID:</strong> {{ lead.id }}</p>
+                    <p><strong>Source:</strong> {{ lead.source|default:"Direct Website" }}</p>
+                    <p><strong>Generated:</strong> {{ lead.created_at|date:"F j, Y g:i A" }}</p>
+                    <p><strong>Location:</strong> {{ customer.city }}, {{ customer.state }}</p>
+                    {% if lead.utm_source %}
+                    <p><strong>Marketing Campaign:</strong> {{ lead.utm_source }} / {{ lead.utm_campaign|default:"Unknown" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>
+                This lead was generated through {{ company_name }}'s lead generation system.<br>
+                For support or questions, contact us at <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+            </p>
+            <p style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
+                Lead #{{ lead.id }} • Generated {{ lead.created_at|date:"M j, Y g:i A" }}
+            </p>
+        </div>
+    </div>
+</body>
+</html>

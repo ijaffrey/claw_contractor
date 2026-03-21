@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Request Confirmation - Claw Contractor Services</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px;
+        }
+        .thank-you {
+            background-color: #e8f5e8;
+            border-left: 4px solid #28a745;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 0 4px 4px 0;
+        }
+        .thank-you h2 {
+            color: #155724;
+            margin: 0 0 10px 0;
+            font-size: 20px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section h3 {
+            color: #2c3e50;
+            font-size: 18px;
+            margin: 0 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .steps-list {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        .steps-list ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .steps-list li {
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        .timeline-box {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+        }
+        .timeline-box .time-highlight {
+            font-size: 24px;
+            font-weight: bold;
+            color: #856404;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .contact-info {
+            background-color: #e3f2fd;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        .contact-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .contact-item:last-child {
+            margin-bottom: 0;
+        }
+        .contact-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            font-size: 18px;
+        }
+        .contact-details {
+            flex: 1;
+        }
+        .contact-label {
+            font-weight: 600;
+            color: #1976d2;
+            font-size: 14px;
+            display: block;
+        }
+        .contact-value {
+            color: #333;
+            font-size: 15px;
+        }
+        .closing {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 6px;
+            padding: 25px;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .closing h3 {
+            color: #2c3e50;
+            margin: 0 0 15px 0;
+            border: none;
+            padding: 0;
+        }
+        .quality-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .footer {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #74b9ff;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            .header, .content, .contact-info, .closing {
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Service Request Confirmed</h1>
+            <p>Your qualification has been successfully completed</p>
+        </div>
+        
+        <div class="content">
+            <div class="thank-you">
+                <h2>✓ Thank You for Completing Your Qualification</h2>
+                <p>We appreciate you taking the time to provide detailed information about your service needs. Your responses help us ensure you're matched with the most qualified contractor for your specific project.</p>
+            </div>
+
+            <div class="section">
+                <h3>What Happens Next</h3>
+                <div class="steps-list">
+                    <ol>
+                        <li><strong>Contractor Review:</strong> We're currently reviewing your service request and matching you with pre-screened, qualified contractors in your area.</li>
+                        <li><strong>Initial Contact:</strong> A contractor will reach out to you directly to discuss your project details and schedule a consultation or estimate.</li>
+                        <li><strong>Project Assessment:</strong> The contractor will assess your specific needs and provide you with a detailed proposal and timeline.</li>
+                        <li><strong>Service Delivery:</strong> Once approved, work will begin according to the agreed-upon schedule with regular progress updates.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Expected Timeline</h3>
+                <div class="timeline-box">
+                    <span class="time-highlight">24-48 Hours</span>
+                    <p><strong>A qualified contractor will contact you within this timeframe</strong></p>
+                    <p style="margin: 10px 0 0 0; font-size: 14px; color: #6c757d;">
+                        Initial contact may be via phone, email, or text message based on your preferences
+                    </p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Questions or Concerns?</h3>
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <div class="contact-icon">📞</div>
+                        <div class="contact-details">
+                            <span class="contact-label">Customer Service</span>
+                            <span class="contact-value">(555) 123-CLAW (2529)</span>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">✉️</div>
+                        <div class="contact-details">
+                            <span class="contact-label">Email Support</span>
+                            <span class="contact-value">support@clawcontractor.com</span>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">🕒</div>
+                        <div class="contact-details">
+                            <span class="contact-label">Business Hours</span>
+                            <span class="contact-value">Monday - Friday: 8:00 AM - 6:00 PM EST</span>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">🌐</div>
+                        <div class="contact-details">
+                            <span class="contact-label">Website</span>
+                            <span class="contact-value">www.clawcontractor.com</span>
+                        </div>
+                    </div>
+                </div>
+                <p style="margin-top: 15px; font-size: 14px; color: #6c757d;">
+                    <strong>Emergency Services:</strong> For urgent matters requiring immediate attention, please call our 24/7 emergency line at (555) 911-HELP (4357)
+                </p>
+            </div>
+
+            <div class="closing">
+                <h3>Your Satisfaction is Our Priority</h3>
+                <p>At Claw Contractor Services, we're committed to connecting you with trusted, licensed, and insured professionals who meet our rigorous standards for quality and reliability.</p>
+                <p style="margin-bottom: 0;">Rest assured that every contractor in our network has been thoroughly vetted for expertise, professionalism, and customer satisfaction.</p>
+                <div class="quality-badge">✓ Licensed & Insured Contractors Only</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2024 Claw Contractor Services. All rights reserved.</p>
+            <p>
+                <a href="mailto:support@clawcontractor.com">Contact Us</a> | 
+                <a href="tel:+15551232529">Call (555) 123-CLAW</a> | 
+                <a href="#privacy">Privacy Policy</a> | 
+                <a href="#terms">Terms of Service</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
