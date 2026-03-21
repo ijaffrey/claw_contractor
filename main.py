@@ -1,425 +1,400 @@
-"""
-OpenClaw Trade Assistant - Main Entry Point
-Orchestrates the full lead qualification loop
-"""
-
+import logging
 import time
+import signal
+import sys
+from typing import Dict, List, Optional, Set
 from datetime import datetime
-from config import Config
-import gmail_listener
-import lead_parser
-import reply_generator
-import database as db
-import conversation_manager as cm
-import photo_analyzer
+
+from gmail_client import GmailClient
+from claude_client import ClaudeClient
+from email_client import EmailClient
+from database import Database, Lead
 
 
-def process_lead(email_data, business):
-    """
-    Process a single lead through the complete workflow
-    Handles both new leads and replies to existing conversations
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('claw_contractor.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
-    Args:
-        email_data: Email data from Gmail
-        business: Business profile from database
 
-    Returns:
-        bool: True if processed successfully
-    """
-    try:
-        print(f"\n  🔍 DEBUG: Processing email")
-        print(f"     Email ID:   {email_data['id']}")
-        print(f"     Thread ID:  {email_data['thread_id']}")
-        print(f"     From:       {email_data['from']}")
-        print(f"     Subject:    {email_data['subject']}")
-
-        # Check if this exact email was already processed
-        print(f"  🔍 DEBUG: Checking if email ID already processed...")
-        existing_email = db.get_lead_by_email_id(email_data['id'])
-        if existing_email:
-            print(f"  ⊙ Already processed (Lead ID: {existing_email['id']})")
+class ClawContractor:
+    def __init__(self):
+        """Initialize the Claw Contractor lead qualification system."""
+        self.running = False
+        self.processed_message_ids: Set[str] = set()
+        
+        # Initialize clients
+        try:
+            self.gmail_client = GmailClient()
+            self.claude_client = ClaudeClient()
+            self.email_client = EmailClient()
+            self.database = Database()
+            
+            logger.info("All clients initialized successfully")
+            
+            # Load previously processed message IDs from database
+            self._load_processed_message_ids()
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize clients: {e}")
+            raise
+    
+    def _load_processed_message_ids(self):
+        """Load processed message IDs from database to prevent reprocessing."""
+        try:
+            processed_ids = self.database.get_processed_message_ids()
+            self.processed_message_ids.update(processed_ids)
+            logger.info(f"Loaded {len(processed_ids)} processed message IDs")
+        except Exception as e:
+            logger.error(f"Failed to load processed message IDs: {e}")
+    
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully."""
+        logger.info(f"Received signal {signum}, shutting down gracefully...")
+        self.running = False
+    
+    def start(self):
+        """Start the main processing loop."""
+        logger.info("Starting Claw Contractor lead qualification system")
+        
+        # Set up signal handlers
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        
+        self.running = True
+        
+        while self.running:
+            try:
+                self._process_emails()
+                
+                if self.running:
+                    logger.info("Sleeping for 60 seconds before next poll...")
+                    time.sleep(60)
+                    
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}", exc_info=True)
+                if self.running:
+                    time.sleep(30)  # Wait before retrying
+        
+        logger.info("Claw Contractor system shutdown complete")
+    
+    def _process_emails(self):
+        """Process new emails from Gmail."""
+        try:
+            # Get new emails
+            emails = self.gmail_client.get_new_emails()
+            logger.info(f"Retrieved {len(emails)} emails")
+            
+            for email_data in emails:
+                try:
+                    if self._should_process_email(email_data):
+                        self._process_single_email(email_data)
+                    else:
+                        logger.debug(f"Skipping already processed email: {email_data.get('id')}")
+                        
+                except Exception as e:
+                    logger.error(f"Error processing email {email_data.get('id')}: {e}", exc_info=True)
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Error retrieving emails: {e}", exc_info=True)
+    
+    def _should_process_email(self, email_data: Dict) -> bool:
+        """Check if email should be processed (not already processed)."""
+        message_id = email_data.get('id')
+        if not message_id:
             return False
-        print(f"  🔍 DEBUG: Email ID not found - this is a new email")
-
-        # Check if this is a reply to an existing conversation
-        print(f"  🔍 DEBUG: Checking for existing lead by thread_id: {email_data['thread_id']}")
-        existing_lead = db.get_lead_by_thread_id(email_data['thread_id'])
-
+            
+        return message_id not in self.processed_message_ids
+    
+    def _process_single_email(self, email_data: Dict):
+        """Process a single email."""
+        message_id = email_data.get('id')
+        sender_email = email_data.get('sender_email', '').lower()
+        subject = email_data.get('subject', '')
+        body = email_data.get('body', '')
+        attachments = email_data.get('attachments', [])
+        
+        logger.info(f"Processing email from {sender_email} - Subject: {subject}")
+        
+        # Mark as processed first to avoid reprocessing
+        self.processed_message_ids.add(message_id)
+        self.database.mark_message_processed(message_id)
+        
+        # Check if this is from an existing lead
+        existing_lead = self.database.get_lead_by_email(sender_email)
+        
         if existing_lead:
-            # This is a REPLY to an existing conversation
-            print(f"  🔍 DEBUG: Found existing lead! This is a REPLY")
-            print(f"     Lead ID: {existing_lead['id']}")
-            print(f"     Customer: {existing_lead.get('customer_name')}")
-            print(f"     Current step: {existing_lead.get('qualification_step')}")
-            return process_reply(email_data, existing_lead, business)
+            self._process_existing_lead_email(existing_lead, email_data)
         else:
-            # This is a NEW lead
-            print(f"  🔍 DEBUG: No existing lead found - this is a NEW LEAD")
-            return process_new_lead(email_data, business)
-
-    except Exception as e:
-        print(f"  ✗ Error processing lead: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-def process_new_lead(email_data, business):
-    """
-    Process a brand new lead (first contact)
-
-    Args:
-        email_data: Email data from Gmail
-        business: Business profile from database
-
-    Returns:
-        bool: True if processed successfully
-    """
-    print(f"\n  📋 Parsing new lead data...")
-    # Parse the lead
-    lead_data = lead_parser.parse_lead(email_data)
-
-    if not lead_data:
-        print(f"  ✗ Failed to parse lead")
-        return False
-
-    print(f"     Customer: {lead_data['customer_name']}")
-    print(f"     Job type: {lead_data['job_type']}")
-    print(f"     Urgency:  {lead_data['urgency']}")
-    print(f"     Source:   {lead_data['source']}")
-
-    # Analyze photos if present
-    photo_analysis = None
-    if email_data.get('attachments'):
-        num_photos = len(email_data['attachments'])
-        print(f"\n  📷 Found {num_photos} photo(s) - analyzing with Claude Vision...")
-        photo_analysis = photo_analyzer.analyze_multiple_photos(
-            email_data['attachments'],
-            business['trade_type']
-        )
-        if photo_analysis:
-            print(f"\n  {'─' * 56}")
-            print(f"  PHOTO ANALYSIS:")
-            print(f"  {'─' * 56}")
-            for line in photo_analysis.split('\n'):
-                print(f"  {line}")
-            print(f"  {'─' * 56}")
-        else:
-            print(f"  ⚠️  Photo analysis failed")
-    else:
-        print(f"     Photos:   None attached")
-
-    # Store in database
-    print(f"  💾 Storing lead in database...")
-    lead_record = {
-        'business_id': business['id'],
-        'customer_name': lead_data['customer_name'],
-        'customer_email': lead_data['customer_email'],
-        'phone': lead_data['phone'],
-        'job_type': lead_data['job_type'],
-        'description': lead_data['description'],
-        'location': lead_data['location'],
-        'source': lead_data['source'],
-        'urgency': lead_data['urgency'],
-        'status': 'new',
-        'qualification_step': 1,
-        'raw_subject': lead_data['raw_subject'],
-        'raw_body': lead_data['raw_body'],
-        'email_thread_id': email_data['thread_id'],
-        'email_id': email_data['id']
-    }
-
-    saved_lead = db.insert_lead(lead_record)
-    if not saved_lead:
-        print(f"  ✗ Failed to save lead to database")
-        return False
-
-    # Store initial customer message in conversations
-    print(f"  💬 Storing initial message in conversation history...")
-    print(f"  🔍 DEBUG: Attempting to store customer message")
-    print(f"     Lead ID: {saved_lead['id']}")
-    print(f"     Role: customer")
-    print(f"     Message length: {len(email_data['body'])} chars")
-    conversation_msg = db.insert_conversation_message(
-        lead_id=saved_lead['id'],
-        role='customer',
-        message=email_data['body'],
-        email_id=email_data['id']
-    )
-    if conversation_msg:
-        print(f"  🔍 DEBUG: Customer message stored successfully (ID: {conversation_msg['id']})")
-    else:
-        print(f"  ⚠️  WARNING: Failed to store customer message in conversations table")
-
-    # Generate reply
-    print(f"  🤖 Generating branded reply with Claude AI...")
-    reply_text = reply_generator.generate_reply(lead_data, business)
-
-    print(f"\n  {'─' * 56}")
-    print(f"  REPLY:")
-    print(f"  {'─' * 56}")
-    # Indent the reply text
-    for line in reply_text.split('\n'):
-        print(f"  {line}")
-    print(f"  {'─' * 56}")
-
-    # Send reply
-    print(f"\n  📤 Sending reply via Gmail...")
-    sent_message = reply_generator.send_reply(email_data, reply_text)
-
-    if not sent_message:
-        print(f"  ✗ Failed to send reply")
-        # Update status to 'failed' but keep the lead
-        db.update_lead_status(saved_lead['id'], 'send_failed')
-        return False
-
-    # Store assistant's reply in conversations
-    print(f"  💬 Storing assistant reply in conversation history...")
-    print(f"  🔍 DEBUG: Attempting to store assistant message")
-    print(f"     Lead ID: {saved_lead['id']}")
-    print(f"     Role: assistant")
-    print(f"     Message length: {len(reply_text)} chars")
-    assistant_msg = db.insert_conversation_message(
-        lead_id=saved_lead['id'],
-        role='assistant',
-        message=reply_text,
-        email_id=sent_message['id']
-    )
-    if assistant_msg:
-        print(f"  🔍 DEBUG: Assistant message stored successfully (ID: {assistant_msg['id']})")
-    else:
-        print(f"  ⚠️  WARNING: Failed to store assistant message in conversations table")
-
-    # Update lead status to 'contacted'
-    print(f"  ✅ Updating lead status to 'contacted'...")
-    db.update_lead_status(saved_lead['id'], 'contacted')
-
-    print(f"\n  {'=' * 56}")
-    print(f"  ✓ NEW LEAD PROCESSED SUCCESSFULLY")
-    print(f"  {'=' * 56}")
-    print(f"  Lead ID:     {saved_lead['id']}")
-    print(f"  Status:      contacted")
-    print(f"  Step:        1 (initial contact)")
-    print(f"  Reply sent:  Yes")
-    print(f"  {'=' * 56}\n")
-
-    return True
-
-
-def process_reply(email_data, lead, business):
-    """
-    Process a reply to an existing conversation
-
-    Args:
-        email_data: Email data from Gmail
-        lead: Existing lead record
-        business: Business profile from database
-
-    Returns:
-        bool: True if processed successfully
-    """
-    print(f"\n  💬 Processing REPLY to existing lead...")
-    print(f"     Lead ID:  {lead['id']}")
-    print(f"     Customer: {lead['customer_name']}")
-    print(f"     Current step: {lead.get('qualification_step', 1)}")
-
-    # Get customer's reply text
-    customer_reply = email_data['body']
-
-    # Analyze photos if present in reply
-    photo_analysis = None
-    if email_data.get('attachments'):
-        num_photos = len(email_data['attachments'])
-        print(f"\n  📷 Found {num_photos} photo(s) in reply - analyzing with Claude Vision...")
-        photo_analysis = photo_analyzer.analyze_multiple_photos(
-            email_data['attachments'],
-            business['trade_type']
-        )
-        if photo_analysis:
-            print(f"\n  {'─' * 56}")
-            print(f"  PHOTO ANALYSIS:")
-            print(f"  {'─' * 56}")
-            for line in photo_analysis.split('\n'):
-                print(f"  {line}")
-            print(f"  {'─' * 56}")
-            # Append photo analysis to customer reply so AI can acknowledge it
-            customer_reply += f"\n\n[Photos received and analyzed]"
-        else:
-            print(f"  ⚠️  Photo analysis failed")
-
-    # Store customer's reply in conversations
-    print(f"  💾 Storing customer reply in conversation history...")
-    print(f"  🔍 DEBUG: Attempting to store customer reply")
-    print(f"     Lead ID: {lead['id']}")
-    print(f"     Role: customer")
-    print(f"     Message length: {len(customer_reply)} chars")
-    customer_msg = db.insert_conversation_message(
-        lead_id=lead['id'],
-        role='customer',
-        message=customer_reply,
-        email_id=email_data['id']
-    )
-    if customer_msg:
-        print(f"  🔍 DEBUG: Customer reply stored successfully (ID: {customer_msg['id']})")
-    else:
-        print(f"  ⚠️  WARNING: Failed to store customer reply in conversations table")
-
-    # Load full conversation history
-    print(f"  📜 Loading conversation history...")
-    conversation_history = db.get_conversation_history(lead['id'])
-    print(f"  🔍 DEBUG: Loaded {len(conversation_history)} messages from conversation history")
-    if len(conversation_history) > 0:
-        print(f"  🔍 DEBUG: First message role: {conversation_history[0].get('role')}")
-        print(f"  🔍 DEBUG: Last message role: {conversation_history[-1].get('role')}")
-    else:
-        print(f"  ⚠️  WARNING: Conversation history is EMPTY - this is unexpected!")
-    print(f"     Total messages: {len(conversation_history)}")
-
-    # Determine next step
-    current_step = lead.get('qualification_step', 1)
-    next_step = cm.determine_next_step(lead, conversation_history, customer_reply)
-
-    print(f"  🎯 Qualification sequence:")
-    print(f"     Current step: {current_step} - {cm.get_step_info(current_step)['name']}")
-    print(f"     Next step:    {next_step} - {cm.get_step_info(next_step)['name']}")
-
-    # Generate contextual follow-up reply
-    print(f"  🤖 Generating contextual follow-up with Claude AI...")
-    reply_text = reply_generator.generate_follow_up_reply(
-        lead, business, conversation_history, customer_reply
-    )
-
-    print(f"\n  {'─' * 56}")
-    print(f"  FOLLOW-UP REPLY:")
-    print(f"  {'─' * 56}")
-    # Indent the reply text
-    for line in reply_text.split('\n'):
-        print(f"  {line}")
-    print(f"  {'─' * 56}")
-
-    # Send reply
-    print(f"\n  📤 Sending follow-up reply via Gmail...")
-    sent_message = reply_generator.send_reply(email_data, reply_text)
-
-    if not sent_message:
-        print(f"  ✗ Failed to send reply")
-        return False
-
-    # Store assistant's reply in conversations
-    db.insert_conversation_message(
-        lead_id=lead['id'],
-        role='assistant',
-        message=reply_text,
-        email_id=sent_message['id']
-    )
-
-    # Update qualification step
-    if next_step != current_step:
-        print(f"  ⬆️  Advancing to qualification step {next_step}...")
-        db.update_qualification_step(lead['id'], next_step)
-
-        # Update status based on step
-        if next_step == 6:
-            db.update_lead_status(lead['id'], 'qualified')
-        elif next_step > 1:
-            db.update_lead_status(lead['id'], 'in_progress')
-
-    print(f"\n  {'=' * 56}")
-    print(f"  ✓ REPLY PROCESSED SUCCESSFULLY")
-    print(f"  {'=' * 56}")
-    print(f"  Lead ID:     {lead['id']}")
-    print(f"  Step:        {next_step}/6")
-    print(f"  Messages:    {len(conversation_history) + 2}")  # +2 for the new ones
-    print(f"  Reply sent:  Yes")
-    print(f"  {'=' * 56}\n")
-
-    return True
+            self._process_new_lead_email(email_data)
+    
+    def _process_new_lead_email(self, email_data: Dict):
+        """Process email from a new lead."""
+        sender_email = email_data.get('sender_email', '').lower()
+        subject = email_data.get('subject', '')
+        body = email_data.get('body', '')
+        attachments = email_data.get('attachments', [])
+        
+        logger.info(f"Processing new lead: {sender_email}")
+        
+        try:
+            # Parse lead information using Claude
+            lead_info = self.claude_client.parse_new_lead_email(
+                sender_email=sender_email,
+                subject=subject,
+                body=body
+            )
+            
+            # Process any photo attachments
+            photo_analysis = None
+            if attachments:
+                photo_analysis = self._process_photo_attachments(attachments)
+            
+            # Create new lead record
+            lead = Lead(
+                email=sender_email,
+                name=lead_info.get('name', ''),
+                phone=lead_info.get('phone', ''),
+                location=lead_info.get('location', ''),
+                project_type=lead_info.get('project_type', ''),
+                project_details=lead_info.get('project_details', ''),
+                status='initial_contact',
+                source='email',
+                photo_analysis=photo_analysis
+            )
+            
+            lead_id = self.database.create_lead(lead)
+            logger.info(f"Created new lead with ID: {lead_id}")
+            
+            # Store conversation history
+            self.database.add_conversation_entry(
+                lead_id=lead_id,
+                sender='lead',
+                subject=subject,
+                content=body,
+                attachments=len(attachments)
+            )
+            
+            # Send initial qualification message
+            self._send_qualification_message(lead, 'initial_contact')
+            
+        except Exception as e:
+            logger.error(f"Error processing new lead {sender_email}: {e}", exc_info=True)
+    
+    def _process_existing_lead_email(self, lead: Lead, email_data: Dict):
+        """Process email from an existing lead."""
+        subject = email_data.get('subject', '')
+        body = email_data.get('body', '')
+        attachments = email_data.get('attachments', [])
+        
+        logger.info(f"Processing response from existing lead: {lead.email} (Status: {lead.status})")
+        
+        try:
+            # Store conversation history
+            self.database.add_conversation_entry(
+                lead_id=lead.id,
+                sender='lead',
+                subject=subject,
+                content=body,
+                attachments=len(attachments)
+            )
+            
+            # Process any new photo attachments
+            if attachments:
+                photo_analysis = self._process_photo_attachments(attachments)
+                if photo_analysis:
+                    # Update lead with new photo analysis
+                    existing_analysis = lead.photo_analysis or {}
+                    existing_analysis.update(photo_analysis)
+                    self.database.update_lead_photo_analysis(lead.id, existing_analysis)
+            
+            # Analyze response and determine next action
+            next_action = self.claude_client.analyze_lead_response(
+                current_status=lead.status,
+                email_content=body,
+                lead_context=self._get_lead_context(lead)
+            )
+            
+            # Update lead status based on analysis
+            new_status = next_action.get('next_status', lead.status)
+            if new_status != lead.status:
+                self.database.update_lead_status(lead.id, new_status)
+                lead.status = new_status
+                logger.info(f"Updated lead {lead.email} status to: {new_status}")
+            
+            # Send appropriate follow-up message
+            action_type = next_action.get('action_type', 'continue_qualification')
+            if action_type in ['continue_qualification', 'request_info', 'schedule_call']:
+                self._send_qualification_message(lead, new_status)
+            elif action_type == 'qualified':
+                self._handle_qualified_lead(lead)
+            elif action_type == 'disqualified':
+                self._handle_disqualified_lead(lead)
+            
+        except Exception as e:
+            logger.error(f"Error processing existing lead {lead.email}: {e}", exc_info=True)
+    
+    def _process_photo_attachments(self, attachments: List[Dict]) -> Optional[Dict]:
+        """Process photo attachments and return analysis."""
+        if not attachments:
+            return None
+        
+        photo_analyses = []
+        
+        for attachment in attachments:
+            if attachment.get('content_type', '').startswith('image/'):
+                try:
+                    # Download and analyze photo
+                    photo_data = self.gmail_client.download_attachment(attachment)
+                    analysis = self.claude_client.analyze_trade_photo(photo_data)
+                    
+                    if analysis:
+                        photo_analyses.append({
+                            'filename': attachment.get('filename', 'unknown'),
+                            'analysis': analysis,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error processing photo attachment {attachment.get('filename')}: {e}")
+        
+        if photo_analyses:
+            return {'photos': photo_analyses}
+        
+        return None
+    
+    def _get_lead_context(self, lead: Lead) -> Dict:
+        """Get context information about a lead for Claude analysis."""
+        return {
+            'name': lead.name,
+            'phone': lead.phone,
+            'location': lead.location,
+            'project_type': lead.project_type,
+            'project_details': lead.project_details,
+            'photo_analysis': lead.photo_analysis,
+            'conversation_history': self.database.get_conversation_history(lead.id)
+        }
+    
+    def _send_qualification_message(self, lead: Lead, status: str):
+        """Send appropriate qualification message based on lead status."""
+        try:
+            # Generate message content using Claude
+            message_content = self.claude_client.generate_qualification_message(
+                status=status,
+                lead_context=self._get_lead_context(lead)
+            )
+            
+            # Send email
+            success = self.email_client.send_email(
+                to_email=lead.email,
+                to_name=lead.name,
+                subject=message_content.get('subject', 'Re: Your Project Inquiry'),
+                body=message_content.get('body', '')
+            )
+            
+            if success:
+                # Store sent message in conversation history
+                self.database.add_conversation_entry(
+                    lead_id=lead.id,
+                    sender='system',
+                    subject=message_content.get('subject', ''),
+                    content=message_content.get('body', ''),
+                    attachments=0
+                )
+                
+                logger.info(f"Sent qualification message to {lead.email} for status: {status}")
+            else:
+                logger.error(f"Failed to send message to {lead.email}")
+                
+        except Exception as e:
+            logger.error(f"Error sending qualification message to {lead.email}: {e}", exc_info=True)
+    
+    def _handle_qualified_lead(self, lead: Lead):
+        """Handle a fully qualified lead."""
+        try:
+            logger.info(f"Lead {lead.email} is fully qualified!")
+            
+            # Update status to qualified
+            self.database.update_lead_status(lead.id, 'qualified')
+            
+            # Generate final qualification message
+            message_content = self.claude_client.generate_qualification_message(
+                status='qualified',
+                lead_context=self._get_lead_context(lead)
+            )
+            
+            # Send final message
+            self.email_client.send_email(
+                to_email=lead.email,
+                to_name=lead.name,
+                subject=message_content.get('subject', 'Ready to Move Forward!'),
+                body=message_content.get('body', '')
+            )
+            
+            # Store sent message
+            self.database.add_conversation_entry(
+                lead_id=lead.id,
+                sender='system',
+                subject=message_content.get('subject', ''),
+                content=message_content.get('body', ''),
+                attachments=0
+            )
+            
+        except Exception as e:
+            logger.error(f"Error handling qualified lead {lead.email}: {e}", exc_info=True)
+    
+    def _handle_disqualified_lead(self, lead: Lead):
+        """Handle a disqualified lead."""
+        try:
+            logger.info(f"Lead {lead.email} has been disqualified")
+            
+            # Update status to disqualified
+            self.database.update_lead_status(lead.id, 'disqualified')
+            
+            # Optionally send polite closing message
+            message_content = self.claude_client.generate_qualification_message(
+                status='disqualified',
+                lead_context=self._get_lead_context(lead)
+            )
+            
+            if message_content.get('body'):  # Only send if Claude suggests a message
+                self.email_client.send_email(
+                    to_email=lead.email,
+                    to_name=lead.name,
+                    subject=message_content.get('subject', 'Thank you for your inquiry'),
+                    body=message_content.get('body', '')
+                )
+                
+                # Store sent message
+                self.database.add_conversation_entry(
+                    lead_id=lead.id,
+                    sender='system',
+                    subject=message_content.get('subject', ''),
+                    content=message_content.get('body', ''),
+                    attachments=0
+                )
+            
+        except Exception as e:
+            logger.error(f"Error handling disqualified lead {lead.email}: {e}", exc_info=True)
 
 
 def main():
-    """
-    Main loop that:
-    1. Polls Gmail every 30 seconds
-    2. Detects new leads
-    3. Parses lead data
-    4. Generates branded reply
-    5. Sends reply via Gmail
-    6. Stores lead record in Supabase
-    """
-    print("\n" + "=" * 60)
-    print("🦞 OpenClaw Trade Assistant")
-    print("=" * 60)
-    print(f"Started:       {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Monitor email: {Config.GMAIL_USER_EMAIL}")
-    print(f"Poll interval: {Config.POLL_INTERVAL_SECONDS} seconds")
-    print("=" * 60)
-
-    # Get business profile
-    print("\n📊 Loading business profile from database...")
-    businesses = db.get_all_businesses()
-
-    if not businesses:
-        print("✗ No business found in database!")
-        print("Please run schema.sql to seed a business profile.")
-        return
-
-    business = businesses[0]
-    print(f"✓ Business loaded: {business['name']}")
-    print(f"  Trade type:    {business['trade_type']}")
-    print(f"  Email:         {business['email']}")
-    print(f"  Brand voice:   {business['brand_voice'][:50]}...")
-
-    print("\n" + "=" * 60)
-    print("🔄 Starting main loop...")
-    print("=" * 60)
-    print("Monitoring inbox for new leads...")
-    print("(Press Ctrl+C to stop)\n")
-
-    loop_count = 0
-
+    """Main entry point."""
     try:
-        while True:
-            loop_count += 1
-            timestamp = datetime.now().strftime('%H:%M:%S')
-
-            print(f"[{timestamp}] Poll #{loop_count} - Checking inbox...")
-
-            # Poll inbox for new leads
-            try:
-                leads = gmail_listener.poll_inbox()
-
-                if not leads:
-                    print(f"  → No new leads found")
-                else:
-                    print(f"  → Found {len(leads)} potential lead(s)")
-
-                    for i, email_data in enumerate(leads, 1):
-                        print(f"\n{'─' * 60}")
-                        print(f"📧 LEAD #{i}: {email_data['subject']}")
-                        print(f"{'─' * 60}")
-                        print(f"  From:    {email_data['from']}")
-                        print(f"  Date:    {email_data['date']}")
-
-                        # Process the lead
-                        process_lead(email_data, business)
-
-            except Exception as e:
-                print(f"  ✗ Error during poll: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Wait before next poll
-            print(f"\n⏳ Waiting {Config.POLL_INTERVAL_SECONDS} seconds until next check...")
-            print("─" * 60 + "\n")
-            time.sleep(Config.POLL_INTERVAL_SECONDS)
-
+        contractor = ClawContractor()
+        contractor.start()
     except KeyboardInterrupt:
-        print("\n\n" + "=" * 60)
-        print("⊗ Shutdown requested by user")
-        print("=" * 60)
-        print(f"Total polls completed: {loop_count}")
-        print(f"Stopped at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 60 + "\n")
+        logger.info("Received keyboard interrupt, shutting down...")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
