@@ -1,301 +1,357 @@
 #!/usr/bin/env python3
 """
-Lead Management System - Main Entry Point
-Automates lead processing from Gmail to contractor notifications
+AI Developer Screening System - Main Entry Point
+
+This module provides the main interface for the AI developer screening system,
+including candidate assessment, interview scheduling, and result analysis.
 """
 
+import sys
 import argparse
 import logging
-import signal
-import sys
-import time
-from typing import Dict, Any, List
-
-# Import required modules
-import gmail_listener
-import lead_parser
-import lead_adapter
-import database_manager
-import qualified_lead_detector
-import contractor_notifier
-import reply_generator
+from pathlib import Path
+from typing import Optional, Dict, Any
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('lead_system.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-class LeadManagementSystem:
-    """Main system class for managing lead processing workflow"""
+def import_modules():
+    """Import all required modules with proper error handling."""
+    modules = {}
     
-    def __init__(self, dry_run: bool = False):
-        self.dry_run = dry_run
-        self.running = True
-        self.poll_interval = 60  # seconds
-        
-        # Initialize modules
-        self.gmail = gmail_listener
-        self.parser = lead_parser
-        self.adapter = lead_adapter
-        self.db = database_manager
-        self.detector = qualified_lead_detector
-        self.notifier = contractor_notifier
-        self.reply_gen = reply_generator
-        
-        logger.info(f"System initialized {'in DRY RUN mode' if dry_run else ''}")
+    try:
+        from candidate_assessment import CandidateAssessment
+        modules['candidate_assessment'] = CandidateAssessment
+        logger.info("Successfully imported candidate_assessment module")
+    except ImportError as e:
+        logger.error(f"Failed to import candidate_assessment: {e}")
+        modules['candidate_assessment'] = None
     
-    def print_startup_banner(self):
-        """Print system startup banner"""
-        banner = """
-╔════════════════════════════════════════════════════════════╗
-║                 LEAD MANAGEMENT SYSTEM                     ║
-║                      Version 1.0                          ║
-╠════════════════════════════════════════════════════════════╣
-║  🔄 Gmail Monitoring: ACTIVE                               ║
-║  📊 Lead Processing: ENABLED                               ║
-║  🤖 Auto Replies: ENABLED                                  ║
-║  📞 Contractor Alerts: ENABLED                             ║
-╚════════════════════════════════════════════════════════════╝
-"""
-        print(banner)
-        if self.dry_run:
-            print("⚠️  DRY RUN MODE ACTIVE - No emails sent, no database writes")
-        print(f"🚀 System starting... Polling Gmail every {self.poll_interval} seconds")
-        print("📧 Monitoring for new lead emails...")
-        print("Press Ctrl+C to stop gracefully\n")
+    try:
+        from interview_scheduler import InterviewScheduler
+        modules['interview_scheduler'] = InterviewScheduler
+        logger.info("Successfully imported interview_scheduler module")
+    except ImportError as e:
+        logger.error(f"Failed to import interview_scheduler: {e}")
+        modules['interview_scheduler'] = None
     
-    def process_email(self, email_data: Dict[str, Any]) -> bool:
-        """
-        Process a single email through the complete workflow
-        Returns True if processing was successful
-        """
-        try:
-            email_id = email_data.get('id', 'unknown')
-            subject = email_data.get('subject', 'No subject')
-            sender = email_data.get('sender', 'Unknown sender')
-            
-            logger.info(f"Processing email {email_id}: {subject} from {sender}")
-            
-            # Step 1: Parse lead data from email
-            if self.dry_run:
-                logger.info("[DRY RUN] Would parse lead data from email")
-                lead_data = {'name': 'Test Lead', 'email': sender, 'phone': '555-0123'}
-            else:
-                lead_data = self.parser.parse_lead(email_data)
-            
-            if not lead_data:
-                logger.warning(f"Failed to parse lead data from email {email_id}")
-                return False
-            
-            # Step 2: Normalize lead data
-            if self.dry_run:
-                logger.info("[DRY RUN] Would normalize lead data")
-                normalized_lead = lead_data
-            else:
-                normalized_lead = self.adapter.normalize_lead(lead_data)
-            
-            # Step 3: Store lead in database
-            if self.dry_run:
-                logger.info("[DRY RUN] Would store lead in database")
-                lead_id = "dry_run_lead_123"
-            else:
-                lead_id = self.db.store_lead(normalized_lead)
-                logger.info(f"Stored lead with ID: {lead_id}")
-            
-            # Step 4: Generate and send qualifying reply
-            if self.dry_run:
-                logger.info("[DRY RUN] Would generate and send qualifying reply")
-                reply_sent = True
-            else:
-                reply_content = self.reply_gen.generate_qualifying_questions(normalized_lead)
-                reply_sent = self.reply_gen.send_reply(email_data, reply_content)
-            
-            if not reply_sent:
-                logger.error(f"Failed to send reply for lead {lead_id}")
-                return False
-            
-            logger.info(f"Sent qualifying reply for lead {lead_id}")
-            
-            # Step 5: Check lead qualification status
-            conversation_state = self._get_conversation_state(lead_id, email_data)
-            
-            if self.dry_run:
-                logger.info("[DRY RUN] Would analyze lead qualification")
-                qualification_result = {
-                    'is_ready_for_handoff': True,
-                    'qualification_score': 85,
-                    'missing_info': []
-                }
-            else:
-                qualification_result = self.detector.analyze_lead_qualification(
-                    normalized_lead, 
-                    conversation_state
-                )
-            
-            # Step 6: Notify contractors if lead is qualified
-            if qualification_result.get('is_ready_for_handoff', False):
-                if self.dry_run:
-                    logger.info("[DRY RUN] Would notify contractors of qualified lead")
-                else:
-                    notification_sent = self.notifier.notify_qualified_lead(
-                        normalized_lead, 
-                        qualification_result
-                    )
-                    if notification_sent:
-                        logger.info(f"Notified contractors about qualified lead {lead_id}")
-                    else:
-                        logger.error(f"Failed to notify contractors about lead {lead_id}")
-            else:
-                logger.info(f"Lead {lead_id} not yet ready for handoff (score: {qualification_result.get('qualification_score', 0)})")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error processing email {email_id}: {str(e)}")
-            return False
+    try:
+        from ai_evaluator import AIEvaluator
+        modules['ai_evaluator'] = AIEvaluator
+        logger.info("Successfully imported ai_evaluator module")
+    except ImportError as e:
+        logger.error(f"Failed to import ai_evaluator: {e}")
+        modules['ai_evaluator'] = None
     
-    def _get_conversation_state(self, lead_id: str, email_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Get conversation state for lead qualification analysis"""
-        if self.dry_run:
-            return {
-                'thread_id': 'dry_run_thread_123',
-                'message_count': 2,
-                'last_response_time': time.time(),
-                'responses': ['Initial inquiry', 'Follow-up response']
-            }
-        
-        try:
-            # Get conversation history from database or email thread
-            thread_id = email_data.get('thread_id')
-            if thread_id:
-                return self.db.get_conversation_state(lead_id, thread_id)
-            return {}
-        except Exception as e:
-            logger.warning(f"Could not retrieve conversation state: {str(e)}")
-            return {}
+    try:
+        from code_reviewer import CodeReviewer
+        modules['code_reviewer'] = CodeReviewer
+        logger.info("Successfully imported code_reviewer module")
+    except ImportError as e:
+        logger.error(f"Failed to import code_reviewer: {e}")
+        modules['code_reviewer'] = None
     
-    def run_polling_loop(self):
-        """Main polling loop for processing emails"""
-        logger.info("Starting main polling loop...")
-        
-        while self.running:
-            try:
-                # Poll for new emails
-                if self.dry_run:
-                    logger.debug("[DRY RUN] Would check Gmail for new emails")
-                    # Simulate finding emails in dry run mode
-                    new_emails = [
-                        {
-                            'id': 'dry_run_email_1',
-                            'subject': 'Roofing Quote Request',
-                            'sender': 'john.doe@email.com',
-                            'thread_id': 'thread_123'
-                        }
-                    ] if time.time() % 300 < 60 else []  # Simulate email every 5 minutes
-                else:
-                    new_emails = self.gmail.get_new_emails()
-                
-                if new_emails:
-                    logger.info(f"Found {len(new_emails)} new email(s)")
-                    
-                    # Process each email
-                    processed_count = 0
-                    for email_data in new_emails:
-                        if self.process_email(email_data):
-                            processed_count += 1
-                    
-                    logger.info(f"Successfully processed {processed_count}/{len(new_emails)} emails")
-                else:
-                    logger.debug("No new emails found")
-                
-                # Wait before next poll
-                if self.running:
-                    logger.debug(f"Waiting {self.poll_interval} seconds before next poll...")
-                    time.sleep(self.poll_interval)
-                    
-            except KeyboardInterrupt:
-                logger.info("Received interrupt signal, shutting down...")
-                self.shutdown()
-                break
-            except Exception as e:
-                logger.error(f"Error in main polling loop: {str(e)}")
-                logger.info(f"Continuing after error... Next poll in {self.poll_interval} seconds")
-                time.sleep(self.poll_interval)
+    try:
+        from skill_analyzer import SkillAnalyzer
+        modules['skill_analyzer'] = SkillAnalyzer
+        logger.info("Successfully imported skill_analyzer module")
+    except ImportError as e:
+        logger.error(f"Failed to import skill_analyzer: {e}")
+        modules['skill_analyzer'] = None
     
-    def shutdown(self):
-        """Gracefully shutdown the system"""
-        logger.info("Initiating graceful shutdown...")
-        self.running = False
-        
-        try:
-            # Close database connections
-            if hasattr(self.db, 'close'):
-                self.db.close()
-                logger.info("Database connections closed")
-                
-            # Cleanup other resources
-            logger.info("System shutdown complete")
-            
-        except Exception as e:
-            logger.error(f"Error during shutdown: {str(e)}")
+    return modules
 
-def signal_handler(signum, frame):
-    """Handle shutdown signals"""
-    logger.info(f"Received signal {signum}, initiating shutdown...")
-    global lead_system
-    if 'lead_system' in globals():
-        lead_system.shutdown()
-    sys.exit(0)
+def dry_run_qualification_check(candidate_data: Dict[str, Any]) -> None:
+    """
+    Perform a dry run qualification score check without actual processing.
+    
+    Args:
+        candidate_data: Dictionary containing candidate information
+    """
+    print("\n" + "="*60)
+    print("DRY RUN - QUALIFICATION SCORE CHECK")
+    print("="*60)
+    
+    # Basic qualification scoring logic
+    score = 0
+    max_score = 100
+    
+    # Experience scoring (30 points max)
+    experience_years = candidate_data.get('experience_years', 0)
+    if experience_years >= 5:
+        experience_score = 30
+    elif experience_years >= 3:
+        experience_score = 20
+    elif experience_years >= 1:
+        experience_score = 15
+    else:
+        experience_score = 5
+    score += experience_score
+    
+    # Skills scoring (40 points max)
+    required_skills = ['python', 'ai', 'machine learning', 'data science']
+    candidate_skills = [skill.lower() for skill in candidate_data.get('skills', [])]
+    skill_matches = sum(1 for skill in required_skills if skill in ' '.join(candidate_skills))
+    skill_score = min(skill_matches * 10, 40)
+    score += skill_score
+    
+    # Education scoring (20 points max)
+    education = candidate_data.get('education', '').lower()
+    if 'phd' in education or 'doctorate' in education:
+        education_score = 20
+    elif 'master' in education or 'ms' in education or 'msc' in education:
+        education_score = 15
+    elif 'bachelor' in education or 'bs' in education or 'bsc' in education:
+        education_score = 10
+    else:
+        education_score = 5
+    score += education_score
+    
+    # Portfolio scoring (10 points max)
+    portfolio_items = candidate_data.get('portfolio_items', 0)
+    portfolio_score = min(portfolio_items * 2, 10)
+    score += portfolio_score
+    
+    # Display results
+    print(f"Candidate: {candidate_data.get('name', 'Unknown')}")
+    print(f"Email: {candidate_data.get('email', 'Not provided')}")
+    print("\nScoring Breakdown:")
+    print(f"  Experience ({experience_years} years): {experience_score}/30")
+    print(f"  Skills (matched {skill_matches}/{len(required_skills)}): {skill_score}/40")
+    print(f"  Education: {education_score}/20")
+    print(f"  Portfolio ({portfolio_items} items): {portfolio_score}/10")
+    print(f"\nTotal Score: {score}/{max_score} ({score/max_score*100:.1f}%)")
+    
+    # Qualification determination
+    if score >= 70:
+        qualification = "HIGHLY QUALIFIED"
+        recommendation = "Proceed to technical interview"
+    elif score >= 50:
+        qualification = "QUALIFIED"
+        recommendation = "Proceed with standard assessment"
+    elif score >= 30:
+        qualification = "POTENTIALLY QUALIFIED"
+        recommendation = "Consider for junior positions or additional screening"
+    else:
+        qualification = "NOT QUALIFIED"
+        recommendation = "Does not meet minimum requirements"
+    
+    print(f"\nQualification Status: {qualification}")
+    print(f"Recommendation: {recommendation}")
+    print("="*60)
 
-def parse_arguments():
-    """Parse command line arguments"""
+def run_assessment(modules: Dict[str, Any], candidate_data: Dict[str, Any], dry_run: bool = False) -> None:
+    """
+    Run the complete candidate assessment process.
+    
+    Args:
+        modules: Dictionary of imported modules
+        candidate_data: Dictionary containing candidate information
+        dry_run: Whether to run in dry-run mode
+    """
+    if dry_run:
+        dry_run_qualification_check(candidate_data)
+        return
+    
+    print(f"Starting assessment for candidate: {candidate_data.get('name', 'Unknown')}")
+    
+    # Initialize components
+    results = {}
+    
+    # Candidate Assessment
+    if modules['candidate_assessment']:
+        try:
+            assessor = modules['candidate_assessment']()
+            assessment_result = assessor.evaluate_candidate(candidate_data)
+            results['assessment'] = assessment_result
+            logger.info("Candidate assessment completed successfully")
+        except Exception as e:
+            logger.error(f"Error during candidate assessment: {e}")
+            results['assessment'] = None
+    
+    # AI Evaluation
+    if modules['ai_evaluator']:
+        try:
+            evaluator = modules['ai_evaluator']()
+            ai_result = evaluator.evaluate_technical_skills(candidate_data)
+            results['ai_evaluation'] = ai_result
+            logger.info("AI evaluation completed successfully")
+        except Exception as e:
+            logger.error(f"Error during AI evaluation: {e}")
+            results['ai_evaluation'] = None
+    
+    # Code Review
+    if modules['code_reviewer'] and candidate_data.get('code_samples'):
+        try:
+            reviewer = modules['code_reviewer']()
+            review_result = reviewer.review_code(candidate_data['code_samples'])
+            results['code_review'] = review_result
+            logger.info("Code review completed successfully")
+        except Exception as e:
+            logger.error(f"Error during code review: {e}")
+            results['code_review'] = None
+    
+    # Skill Analysis
+    if modules['skill_analyzer']:
+        try:
+            analyzer = modules['skill_analyzer']()
+            skill_result = analyzer.analyze_skills(candidate_data)
+            results['skill_analysis'] = skill_result
+            logger.info("Skill analysis completed successfully")
+        except Exception as e:
+            logger.error(f"Error during skill analysis: {e}")
+            results['skill_analysis'] = None
+    
+    # Schedule interview if qualified
+    if modules['interview_scheduler'] and results.get('assessment', {}).get('qualified', False):
+        try:
+            scheduler = modules['interview_scheduler']()
+            interview_result = scheduler.schedule_interview(candidate_data, results)
+            results['interview'] = interview_result
+            logger.info("Interview scheduled successfully")
+        except Exception as e:
+            logger.error(f"Error scheduling interview: {e}")
+            results['interview'] = None
+    
+    # Display results
+    print("\nAssessment Results:")
+    print("="*50)
+    for component, result in results.items():
+        if result:
+            print(f"{component.title()}: ✓ Completed")
+        else:
+            print(f"{component.title()}: ✗ Failed or Skipped")
+    print("="*50)
+
+def main():
+    """Main entry point for the AI developer screening system."""
     parser = argparse.ArgumentParser(
-        description="Lead Management System - Automated lead processing from Gmail",
+        description="AI Developer Screening System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py              # Run in normal mode
-  python main.py --dry-run     # Run in dry-run mode (no emails sent, no database writes)
+  python main.py --candidate-file candidate.json
+  python main.py --dry-run --candidate-file candidate.json
+  python main.py --name "John Doe" --email "john@example.com" --dry-run
         """
+    )
+    
+    parser.add_argument(
+        '--candidate-file',
+        type=str,
+        help='Path to JSON file containing candidate data'
+    )
+    
+    parser.add_argument(
+        '--name',
+        type=str,
+        help='Candidate name (for quick testing)'
+    )
+    
+    parser.add_argument(
+        '--email',
+        type=str,
+        help='Candidate email (for quick testing)'
+    )
+    
+    parser.add_argument(
+        '--skills',
+        nargs='+',
+        help='List of candidate skills (for quick testing)'
+    )
+    
+    parser.add_argument(
+        '--experience-years',
+        type=int,
+        default=0,
+        help='Years of experience (for quick testing)'
+    )
+    
+    parser.add_argument(
+        '--education',
+        type=str,
+        help='Education level (for quick testing)'
     )
     
     parser.add_argument(
         '--dry-run',
         action='store_true',
-        help='Run in dry-run mode - log actions without executing them'
+        help='Run qualification score check without full assessment'
     )
     
-    return parser.parse_args()
-
-def main():
-    """Main entry point"""
-    global lead_system
+    parser.add_argument(
+        '--verbose',
+        '-v',
+        action='store_true',
+        help='Enable verbose logging'
+    )
     
-    # Parse command line arguments
-    args = parse_arguments()
+    args = parser.parse_args()
     
-    # Set up signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Import modules
+    print("Initializing AI Developer Screening System...")
+    modules = import_modules()
+    
+    # Check if any modules failed to import
+    failed_imports = [name for name, module in modules.items() if module is None]
+    if failed_imports and not args.dry_run:
+        logger.warning(f"Some modules failed to import: {failed_imports}")
+        logger.warning("System will run with limited functionality")
+    
+    # Prepare candidate data
+    candidate_data = {}
+    
+    if args.candidate_file:
+        try:
+            import json
+            candidate_file = Path(args.candidate_file)
+            if candidate_file.exists():
+                with open(candidate_file, 'r') as f:
+                    candidate_data = json.load(f)
+                logger.info(f"Loaded candidate data from {args.candidate_file}")
+            else:
+                logger.error(f"Candidate file not found: {args.candidate_file}")
+                sys.exit(1)
+        except Exception as e:
+            logger.error(f"Error loading candidate file: {e}")
+            sys.exit(1)
+    else:
+        # Use command line arguments
+        candidate_data = {
+            'name': args.name or 'Test Candidate',
+            'email': args.email or 'test@example.com',
+            'skills': args.skills or ['Python', 'AI', 'Machine Learning'],
+            'experience_years': args.experience_years,
+            'education': args.education or 'Bachelor\'s Degree',
+            'portfolio_items': 3  # Default for testing
+        }
+    
+    if not candidate_data:
+        logger.error("No candidate data provided")
+        parser.print_help()
+        sys.exit(1)
     
     try:
-        # Initialize the lead management system
-        lead_system = LeadManagementSystem(dry_run=args.dry_run)
+        # Run assessment
+        run_assessment(modules, candidate_data, args.dry_run)
         
-        # Print startup banner
-        lead_system.print_startup_banner()
-        
-        # Start the main polling loop
-        lead_system.run_polling_loop()
-        
+        if not args.dry_run:
+            print("\nAssessment process completed successfully!")
+        else:
+            print("\nDry run completed!")
+            
+    except KeyboardInterrupt:
+        logger.info("Assessment interrupted by user")
+        sys.exit(0)
     except Exception as e:
-        logger.error(f"Fatal error in main: {str(e)}")
+        logger.error(f"Unexpected error during assessment: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
