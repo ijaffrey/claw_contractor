@@ -90,7 +90,7 @@ class NotificationLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     sent_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
-    metadata = Column(Text, nullable=True)  # JSON string for additional data
+    extra_data = Column(Text, nullable=True)  # JSON string for additional data
     
     # Relationship to lead
     lead = relationship("Lead", back_populates="notifications")
@@ -111,7 +111,7 @@ class NotificationLog(Base):
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'sent_at': self.sent_at.isoformat() if self.sent_at else None,
             'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
-            'metadata': self.metadata
+            'extra_data': self.extra_data
         }
 
 # Database engine and session
