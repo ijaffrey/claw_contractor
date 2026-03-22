@@ -1,205 +1,255 @@
 import re
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-from typing import Dict, List, Any, Optional
 
 
-def normalize_lead(flat_lead_dict: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_lead(flat_lead: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Convert flat lead dictionary to nested qualified lead detector format.
+    Converts a flat lead dictionary to the nested structure expected by qualified_lead_detector.
     
     Args:
-        flat_lead_dict: Flat dictionary from lead parser
+        flat_lead: Dictionary with flat structure from lead_parser.py
         
     Returns:
-        Nested dictionary structure for qualified lead detector
+        Dictionary with nested structure for qualified_lead_detector.py
     """
+    if not isinstance(flat_lead, dict):
+        raise ValueError("Input must be a dictionary")
+    
+    # Extract and parse location information
+    location_info = parse_location_string(flat_lead.get('location', ''))
+    
+    # Map urgency from job_type and urgency fields
+    urgency_level = map_urgency(
+        flat_lead.get('job_type', ''),
+        flat_lead.get('urgency', '')
+    )
+    
+    # Format photos from attachments
+    photos = format_photos(flat_lead.get('attachments', []))
+    
+    # Build normalized lead structure
     normalized_lead = {
-        'contact_info': _extract_contact_info(flat_lead_dict),
-        'location': _extract_location_info(flat_lead_dict),
-        'problem_description': flat_lead_dict.get('description', ''),
-        'photos': _normalize_attachments(flat_lead_dict.get('attachments', [])),
-        'urgency': _determine_urgency(flat_lead_dict),
-        'source': flat_lead_dict.get('source', 'unknown'),
-        'job_type': flat_lead_dict.get('job_type', 'general')
+        'contact_info': {
+            'name': flat_lead.get('customer_name', '').strip() or 'Unknown',
+            'email': flat_lead.get('customer_email', '').strip() or None,
+            'phone': _clean_phone_number(flat_lead.get('phone', ''))
+        },
+        'location': {
+            'address': location_info.get('address', ''),
+            'city': location_info.get('city', ''),
+            'zip_code': location_info.get('zip_code', '')
+        },
+        'problem_description': flat_lead.get('description', '').strip() or '',
+        'photos': photos,
+        'urgency': urgency_level,
+        'source': flat_lead.get('source', 'unknown'),
+        'timestamp': datetime.utcnow().isoformat()
     }
     
     return normalized_lead
 
 
-def _extract_contact_info(flat_lead_dict: Dict[str, Any]) -> Dict[str, str]:
-    """Extract and normalize contact information."""
-    return {
-        'name': flat_lead_dict.get('customer_name', '').strip(),
-        'email': flat_lead_dict.get('customer_email', '').strip().lower(),
-        'phone': _normalize_phone(flat_lead_dict.get('phone', ''))
-    }
-
-
-def _normalize_phone(phone: str) -> str:
-    """Normalize phone number format."""
-    if not phone:
-        return ''
+def parse_location_string(location_str: str) -> Dict[str, str]:
+    """
+    Parses a location string to extract address, city, and zip code.
     
-    # Remove all non-digit characters
-    digits_only = re.sub(r'\D', '', phone)
+    Handles various formats:
+    - "123 Main St, Anytown, CA 12345"
+    - "456 Oak Ave, Some City 67890"
+    - "789 Pine St, Another Town, 54321"
+    - "City, State ZIP"
     
-    # Handle different phone number lengths
-    if len(digits_only) == 10:
-        return f"({digits_only[:3]}) {digits_only[3:6]}-{digits_only[6:]}"
-    elif len(digits_only) == 11 and digits_only.startswith('1'):
-        return f"({digits_only[1:4]}) {digits_only[4:7]}-{digits_only[7:]}"
-    else:
-        return phone  # Return original if can't normalize
-
-
-def _extract_location_info(flat_lead_dict: Dict[str, Any]) -> Dict[str, str]:
-    """Extract and parse location information."""
-    location_string = flat_lead_dict.get('location', '').strip()
+    Args:
+        location_str: Raw location string
+        
+    Returns:
+        Dictionary with parsed location components
+    """
+    if not location_str or not isinstance(location_str, str):
+        return {'address': '', 'city': '', 'zip_code': ''}
     
-    if not location_string:
-        return {
-            'address': '',
-            'city': '',
-            'zip_code': ''
-        }
+    location_str = location_str.strip()
     
-    city = _parse_city_from_location(location_string)
-    zip_code = _extract_zip_code(location_string)
+    # Initialize result
+    result = {'address': '', 'city': '', 'zip_code': ''}
     
-    return {
-        'address': location_string,
-        'city': city,
-        'zip_code': zip_code
-    }
-
-
-def _parse_city_from_location(location_string: str) -> str:
-    """Parse city from location string."""
-    if not location_string:
-        return ''
+    # Extract ZIP code first (5 digits, optionally followed by dash and 4 digits)
+    zip_pattern = r'\b(\d{5}(?:-\d{4})?)\b'
+    zip_match = re.search(zip_pattern, location_str)
+    if zip_match:
+        result['zip_code'] = zip_match.group(1)
+        location_str = location_str.replace(zip_match.group(0), '').strip()
     
-    # Common state abbreviations
-    state_abbreviations = {
-        'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-        'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-        'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-        'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-        'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
-    }
+    # Split remaining string by commas
+    parts = [part.strip() for part in location_str.split(',') if part.strip()]
     
-    # Look for pattern: City, ST or City ST or City, State
-    patterns = [
-        r'([^,]+),\s*([A-Z]{2})\b',  # City, ST
-        r'([^,]+)\s+([A-Z]{2})\b',   # City ST
-        r'([^,]+),\s*([A-Za-z\s]+)\b'  # City, State
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, location_string)
-        if match:
-            potential_city = match.group(1).strip()
-            state_part = match.group(2).strip().upper()
-            
-            # Check if it's a valid state abbreviation or full state name
-            if state_part in state_abbreviations or len(state_part) > 2:
-                return potential_city
-    
-    # Fallback: try to extract city from comma-separated parts
-    parts = location_string.split(',')
     if len(parts) >= 2:
-        # Assume the part before the last comma might be the city
-        potential_city = parts[-2].strip()
-        if potential_city and not re.search(r'\d{5}', potential_city):  # Not a ZIP code
-            return potential_city
+        # First part is likely address, last part is likely city/state
+        result['address'] = parts[0]
+        result['city'] = parts[-1]
+    elif len(parts) == 1:
+        # Single part - could be city or address
+        if any(word in parts[0].lower() for word in ['st', 'ave', 'rd', 'blvd', 'dr', 'ct', 'ln']):
+            result['address'] = parts[0]
+        else:
+            result['city'] = parts[0]
     
-    return ''
-
-
-def _extract_zip_code(location_string: str) -> str:
-    """Extract ZIP code from location string."""
-    # Look for 5-digit ZIP code or ZIP+4 format
-    zip_match = re.search(r'\b(\d{5}(?:-\d{4})?)\b', location_string)
-    return zip_match.group(1) if zip_match else ''
-
-
-def _normalize_attachments(attachments: List[Any]) -> List[Dict[str, str]]:
-    """Convert attachments to photos format."""
-    photos = []
-    current_timestamp = datetime.utcnow().isoformat()
+    # Clean up city field - remove state abbreviations
+    if result['city']:
+        # Remove common state abbreviations from end
+        state_pattern = r'\s+[A-Z]{2}\s*$'
+        result['city'] = re.sub(state_pattern, '', result['city']).strip()
     
-    for attachment in attachments:
-        if isinstance(attachment, str):
-            # Simple string URL
-            photos.append({
-                'url': attachment,
-                'timestamp': current_timestamp
-            })
-        elif isinstance(attachment, dict):
-            # Dictionary format
-            photos.append({
-                'url': attachment.get('url', attachment.get('path', '')),
-                'timestamp': attachment.get('timestamp', current_timestamp)
-            })
+    return result
+
+
+def map_urgency(job_type: str, urgency: str) -> str:
+    """
+    Maps job_type and urgency keywords to standardized urgency levels.
     
-    return photos
-
-
-def _determine_urgency(flat_lead_dict: Dict[str, Any]) -> str:
-    """Determine urgency level based on job type and description keywords."""
-    description = flat_lead_dict.get('description', '').lower()
-    job_type = flat_lead_dict.get('job_type', '').lower()
+    Args:
+        job_type: Type of job/service requested
+        urgency: Urgency keywords or phrases
+        
+    Returns:
+        Standardized urgency level: 'emergency', 'high', 'medium', or 'low'
+    """
+    # Combine both fields for analysis
+    combined_text = f"{job_type or ''} {urgency or ''}".lower().strip()
+    
+    if not combined_text:
+        return 'medium'  # Default urgency
     
     # Emergency keywords
     emergency_keywords = [
-        'burst', 'flooding', 'flood', 'emergency', 'urgent', 'immediately',
-        'asap', 'right now', 'help', 'disaster', 'overflow', 'gushing',
-        'no water', 'no heat', 'gas leak', 'electrical emergency'
+        'emergency', 'urgent', 'asap', 'immediately', 'now', 'flooding',
+        'leak', 'burst', 'broken pipe', 'water damage', 'no heat',
+        'no hot water', 'gas leak', 'electrical emergency'
     ]
     
     # High priority keywords
     high_keywords = [
-        'leak', 'leaking', 'broken', 'not working', 'stopped working',
-        'no hot water', 'clogged', 'blocked', 'backed up', 'overflowing',
-        'toilet won\'t flush', 'faucet broken', 'pipe burst'
-    ]
-    
-    # Medium priority keywords
-    medium_keywords = [
-        'repair', 'fix', 'replace', 'install', 'slow drain', 'low pressure',
-        'running toilet', 'dripping', 'loose', 'noisy', 'weird sound'
+        'high priority', 'soon', 'today', 'this week', 'important',
+        'repair', 'fix', 'broken', 'not working', 'problem'
     ]
     
     # Low priority keywords
     low_keywords = [
-        'maintenance', 'inspection', 'check', 'estimate', 'quote',
-        'cleaning', 'routine', 'scheduled', 'upgrade', 'improvement'
+        'estimate', 'quote', 'consultation', 'when convenient',
+        'no rush', 'maintenance', 'routine', 'inspection',
+        'next month', 'sometime'
     ]
     
-    # Combine description and job_type for keyword matching
-    text_to_check = f"{description} {job_type}"
-    
-    # Check for emergency keywords first
-    if any(keyword in text_to_check for keyword in emergency_keywords):
+    # Check for emergency
+    if any(keyword in combined_text for keyword in emergency_keywords):
         return 'emergency'
     
-    # Check for high priority keywords
-    if any(keyword in text_to_check for keyword in high_keywords):
+    # Check for high priority
+    if any(keyword in combined_text for keyword in high_keywords):
         return 'high'
     
-    # Check for low priority keywords
-    if any(keyword in text_to_check for keyword in low_keywords):
+    # Check for low priority
+    if any(keyword in combined_text for keyword in low_keywords):
         return 'low'
-    
-    # Check for medium priority keywords or default to medium
-    if any(keyword in text_to_check for keyword in medium_keywords):
-        return 'medium'
-    
-    # Default urgency based on job type
-    if job_type:
-        if 'emergency' in job_type or 'urgent' in job_type:
-            return 'emergency'
-        elif 'maintenance' in job_type or 'inspection' in job_type:
-            return 'low'
     
     # Default to medium if no clear indicators
     return 'medium'
+
+
+def format_photos(attachments: List[Any]) -> List[Dict[str, Any]]:
+    """
+    Converts attachments to standardized photos list format.
+    
+    Args:
+        attachments: List of attachment objects/dictionaries
+        
+    Returns:
+        List of photo dictionaries with url and timestamp
+    """
+    if not attachments or not isinstance(attachments, list):
+        return []
+    
+    photos = []
+    current_time = datetime.utcnow().isoformat()
+    
+    for attachment in attachments:
+        if not attachment:
+            continue
+            
+        photo_entry = {
+            'url': '',
+            'timestamp': current_time,
+            'filename': '',
+            'size': None,
+            'type': ''
+        }
+        
+        if isinstance(attachment, dict):
+            photo_entry['url'] = attachment.get('url', '') or attachment.get('path', '')
+            photo_entry['filename'] = attachment.get('filename', '') or attachment.get('name', '')
+            photo_entry['size'] = attachment.get('size')
+            photo_entry['type'] = attachment.get('type', '') or attachment.get('mime_type', '')
+            
+            # Use attachment timestamp if available
+            if attachment.get('timestamp'):
+                photo_entry['timestamp'] = attachment['timestamp']
+                
+        elif isinstance(attachment, str):
+            # String could be URL or file path
+            photo_entry['url'] = attachment
+            photo_entry['filename'] = attachment.split('/')[-1] if '/' in attachment else attachment
+        
+        # Only add if we have a valid URL/path
+        if photo_entry['url']:
+            # Determine type from filename if not provided
+            if not photo_entry['type'] and photo_entry['filename']:
+                extension = photo_entry['filename'].lower().split('.')[-1]
+                if extension in ['jpg', 'jpeg']:
+                    photo_entry['type'] = 'image/jpeg'
+                elif extension == 'png':
+                    photo_entry['type'] = 'image/png'
+                elif extension == 'gif':
+                    photo_entry['type'] = 'image/gif'
+                elif extension == 'pdf':
+                    photo_entry['type'] = 'application/pdf'
+            
+            photos.append(photo_entry)
+    
+    return photos
+
+
+def _clean_phone_number(phone: str) -> Optional[str]:
+    """
+    Cleans and validates a phone number string.
+    
+    Args:
+        phone: Raw phone number string
+        
+    Returns:
+        Cleaned phone number or None if invalid
+    """
+    if not phone or not isinstance(phone, str):
+        return None
+    
+    # Remove all non-digit characters
+    digits_only = re.sub(r'\D', '', phone)
+    
+    # Must have at least 10 digits
+    if len(digits_only) < 10:
+        return None
+    
+    # Handle US numbers (10 or 11 digits)
+    if len(digits_only) == 11 and digits_only[0] == '1':
+        digits_only = digits_only[1:]  # Remove country code
+    elif len(digits_only) == 10:
+        pass  # Already correct length
+    else:
+        # For other lengths, just return the original cleaned version
+        pass
+    
+    # Format as (XXX) XXX-XXXX for 10-digit numbers
+    if len(digits_only) == 10:
+        return f"({digits_only[:3]}) {digits_only[3:6]}-{digits_only[6:]}"
+    
+    return digits_only
