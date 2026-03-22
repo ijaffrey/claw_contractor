@@ -1,381 +1,522 @@
-import time
 import logging
-import traceback
+import time
+import signal
 import sys
-from datetime import datetime
-from typing import Set, Dict, Any, Optional, List
+from datetime import datetime, timedelta
+from typing import Set, Dict, List, Optional
+import threading
+from contextlib import contextmanager
 
-from gmail_listener import GmailListener
+from gmail_client import GmailClient
 from lead_parser import LeadParser
-from database import Database
-from reply_generator import ReplyGenerator
-from email_sender import EmailSender
-from conversation_manager import ConversationManager
-from photo_analyzer import PhotoAnalyzer
+from database import DatabaseManager
+from photo_processor import PhotoProcessor
+from qualification_messages import QualificationMessages
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('claw_contractor.log'),
+        logging.FileHandler('email_monitor.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )
+
 logger = logging.getLogger(__name__)
 
-class ClawContractorOrchestrator:
+
+class EmailMonitor:
+    """
+    Main email monitoring and lead qualification system.
+    """
+    
     def __init__(self):
-        """Initialize all components and processed message tracking."""
-        self.processed_message_ids: Set[str] = set()
-        self.gmail_listener = None
+        self.running = False
+        self.processed_emails: Set[str] = set()
+        self.gmail_client = None
         self.lead_parser = None
-        self.database = None
-        self.reply_generator = None
-        self.email_sender = None
-        self.conversation_manager = None
-        self.photo_analyzer = None
-        self.error_count = 0
-        self.max_consecutive_errors = 5
+        self.db_manager = None
+        self.photo_processor = None
+        self.qualification_messages = None
+        self.poll_interval = 60  # seconds
+        self.last_processed_time = datetime.utcnow() - timedelta(hours=1)
+        self.shutdown_event = threading.Event()
         
     def initialize_components(self):
         """Initialize all system components with error handling."""
         try:
             logger.info("Initializing system components...")
             
-            self.gmail_listener = GmailListener()
-            self.lead_parser = LeadParser()
-            self.database = Database()
-            self.reply_generator = ReplyGenerator()
-            self.email_sender = EmailSender()
-            self.conversation_manager = ConversationManager()
-            self.photo_analyzer = PhotoAnalyzer()
+            # Initialize Gmail client
+            self.gmail_client = GmailClient()
+            logger.info("Gmail client initialized successfully")
             
-            # Load previously processed message IDs from database
-            self.load_processed_message_ids()
+            # Initialize lead parser
+            self.lead_parser = LeadParser()
+            logger.info("Lead parser initialized successfully")
+            
+            # Initialize database manager
+            self.db_manager = DatabaseManager()
+            self.db_manager.create_tables()
+            logger.info("Database manager initialized successfully")
+            
+            # Initialize photo processor
+            self.photo_processor = PhotoProcessor()
+            logger.info("Photo processor initialized successfully")
+            
+            # Initialize qualification messages
+            self.qualification_messages = QualificationMessages()
+            logger.info("Qualification messages initialized successfully")
+            
+            # Load previously processed email IDs
+            self._load_processed_emails()
             
             logger.info("All components initialized successfully")
             return True
             
         except Exception as e:
             logger.error(f"Failed to initialize components: {str(e)}")
-            logger.error(traceback.format_exc())
             return False
     
-    def load_processed_message_ids(self):
-        """Load processed message IDs from database to prevent reprocessing."""
+    def _load_processed_emails(self):
+        """Load previously processed email IDs from database to prevent reprocessing."""
         try:
-            processed_ids = self.database.get_processed_message_ids()
-            self.processed_message_ids.update(processed_ids)
-            logger.info(f"Loaded {len(processed_ids)} processed message IDs from database")
+            processed_ids = self.db_manager.get_processed_email_ids()
+            self.processed_emails.update(processed_ids)
+            logger.info(f"Loaded {len(processed_ids)} previously processed email IDs")
         except Exception as e:
-            logger.warning(f"Could not load processed message IDs: {str(e)}")
+            logger.warning(f"Could not load processed email IDs: {str(e)}")
+            self.processed_emails = set()
     
-    def calculate_backoff_delay(self, error_count: int) -> int:
-        """Calculate exponential backoff delay for API failures."""
-        base_delay = 60
-        max_delay = 600  # 10 minutes maximum
-        delay = min(base_delay * (2 ** error_count), max_delay)
-        return delay
+    def setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown."""
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum}. Initiating graceful shutdown...")
+            self.shutdown_event.set()
+            self.running = False
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
     
-    def poll_emails(self) -> List[Dict[str, Any]]:
-        """Poll Gmail for new emails with error handling."""
+    @contextmanager
+    def error_handling(self, operation_name: str):
+        """Context manager for consistent error handling."""
         try:
-            logger.info("Polling Gmail for new emails...")
-            emails = self.gmail_listener.get_new_emails()
+            yield
+        except Exception as e:
+            logger.error(f"Error in {operation_name}: {str(e)}", exc_info=True)
+            # Don't re-raise to allow the main loop to continue
+    
+    def fetch_new_emails(self) -> List[Dict]:
+        """Fetch new emails from Gmail."""
+        try:
+            emails = self.gmail_client.get_recent_emails(
+                since=self.last_processed_time,
+                max_results=50
+            )
             
             # Filter out already processed emails
-            new_emails = []
-            for email in emails:
-                message_id = email.get('message_id')
-                if message_id and message_id not in self.processed_message_ids:
-                    new_emails.append(email)
-                else:
-                    logger.debug(f"Skipping already processed email: {message_id}")
+            new_emails = [
+                email for email in emails 
+                if email['id'] not in self.processed_emails
+            ]
             
-            logger.info(f"Found {len(new_emails)} new emails to process")
+            logger.info(f"Found {len(emails)} recent emails, {len(new_emails)} new")
             return new_emails
             
         except Exception as e:
-            logger.error(f"Failed to poll emails: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
+            logger.error(f"Failed to fetch emails: {str(e)}")
+            return []
     
-    def is_existing_lead(self, sender_email: str) -> Optional[Dict[str, Any]]:
-        """Check if email sender is an existing lead."""
-        try:
-            return self.database.get_lead_by_email(sender_email)
-        except Exception as e:
-            logger.error(f"Error checking existing lead for {sender_email}: {str(e)}")
-            return None
-    
-    def process_new_lead(self, email: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Process email from new lead - parse and store lead information."""
-        try:
-            logger.info(f"Processing new lead from: {email.get('sender_email')}")
-            
-            # Parse lead information from email
-            lead_data = self.lead_parser.parse_lead_from_email(email)
-            
-            if not lead_data:
-                logger.warning(f"Could not parse lead data from email: {email.get('message_id')}")
-                return None
-            
-            # Store new lead in database
-            lead_id = self.database.create_lead(lead_data)
-            lead_data['id'] = lead_id
-            lead_data['status'] = 'new'
-            
-            logger.info(f"Created new lead with ID: {lead_id}")
-            return lead_data
-            
-        except Exception as e:
-            logger.error(f"Error processing new lead: {str(e)}")
-            logger.error(traceback.format_exc())
-            return None
-    
-    def process_photo_attachments(self, email: Dict[str, Any]) -> Dict[str, Any]:
-        """Process photo attachments and return analysis results."""
-        analysis_results = {}
+    def process_email(self, email: Dict) -> bool:
+        """Process a single email through the complete workflow."""
+        email_id = email['id']
+        sender_email = email.get('sender', '')
         
         try:
-            attachments = email.get('attachments', [])
-            photo_attachments = [att for att in attachments if att.get('is_image', False)]
+            logger.info(f"Processing email {email_id} from {sender_email}")
             
-            if photo_attachments:
-                logger.info(f"Processing {len(photo_attachments)} photo attachments")
+            # Check if lead already exists
+            existing_lead = self.db_manager.get_lead_by_email(sender_email)
+            
+            if existing_lead:
+                # Update existing lead conversation
+                success = self._handle_existing_lead(email, existing_lead)
+            else:
+                # Parse and create new lead
+                success = self._handle_new_lead(email)
+            
+            if success:
+                # Mark email as processed
+                self.processed_emails.add(email_id)
+                self.db_manager.mark_email_processed(email_id)
+                logger.info(f"Successfully processed email {email_id}")
+                return True
+            else:
+                logger.warning(f"Failed to process email {email_id}")
+                return False
                 
-                for i, attachment in enumerate(photo_attachments):
-                    try:
-                        analysis = self.photo_analyzer.analyze_trade_photo(attachment)
-                        analysis_results[f'photo_{i+1}'] = analysis
-                        logger.info(f"Successfully analyzed photo attachment {i+1}")
-                    except Exception as e:
-                        logger.error(f"Failed to analyze photo attachment {i+1}: {str(e)}")
-                        analysis_results[f'photo_{i+1}'] = {'error': str(e)}
-            
         except Exception as e:
-            logger.error(f"Error processing photo attachments: {str(e)}")
-            analysis_results['error'] = str(e)
-        
-        return analysis_results
+            logger.error(f"Error processing email {email_id}: {str(e)}", exc_info=True)
+            return False
     
-    def determine_conversation_step(self, lead: Dict[str, Any], email: Dict[str, Any]) -> Dict[str, Any]:
-        """Determine current conversation step and next action."""
+    def _handle_new_lead(self, email: Dict) -> bool:
+        """Handle processing of email from new lead."""
         try:
-            return self.conversation_manager.get_next_step(lead, email)
-        except Exception as e:
-            logger.error(f"Error determining conversation step: {str(e)}")
-            return {
-                'step': 'initial_contact',
-                'action': 'send_greeting',
-                'message': 'Error determining conversation step'
-            }
-    
-    def generate_and_send_response(self, lead: Dict[str, Any], email: Dict[str, Any], 
-                                 conversation_step: Dict[str, Any], 
-                                 photo_analysis: Dict[str, Any]) -> bool:
-        """Generate appropriate response and send it."""
-        try:
-            logger.info(f"Generating response for lead {lead.get('id')} at step {conversation_step.get('step')}")
-            
-            # Generate response based on conversation step and context
-            response_data = self.reply_generator.generate_response(
-                lead=lead,
-                email=email,
-                conversation_step=conversation_step,
-                photo_analysis=photo_analysis
-            )
-            
-            if not response_data:
-                logger.error("Failed to generate response")
+            # Parse lead information
+            lead_data = self.lead_parser.parse_email(email)
+            if not lead_data:
+                logger.warning(f"Could not parse lead data from email {email['id']}")
                 return False
             
-            # Send the response
-            success = self.email_sender.send_response(
-                to_email=lead['email'],
-                subject=response_data['subject'],
-                body=response_data['body'],
-                reply_to_message_id=email.get('message_id')
+            # Check for photo attachments
+            photos = self._process_attachments(email)
+            if photos:
+                lead_data['photos'] = photos
+                lead_data['has_photos'] = True
+            
+            # Determine initial qualification step
+            qualification_step = self._determine_initial_step(lead_data)
+            lead_data['qualification_step'] = qualification_step
+            lead_data['status'] = 'active'
+            lead_data['created_at'] = datetime.utcnow()
+            lead_data['updated_at'] = datetime.utcnow()
+            
+            # Store lead in database
+            lead_id = self.db_manager.create_lead(lead_data)
+            if not lead_id:
+                logger.error(f"Failed to create lead for email {email['id']}")
+                return False
+            
+            # Send appropriate qualification message
+            response_sent = self._send_qualification_response(
+                email['sender'], 
+                qualification_step, 
+                lead_data
+            )
+            
+            if response_sent:
+                # Update lead status
+                self.db_manager.update_lead_status(
+                    lead_id, 
+                    'awaiting_response', 
+                    f"Sent {qualification_step} message"
+                )
+            
+            logger.info(f"Created new lead {lead_id} with step {qualification_step}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error handling new lead: {str(e)}", exc_info=True)
+            return False
+    
+    def _handle_existing_lead(self, email: Dict, existing_lead: Dict) -> bool:
+        """Handle processing of email from existing lead."""
+        try:
+            lead_id = existing_lead['id']
+            current_step = existing_lead.get('qualification_step', 'initial_contact')
+            
+            # Process any new attachments
+            photos = self._process_attachments(email)
+            if photos:
+                self.db_manager.add_lead_photos(lead_id, photos)
+            
+            # Parse email content for updated information
+            updated_data = self.lead_parser.parse_email(email)
+            if updated_data:
+                # Update lead with new information
+                updated_data['updated_at'] = datetime.utcnow()
+                self.db_manager.update_lead(lead_id, updated_data)
+            
+            # Determine next qualification step
+            next_step = self._determine_next_step(existing_lead, email)
+            
+            if next_step != current_step:
+                # Send appropriate response for next step
+                response_sent = self._send_qualification_response(
+                    email['sender'], 
+                    next_step, 
+                    existing_lead
+                )
+                
+                if response_sent:
+                    # Update lead qualification step and status
+                    self.db_manager.update_lead_qualification_step(
+                        lead_id, 
+                        next_step
+                    )
+                    self.db_manager.update_lead_status(
+                        lead_id, 
+                        'awaiting_response', 
+                        f"Advanced to {next_step}"
+                    )
+                    logger.info(f"Advanced lead {lead_id} to step {next_step}")
+            else:
+                # Update last contact time
+                self.db_manager.update_lead_status(
+                    lead_id, 
+                    existing_lead.get('status', 'active'), 
+                    "Received follow-up email"
+                )
+                logger.info(f"Updated existing lead {lead_id} contact time")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error handling existing lead: {str(e)}", exc_info=True)
+            return False
+    
+    def _process_attachments(self, email: Dict) -> List[str]:
+        """Process photo attachments from email."""
+        try:
+            attachments = email.get('attachments', [])
+            if not attachments:
+                return []
+            
+            processed_photos = []
+            for attachment in attachments:
+                if self.photo_processor.is_photo(attachment.get('filename', '')):
+                    # Download and process photo
+                    photo_data = self.gmail_client.get_attachment(
+                        email['id'], 
+                        attachment['attachment_id']
+                    )
+                    
+                    if photo_data:
+                        # Process and save photo
+                        photo_path = self.photo_processor.process_photo(
+                            photo_data, 
+                            attachment['filename']
+                        )
+                        if photo_path:
+                            processed_photos.append(photo_path)
+            
+            if processed_photos:
+                logger.info(f"Processed {len(processed_photos)} photos from email {email['id']}")
+            
+            return processed_photos
+            
+        except Exception as e:
+            logger.error(f"Error processing attachments: {str(e)}")
+            return []
+    
+    def _determine_initial_step(self, lead_data: Dict) -> str:
+        """Determine initial qualification step for new lead."""
+        # Check if lead provided key information upfront
+        if lead_data.get('budget') and lead_data.get('timeline'):
+            return 'technical_requirements'
+        elif lead_data.get('project_type'):
+            return 'budget_timeline'
+        else:
+            return 'initial_contact'
+    
+    def _determine_next_step(self, existing_lead: Dict, email: Dict) -> str:
+        """Determine next qualification step based on current state and email content."""
+        current_step = existing_lead.get('qualification_step', 'initial_contact')
+        
+        # Parse email for qualification indicators
+        email_content = email.get('body', '').lower()
+        
+        # Define step progression logic
+        step_progression = {
+            'initial_contact': 'budget_timeline',
+            'budget_timeline': 'technical_requirements', 
+            'technical_requirements': 'proposal_preparation',
+            'proposal_preparation': 'contract_discussion',
+            'contract_discussion': 'project_start'
+        }
+        
+        # Check if lead provided information that allows skipping steps
+        if current_step == 'initial_contact':
+            if any(word in email_content for word in ['budget', '$', 'cost', 'price']):
+                if any(word in email_content for word in ['timeline', 'when', 'deadline']):
+                    return 'technical_requirements'
+                return 'budget_timeline'
+        
+        elif current_step == 'budget_timeline':
+            if any(word in email_content for word in ['technical', 'requirements', 'features']):
+                return 'technical_requirements'
+        
+        # Default progression
+        return step_progression.get(current_step, current_step)
+    
+    def _send_qualification_response(self, recipient: str, step: str, lead_data: Dict) -> bool:
+        """Send appropriate qualification response email."""
+        try:
+            message = self.qualification_messages.get_message(step, lead_data)
+            if not message:
+                logger.warning(f"No message template found for step {step}")
+                return False
+            
+            success = self.gmail_client.send_email(
+                to=recipient,
+                subject=message['subject'],
+                body=message['body']
             )
             
             if success:
-                logger.info(f"Successfully sent response to {lead['email']}")
-                return True
+                logger.info(f"Sent {step} message to {recipient}")
             else:
-                logger.error(f"Failed to send response to {lead['email']}")
+                logger.error(f"Failed to send {step} message to {recipient}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error sending qualification response: {str(e)}")
+            return False
+    
+    def cleanup_old_data(self):
+        """Perform periodic cleanup of old data."""
+        try:
+            # Clean up old processed email records (older than 30 days)
+            cutoff_date = datetime.utcnow() - timedelta(days=30)
+            cleaned = self.db_manager.cleanup_old_processed_emails(cutoff_date)
+            
+            if cleaned > 0:
+                logger.info(f"Cleaned up {cleaned} old processed email records")
+            
+            # Clean up temporary photo files
+            self.photo_processor.cleanup_temp_files()
+            
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
+    
+    def health_check(self) -> bool:
+        """Perform system health check."""
+        try:
+            # Check Gmail connection
+            if not self.gmail_client.test_connection():
+                logger.error("Gmail connection health check failed")
                 return False
-                
+            
+            # Check database connection
+            if not self.db_manager.test_connection():
+                logger.error("Database connection health check failed")
+                return False
+            
+            logger.info("System health check passed")
+            return True
+            
         except Exception as e:
-            logger.error(f"Error generating/sending response: {str(e)}")
-            logger.error(traceback.format_exc())
+            logger.error(f"Health check failed: {str(e)}")
             return False
     
-    def update_lead_status(self, lead: Dict[str, Any], conversation_step: Dict[str, Any], 
-                          email: Dict[str, Any], response_sent: bool):
-        """Update lead status and log interaction."""
-        try:
-            # Update lead status in database
-            new_status = conversation_step.get('next_status', lead.get('status'))
-            self.database.update_lead_status(lead['id'], new_status)
-            
-            # Log the interaction
-            interaction_data = {
-                'lead_id': lead['id'],
-                'email_message_id': email.get('message_id'),
-                'conversation_step': conversation_step.get('step'),
-                'response_sent': response_sent,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            self.database.log_interaction(interaction_data)
-            
-            logger.info(f"Updated lead {lead['id']} status to {new_status}")
-            
-        except Exception as e:
-            logger.error(f"Error updating lead status: {str(e)}")
-            logger.error(traceback.format_exc())
-    
-    def mark_email_processed(self, message_id: str):
-        """Mark email as processed to prevent reprocessing."""
-        try:
-            self.processed_message_ids.add(message_id)
-            self.database.mark_message_processed(message_id)
-        except Exception as e:
-            logger.error(f"Error marking email as processed: {str(e)}")
-    
-    def process_single_email(self, email: Dict[str, Any]) -> bool:
-        """Process a single email through the complete workflow."""
-        message_id = email.get('message_id')
-        sender_email = email.get('sender_email')
+    def run_monitoring_cycle(self):
+        """Run one complete monitoring cycle."""
+        cycle_start = time.time()
         
-        try:
-            logger.info(f"Processing email {message_id} from {sender_email}")
+        with self.error_handling("monitoring cycle"):
+            # Fetch new emails
+            new_emails = self.fetch_new_emails()
             
-            # Check if sender is existing lead
-            existing_lead = self.is_existing_lead(sender_email)
-            
-            if existing_lead:
-                logger.info(f"Email from existing lead: {existing_lead['id']}")
-                lead = existing_lead
-            else:
-                logger.info("Email from new potential lead")
-                lead = self.process_new_lead(email)
-                if not lead:
-                    logger.warning("Could not process as new lead, skipping")
-                    return False
-            
-            # Process photo attachments if present
-            photo_analysis = self.process_photo_attachments(email)
-            
-            # Determine conversation step
-            conversation_step = self.determine_conversation_step(lead, email)
-            
-            # Generate and send response
-            response_sent = self.generate_and_send_response(
-                lead, email, conversation_step, photo_analysis
-            )
-            
-            # Update lead status and log interaction
-            self.update_lead_status(lead, conversation_step, email, response_sent)
-            
-            # Mark email as processed
-            self.mark_email_processed(message_id)
-            
-            logger.info(f"Successfully processed email {message_id}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error processing email {message_id}: {str(e)}")
-            logger.error(traceback.format_exc())
-            return False
-    
-    def run_processing_cycle(self):
-        """Run one complete email processing cycle."""
-        try:
-            # Poll for new emails
-            new_emails = self.poll_emails()
-            
-            if not new_emails:
-                logger.debug("No new emails to process")
-                return True
-            
-            # Process each new email
+            # Process each email
             processed_count = 0
-            failed_count = 0
-            
             for email in new_emails:
-                try:
-                    if self.process_single_email(email):
-                        processed_count += 1
-                    else:
-                        failed_count += 1
-                except Exception as e:
-                    logger.error(f"Failed to process email: {str(e)}")
-                    failed_count += 1
+                if self.shutdown_event.is_set():
+                    logger.info("Shutdown requested, stopping email processing")
+                    break
+                
+                if self.process_email(email):
+                    processed_count += 1
             
-            logger.info(f"Processing cycle complete: {processed_count} successful, {failed_count} failed")
+            # Update last processed time
+            if new_emails:
+                self.last_processed_time = datetime.utcnow()
             
-            # Reset error count on successful cycle
-            self.error_count = 0
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error in processing cycle: {str(e)}")
-            logger.error(traceback.format_exc())
-            self.error_count += 1
-            return False
+            # Log cycle statistics
+            cycle_duration = time.time() - cycle_start
+            logger.info(
+                f"Monitoring cycle completed: "
+                f"processed {processed_count}/{len(new_emails)} emails "
+                f"in {cycle_duration:.2f}s"
+            )
     
     def run(self):
-        """Main orchestration loop."""
-        logger.info("Starting Claw Contractor email monitoring system...")
+        """Main monitoring loop."""
+        logger.info("Starting email monitoring system...")
         
         # Initialize components
         if not self.initialize_components():
-            logger.error("Failed to initialize components, exiting")
-            return
+            logger.error("Failed to initialize system components")
+            return False
+        
+        # Setup signal handlers
+        self.setup_signal_handlers()
+        
+        self.running = True
+        cycle_count = 0
+        last_health_check = time.time()
+        last_cleanup = time.time()
         
         logger.info("Email monitoring system started successfully")
         
         try:
-            while True:
+            while self.running and not self.shutdown_event.is_set():
+                cycle_count += 1
+                
                 try:
-                    # Check for too many consecutive errors
-                    if self.error_count >= self.max_consecutive_errors:
-                        backoff_delay = self.calculate_backoff_delay(self.error_count - self.max_consecutive_errors)
-                        logger.warning(f"Too many consecutive errors ({self.error_count}), backing off for {backoff_delay} seconds")
-                        time.sleep(backoff_delay)
+                    # Run monitoring cycle
+                    self.run_monitoring_cycle()
                     
-                    # Run processing cycle
-                    self.run_processing_cycle()
+                    # Periodic health checks (every 10 minutes)
+                    if time.time() - last_health_check > 600:
+                        if not self.health_check():
+                            logger.warning("Health check failed, continuing monitoring")
+                        last_health_check = time.time()
                     
-                    # Wait before next poll
-                    logger.debug("Waiting 60 seconds before next poll...")
-                    time.sleep(60)
+                    # Periodic cleanup (every hour)
+                    if time.time() - last_cleanup > 3600:
+                        self.cleanup_old_data()
+                        last_cleanup = time.time()
                     
+                    # Wait for next cycle or shutdown
+                    if not self.shutdown_event.wait(timeout=self.poll_interval):
+                        continue  # Timeout occurred, continue monitoring
+                    else:
+                        break  # Shutdown event was set
+                        
                 except KeyboardInterrupt:
-                    logger.info("Received keyboard interrupt, shutting down gracefully...")
+                    logger.info("Keyboard interrupt received")
                     break
-                    
                 except Exception as e:
-                    logger.error(f"Unexpected error in main loop: {str(e)}")
-                    logger.error(traceback.format_exc())
-                    self.error_count += 1
-                    
-                    # Continue after brief delay
-                    time.sleep(10)
-        
-        except Exception as e:
-            logger.error(f"Fatal error in main loop: {str(e)}")
-            logger.error(traceback.format_exc())
+                    logger.error(f"Unexpected error in monitoring loop: {str(e)}", exc_info=True)
+                    # Sleep before retrying to avoid rapid failure loops
+                    time.sleep(30)
         
         finally:
-            logger.info("Email monitoring system shutdown complete")
+            logger.info("Shutting down email monitoring system...")
+            self.running = False
+            
+            # Close connections
+            if self.gmail_client:
+                self.gmail_client.close()
+            if self.db_manager:
+                self.db_manager.close()
+            
+            logger.info(f"Email monitoring system shut down after {cycle_count} cycles")
+        
+        return True
+
 
 def main():
-    """Entry point for the application."""
-    orchestrator = ClawContractorOrchestrator()
-    orchestrator.run()
+    """Main entry point."""
+    logger.info("Email monitoring system starting up...")
+    
+    monitor = EmailMonitor()
+    
+    try:
+        success = monitor.run()
+        if success:
+            logger.info("Email monitoring system completed successfully")
+            return 0
+        else:
+            logger.error("Email monitoring system failed to start")
+            return 1
+    except Exception as e:
+        logger.error(f"Fatal error in main: {str(e)}", exc_info=True)
+        return 1
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
