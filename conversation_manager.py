@@ -1,4 +1,4 @@
-from database import get_conversation_history, insert_conversation_message, update_qualification_step, get_lead_by_thread_id
+from database_manager import DatabaseManager
 
 
 class ConversationManager:

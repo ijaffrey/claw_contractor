@@ -7,9 +7,9 @@ import logging
 import smtplib
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
-from email.mime.base import MimeBase
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
 from email import encoders
 import json
 import sqlite3
@@ -817,22 +817,3 @@ if __name__ == "__main__":
     notifier = create_contractor_notifier(DB_PATH, email_config)
     
     # Example lead data for testing
-    test_lead = LeadData(
-        lead_id="LEAD-20240101-001",
-        first_name="John",
-        last_name="Smith",
-        email="john.smith@example.com",
-        phone="(555) 123-4567",
-        address="123 Main Street",
-        city="Springfield",
-        state="IL",
-        zip_code="62701",
-        service_type="Kitchen Renovation",
-        project_description="Complete kitchen remodel including new cabinets, countertops, and appliances.",
-        budget_range="$25,000 - $35,000",
-        timeline="3-4 months",
-        urgency="medium",
-        lead_score=87.5,
-        qualification_date="2024-01-01 10:30:00",
-        lead_source="Website Form",
-        

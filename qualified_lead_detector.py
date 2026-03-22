@@ -787,4 +787,4 @@ class QualifiedLeadDetector:
         if not start_time:
             return True
         
-        start_dt = datetime.fromisoformat(start_time) if isinstance(start_time, str
+        start_dt = datetime.fromisoformat(start_time) if isinstance(start_time, str) else start_time
