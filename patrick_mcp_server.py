@@ -1,462 +1,232 @@
 import asyncio
+import json
 import uuid
-import time
+import threading
+import subprocess
+import sys
+import os
 from datetime import datetime
-from typing import Dict, List, Any, Optional
-from enum import Enum
-import traceback
-import logging
+from typing import Any, Sequence
+from mcp.server.models import InitializationOptions
+import mcp.types as types
+from mcp.server import NotificationOptions, Server
+import mcp.server.stdio
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+JOB_STORE = {}
 
-class JobStatus(Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+server = Server("patrick-mcp-server")
 
-class Job:
-    def __init__(self, job_id: str, job_type: str, data: Dict[str, Any]):
-        self.job_id = job_id
-        self.job_type = job_type
-        self.data = data
-        self.status = JobStatus.PENDING
-        self.created_at = datetime.now()
-        self.started_at = None
-        self.completed_at = None
-        self.result = None
-        self.error = None
-        self.guidance = []
-        
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "job_id": self.job_id,
-            "job_type": self.job_type,
-            "status": self.status.value,
-            "created_at": self.created_at.isoformat(),
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "result": self.result,
-            "error": self.error,
-            "guidance": self.guidance
-        }
-
-# Global job storage
-jobs: Dict[str, Job] = {}
-server_start_time = datetime.now()
-
-def run_sprint(sprint_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Executes a sprint and returns results.
-    
-    Args:
-        sprint_data: Dictionary containing sprint configuration
-        
-    Returns:
-        Dict containing sprint execution results
-    """
+def run_patrick_in_background(job_id: str, repo: str, sprint_plan_file: str):
+    """Run Patrick in a background thread and update job status"""
     try:
-        # Validate sprint data
-        if not isinstance(sprint_data, dict):
-            raise ValueError("sprint_data must be a dictionary")
-            
-        required_fields = ["name", "tasks", "duration"]
-        for field in required_fields:
-            if field not in sprint_data:
-                raise ValueError(f"Missing required field: {field}")
+        # Update job status to running
+        JOB_STORE[job_id]["status"] = "running"
+        JOB_STORE[job_id]["started_at"] = datetime.now().isoformat()
         
-        job_id = str(uuid.uuid4())
-        job = Job(job_id, "sprint", sprint_data)
-        jobs[job_id] = job
+        # Run Patrick command
+        cmd = ["python", "-m", "patrick.main", "--sprint-plan", sprint_plan_file, "--repo", repo]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
         
-        # Start job execution
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.now()
+        # Update job status with results
+        JOB_STORE[job_id]["status"] = "completed" if result.returncode == 0 else "failed"
+        JOB_STORE[job_id]["completed_at"] = datetime.now().isoformat()
+        JOB_STORE[job_id]["return_code"] = result.returncode
+        JOB_STORE[job_id]["stdout"] = result.stdout
+        JOB_STORE[job_id]["stderr"] = result.stderr
         
-        # Simulate sprint execution
-        tasks = sprint_data.get("tasks", [])
-        completed_tasks = []
-        failed_tasks = []
-        
-        for task in tasks:
-            try:
-                # Simulate task execution
-                task_result = {
-                    "task_id": task.get("id", str(uuid.uuid4())),
-                    "name": task.get("name", "Unnamed Task"),
-                    "status": "completed",
-                    "duration": task.get("estimated_duration", 1),
-                    "result": f"Task '{task.get('name', 'Unnamed')}' completed successfully"
-                }
-                completed_tasks.append(task_result)
-            except Exception as e:
-                failed_task = {
-                    "task_id": task.get("id", str(uuid.uuid4())),
-                    "name": task.get("name", "Unnamed Task"),
-                    "status": "failed",
-                    "error": str(e)
-                }
-                failed_tasks.append(failed_task)
-        
-        # Complete job
-        job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.now()
-        
-        result = {
-            "job_id": job_id,
-            "sprint_name": sprint_data.get("name"),
-            "status": "completed",
-            "total_tasks": len(tasks),
-            "completed_tasks": len(completed_tasks),
-            "failed_tasks": len(failed_tasks),
-            "completed_task_details": completed_tasks,
-            "failed_task_details": failed_tasks,
-            "started_at": job.started_at.isoformat(),
-            "completed_at": job.completed_at.isoformat(),
-            "duration": (job.completed_at - job.started_at).total_seconds()
-        }
-        
-        job.result = result
-        return result
-        
+    except subprocess.TimeoutExpired:
+        JOB_STORE[job_id]["status"] = "timeout"
+        JOB_STORE[job_id]["completed_at"] = datetime.now().isoformat()
+        JOB_STORE[job_id]["error"] = "Process timed out after 1 hour"
     except Exception as e:
-        logger.error(f"Error running sprint: {str(e)}")
-        if 'job' in locals():
-            job.status = JobStatus.FAILED
-            job.error = str(e)
-            job.completed_at = datetime.now()
-        
-        return {
-            "status": "failed",
-            "error": str(e),
-            "job_id": job_id if 'job_id' in locals() else None
-        }
+        JOB_STORE[job_id]["status"] = "error"
+        JOB_STORE[job_id]["completed_at"] = datetime.now().isoformat()
+        JOB_STORE[job_id]["error"] = str(e)
 
-def get_status(job_id: str) -> Dict[str, Any]:
+@server.list_tools()
+async def handle_list_tools() -> list[types.Tool]:
     """
-    Returns status of a job.
-    
-    Args:
-        job_id: Unique identifier of the job
-        
-    Returns:
-        Dict containing job status information
+    List available tools.
+    Each tool specifies its arguments using JSON Schema validation.
     """
-    try:
-        if not job_id:
-            raise ValueError("job_id is required")
-            
-        if job_id not in jobs:
-            return {
-                "status": "not_found",
-                "error": f"Job with ID {job_id} not found",
-                "job_id": job_id
-            }
-        
-        job = jobs[job_id]
-        return job.to_dict()
-        
-    except Exception as e:
-        logger.error(f"Error getting job status: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "job_id": job_id
-        }
-
-def send_guidance(job_id: str, guidance: str) -> Dict[str, Any]:
-    """
-    Sends guidance to a running job.
-    
-    Args:
-        job_id: Unique identifier of the job
-        guidance: Guidance message to send
-        
-    Returns:
-        Dict containing operation result
-    """
-    try:
-        if not job_id:
-            raise ValueError("job_id is required")
-            
-        if not guidance:
-            raise ValueError("guidance is required")
-            
-        if job_id not in jobs:
-            return {
-                "status": "failed",
-                "error": f"Job with ID {job_id} not found",
-                "job_id": job_id
-            }
-        
-        job = jobs[job_id]
-        
-        if job.status != JobStatus.RUNNING:
-            return {
-                "status": "failed",
-                "error": f"Job {job_id} is not running. Current status: {job.status.value}",
-                "job_id": job_id
-            }
-        
-        guidance_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "message": guidance,
-            "id": str(uuid.uuid4())
-        }
-        
-        job.guidance.append(guidance_entry)
-        
-        return {
-            "status": "success",
-            "message": "Guidance sent successfully",
-            "job_id": job_id,
-            "guidance_id": guidance_entry["id"]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error sending guidance: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "job_id": job_id
-        }
-
-def list_jobs() -> Dict[str, Any]:
-    """
-    Returns list of all jobs.
-    
-    Returns:
-        Dict containing list of all jobs
-    """
-    try:
-        job_list = []
-        for job in jobs.values():
-            job_summary = {
-                "job_id": job.job_id,
-                "job_type": job.job_type,
-                "status": job.status.value,
-                "created_at": job.created_at.isoformat(),
-                "started_at": job.started_at.isoformat() if job.started_at else None,
-                "completed_at": job.completed_at.isoformat() if job.completed_at else None
-            }
-            job_list.append(job_summary)
-        
-        # Sort by creation time, newest first
-        job_list.sort(key=lambda x: x["created_at"], reverse=True)
-        
-        return {
-            "status": "success",
-            "total_jobs": len(job_list),
-            "jobs": job_list
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listing jobs: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "jobs": []
-        }
-
-def health_check() -> Dict[str, Any]:
-    """
-    Returns server health status.
-    
-    Returns:
-        Dict containing server health information
-    """
-    try:
-        current_time = datetime.now()
-        uptime = (current_time - server_start_time).total_seconds()
-        
-        # Count jobs by status
-        status_counts = {status.value: 0 for status in JobStatus}
-        for job in jobs.values():
-            status_counts[job.status.value] += 1
-        
-        return {
-            "status": "healthy",
-            "timestamp": current_time.isoformat(),
-            "uptime_seconds": uptime,
-            "total_jobs": len(jobs),
-            "job_status_counts": status_counts,
-            "memory_usage": {
-                "jobs_in_memory": len(jobs)
+    return [
+        types.Tool(
+            name="run_sprint",
+            description="Run a Patrick sprint with the provided plan and repository",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sprint_plan": {
+                        "type": "object",
+                        "description": "The sprint plan configuration as a dictionary"
+                    },
+                    "repo": {
+                        "type": "string", 
+                        "description": "Path to the repository to work on"
+                    }
+                },
+                "required": ["sprint_plan", "repo"]
             },
-            "server_info": {
-                "name": "Patrick MCP Server",
-                "version": "1.0.0",
-                "started_at": server_start_time.isoformat()
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in health check: {str(e)}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+        ),
+        types.Tool(
+            name="get_status",
+            description="Get the status of a Patrick sprint job",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "The unique job ID returned from run_sprint"
+                    }
+                },
+                "required": ["job_id"]
+            },
+        ),
+        types.Tool(
+            name="list_jobs",
+            description="List all Patrick sprint jobs and their statuses",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False
+            },
+        ),
+        types.Tool(
+            name="say_hello",
+            description="A simple greeting tool",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name to greet"
+                    }
+                },
+                "required": ["name"]
+            },
+        ),
+    ]
 
-def generate_and_run(prompt: str) -> Dict[str, Any]:
+@server.call_tool()
+async def handle_call_tool(
+    name: str, arguments: dict[str, Any] | None
+) -> list[types.TextContent]:
     """
-    Generates and executes code from prompt.
-    
-    Args:
-        prompt: Natural language prompt describing the task
+    Handle tool execution requests.
+    Tools can modify server state and notify clients of changes.
+    """
+    if name == "run_sprint":
+        if not arguments:
+            raise ValueError("Missing arguments")
         
-    Returns:
-        Dict containing generation and execution results
-    """
-    try:
-        if not prompt:
-            raise ValueError("prompt is required")
-            
+        sprint_plan = arguments.get("sprint_plan")
+        repo = arguments.get("repo")
+        
+        if not sprint_plan or not repo:
+            raise ValueError("Both sprint_plan and repo are required")
+        
+        # Generate unique job ID
         job_id = str(uuid.uuid4())
-        job = Job(job_id, "generate_and_run", {"prompt": prompt})
-        jobs[job_id] = job
         
-        # Start job execution
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.now()
+        # Save sprint plan to temporary file
+        sprint_plan_file = f"/tmp/patrick_job_{job_id}.json"
+        try:
+            with open(sprint_plan_file, 'w') as f:
+                json.dump(sprint_plan, f, indent=2)
+        except Exception as e:
+            raise ValueError(f"Failed to save sprint plan: {str(e)}")
         
-        # Simulate code generation
-        generated_code = f"""
-# Generated code for: {prompt}
-def generated_function():
-    '''
-    This function was generated based on the prompt: {prompt}
-    '''
-    result = "Code generated and executed successfully"
-    print(f"Executing task: {prompt}")
-    return result
-
-# Execute the generated function
-if __name__ == "__main__":
-    output = generated_function()
-    print(output)
-"""
-        
-        # Simulate code execution
-        execution_result = {
-            "stdout": f"Executing task: {prompt}\nCode generated and executed successfully",
-            "stderr": "",
-            "return_code": 0,
-            "execution_time": 0.1
-        }
-        
-        # Complete job
-        job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.now()
-        
-        result = {
+        # Initialize job in store
+        JOB_STORE[job_id] = {
             "job_id": job_id,
-            "status": "completed",
-            "prompt": prompt,
-            "generated_code": generated_code,
-            "execution_result": execution_result,
-            "started_at": job.started_at.isoformat(),
-            "completed_at": job.completed_at.isoformat(),
-            "duration": (job.completed_at - job.started_at).total_seconds()
+            "status": "queued",
+            "created_at": datetime.now().isoformat(),
+            "repo": repo,
+            "sprint_plan_file": sprint_plan_file,
+            "sprint_plan": sprint_plan
         }
         
-        job.result = result
-        return result
+        # Start Patrick in background thread
+        thread = threading.Thread(
+            target=run_patrick_in_background,
+            args=(job_id, repo, sprint_plan_file),
+            daemon=True
+        )
+        thread.start()
         
-    except Exception as e:
-        logger.error(f"Error in generate_and_run: {str(e)}")
-        if 'job' in locals():
-            job.status = JobStatus.FAILED
-            job.error = str(e)
-            job.completed_at = datetime.now()
-        
-        return {
-            "status": "failed",
-            "error": str(e),
-            "job_id": job_id if 'job_id' in locals() else None,
-            "traceback": traceback.format_exc()
-        }
-
-# Utility functions for job management
-def cancel_job(job_id: str) -> Dict[str, Any]:
-    """
-    Cancels a running job.
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "job_id": job_id,
+                    "status": "queued",
+                    "message": f"Sprint job {job_id} has been queued and will start shortly"
+                }, indent=2)
+            )
+        ]
     
-    Args:
-        job_id: Unique identifier of the job to cancel
+    elif name == "get_status":
+        if not arguments:
+            raise ValueError("Missing arguments")
         
-    Returns:
-        Dict containing cancellation result
-    """
-    try:
-        if job_id not in jobs:
-            return {
-                "status": "failed",
-                "error": f"Job with ID {job_id} not found"
-            }
+        job_id = arguments.get("job_id")
+        if not job_id:
+            raise ValueError("job_id is required")
         
-        job = jobs[job_id]
+        if job_id not in JOB_STORE:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "error": f"Job {job_id} not found"
+                    }, indent=2)
+                )
+            ]
         
-        if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
-            return {
-                "status": "failed",
-                "error": f"Job {job_id} cannot be cancelled. Current status: {job.status.value}"
-            }
-        
-        job.status = JobStatus.CANCELLED
-        job.completed_at = datetime.now()
-        
-        return {
-            "status": "success",
-            "message": f"Job {job_id} cancelled successfully",
-            "job_id": job_id
-        }
-        
-    except Exception as e:
-        logger.error(f"Error cancelling job: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
-
-def cleanup_completed_jobs(max_age_hours: int = 24) -> Dict[str, Any]:
-    """
-    Removes completed jobs older than specified age.
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(JOB_STORE[job_id], indent=2)
+            )
+        ]
     
-    Args:
-        max_age_hours: Maximum age of completed jobs to keep in hours
+    elif name == "list_jobs":
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(list(JOB_STORE.values()), indent=2)
+            )
+        ]
+    
+    elif name == "say_hello":
+        if not arguments:
+            raise ValueError("Missing arguments")
         
-    Returns:
-        Dict containing cleanup results
-    """
-    try:
-        current_time = datetime.now()
-        removed_count = 0
-        
-        jobs_to_remove = []
-        for job_id, job in jobs.items():
-            if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
-                if job.completed_at:
-                    age_hours = (current_time - job.completed_at).total_seconds() / 3600
-                    if age_hours > max_age_hours:
-                        jobs_to_remove.append(job_id)
-        
-        for job_id in jobs_to_remove:
-            del jobs[job_id]
-            removed_count += 1
-        
-        return {
-            "status": "success",
-            "removed_jobs": removed_count,
-            "remaining_jobs": len(jobs)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error cleaning up jobs: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        name_arg = arguments.get("name", "World")
+        return [
+            types.TextContent(
+                type="text", 
+                text=f"Hello, {name_arg}! This is Patrick MCP Server."
+            )
+        ]
+    else:
+        raise ValueError(f"Unknown tool: {name}")
+
+async def main():
+    # Run the server using stdin/stdout streams
+    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name="patrick-mcp-server",
+                server_version="0.1.0",
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
+                ),
+            ),
+        )
+
+if __name__ == "__main__":
+    asyncio.run(main())
