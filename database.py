@@ -387,3 +387,8 @@ if __name__ != "__main__":
         create_database_engine()
     except Exception as e:
         logger.warning(f"Could not initialize database on import: {str(e)}")
+# Import ConversationState model
+from conversation_schema import ConversationState
+
+# Export for easy importing
+__all__ = ['Base', 'Lead', 'LeadStatus', 'NotificationLog', 'NotificationType', 'NotificationStatus', 'ConversationState', 'get_db_session', 'create_database_engine']
