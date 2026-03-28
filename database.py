@@ -389,7 +389,16 @@ if __name__ != "__main__":
         logger.warning(f"Could not initialize database on import: {str(e)}")
 # Import ConversationState model
 from conversation_schema import ConversationState
-from conversation_schema import Conversations
+from conversation_schema import ConversationState
 
 # Export for easy importing
 __all__ = ['Base', 'Lead', 'LeadStatus', 'NotificationLog', 'NotificationType', 'NotificationStatus', 'ConversationState', 'get_db_session', 'create_database_engine']
+# Import ConversationState from conversation_schema to register it with Base
+# This ensures conversation_states table is created when init_database() is called
+try:
+    from conversation_schema import ConversationState
+    # Register the conversation model with the main Base
+    ConversationState.__table__.metadata = Base.metadata
+    ConversationState.__table__._set_parent_with_dispatch(Base.metadata)
+except ImportError:
+    logger.warning("conversation_schema module not found - conversation tables will not be created")
