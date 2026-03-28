@@ -19,6 +19,8 @@ import database_manager
 import qualified_lead_detector
 import contractor_notifier
 import reply_generator
+import conversation_manager
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -48,6 +50,8 @@ class LeadManagementSystem:
         self.notifier = contractor_notifier
         self.reply_gen = reply_generator
         
+        # Initialize conversation manager
+        self.conversation_manager = conversation_manager.ConversationManager()
         logger.info(f"System initialized {'in DRY RUN mode' if dry_run else ''}")
     
     def print_startup_banner(self):
@@ -80,6 +84,21 @@ class LeadManagementSystem:
             subject = email_data.get('subject', 'No subject')
             sender = email_data.get('sender', 'Unknown sender')
             
+            # Check if this is a conversation reply or new lead
+            if self.is_conversation_reply(email_data):
+                logger.info(f"Processing conversation reply from {sender}")
+                self.log_conversation_state(sender, "processing_reply", {"email_id": email_id})
+                
+                if self.dry_run:
+                    logger.info("[DRY RUN] Would route to conversation manager")
+                    return True
+                else:
+                    return self.conversation_manager.process_reply(email_data)
+            
+            # This is a new lead - continue with existing flow
+            logger.info(f"Processing new lead from {sender}")
+            self.log_conversation_state(sender, "processing_new_lead", {"email_id": email_id})
+
             logger.info(f"Processing email {email_id}: {subject} from {sender}")
             
             # Step 1: Parse lead data from email
@@ -300,3 +319,49 @@ def main():
 
 if __name__ == "__main__":
     main()
+    def is_conversation_reply(self, email_data: Dict[str, Any]) -> bool:
+        """
+        Determine if email is a reply to an existing conversation or a new lead.
+        Checks for Re:, thread_id, or existing conversation in database.
+        """
+        subject = email_data.get('subject', '').lower()
+        sender_email = email_data.get('sender', '')
+        
+        # Check for reply indicators in subject
+        if subject.startswith('re:') or subject.startswith('fwd:'):
+            self.log_conversation_state(sender_email, 'reply_detected', {'method': 'subject_prefix'})
+            return True
+            
+        # Check if sender has existing conversation in database
+        if not self.dry_run:
+            try:
+                # Use database manager to check for existing lead
+                existing_leads = self.db.get_leads_by_email(sender_email)
+                if existing_leads:
+                    self.log_conversation_state(sender_email, 'existing_lead_found', {'lead_count': len(existing_leads)})
+                    return True
+            except Exception as e:
+                logger.warning(f"Error checking existing conversations: {e}")
+                
+        return False
+    
+    def log_conversation_state(self, email: str, state: str, details: Dict[str, Any] = None) -> None:
+        """
+        Log conversation state transitions with timestamps.
+        """
+        timestamp = datetime.now().isoformat()
+        log_entry = {
+            'timestamp': timestamp,
+            'email': email,
+            'state': state,
+            'details': details or {}
+        }
+        logger.info(f"Conversation state transition: {log_entry}")
+        
+        # Store in database for persistence if not in dry run mode
+        if not self.dry_run:
+            try:
+                # Store conversation state log in database
+                self.db.store_conversation_log(log_entry)
+            except Exception as e:
+                logger.warning(f"Failed to store conversation log: {e}")

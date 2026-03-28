@@ -1,0 +1,18 @@
+{
+  "name": "claw_contractor",
+  "type": "python",
+  "structure": {
+    "entry_point": "main.py",
+    "routers": "routes/",
+    "models": "models/",
+    "services": "services/",
+    "config": "config.py",
+    "static": "templates/",
+    "tests": "tests/"
+  },
+  "conventions": {
+    "one_router_per_domain": true,
+    "models_separate_from_routes": true,
+    "no_business_logic_in_routes": true
+  }
+}
