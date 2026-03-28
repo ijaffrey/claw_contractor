@@ -495,3 +495,115 @@ def generate_fallback_follow_up(lead, business_profile, next_step, customer_repl
         reply += f"\n{business_phone}"
 
     return reply
+
+
+def generate_followup(lead_message, conversation_history, business_profile):
+    """
+    Generate a natural follow-up question based on conversation context.
+    
+    Args:
+        lead_message: Latest message from the lead
+        conversation_history: List of previous messages in the conversation
+        business_profile: Business information dictionary
+        
+    Returns:
+        str: Generated follow-up message
+    """
+    try:
+        config = Config()
+        client = Anthropic(api_key=config.CLAUDE_API_KEY)
+        
+        # Build a specialized prompt for follow-up generation
+        system_prompt = build_followup_prompt(business_profile)
+        
+        # Format conversation history for context
+        history_text = ""
+        if conversation_history:
+            for msg in conversation_history:
+                role = msg.get('role', 'assistant')
+                content = msg.get('message', '')
+                if role == 'customer':
+                    history_text += f"Customer: {content}\n"
+                else:
+                    history_text += f"You: {content}\n"
+        
+        # Create the user message with context
+        user_message = f"""Previous conversation:
+{history_text}
+
+Latest customer message: {lead_message}
+
+Generate a natural follow-up question that acknowledges their response and moves the conversation forward. Follow all the conversation rules from your instructions."""
+        
+        response = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=300,
+            temperature=0.7,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": user_message}
+            ]
+        )
+        
+        return response.content[0].text.strip()
+        
+    except Exception as e:
+        print(f"Error generating followup: {e}")
+        # Fallback to simple template
+        return generate_fallback_followup(lead_message, business_profile)
+
+
+def build_followup_prompt(business_profile):
+    """
+    Build a specialized system prompt for follow-up generation.
+    
+    Args:
+        business_profile: Business information dictionary
+        
+    Returns:
+        str: System prompt for follow-up generation
+    """
+    # Reuse the main prompt but add follow-up specific instructions
+    base_prompt = build_system_prompt(business_profile)
+    
+    followup_instructions = """\n\nFOLLOW-UP SPECIFIC RULES:
+
+1. ALWAYS acknowledge what the customer just told you before asking your next question.
+   - "Got it, Tuesday afternoon works" → then ask next question
+   - "Thanks for those photos" → then ask next question
+   - "Okay, emergency repair" → then ask next question
+
+2. Never repeat questions already answered in the conversation history.
+
+3. Keep follow-ups even shorter than initial responses - aim for 30-50 words.
+
+4. If they've provided all key information (urgency, details, location, availability), transition to handoff.
+
+5. Match their communication style - if they're brief, be brief."""
+    
+    return base_prompt + followup_instructions
+
+
+def generate_fallback_followup(lead_message, business_profile):
+    """
+    Simple fallback for follow-up generation if API fails.
+    
+    Args:
+        lead_message: Latest message from the lead
+        business_profile: Business information dictionary
+        
+    Returns:
+        str: Template-based follow-up
+    """
+    business_name = business_profile.get('name', 'Our Team')
+    
+    # Simple acknowledgment templates
+    templates = [
+        f"Got it, thanks! What's the service address for this?",
+        f"Perfect. When would work best for you?",
+        f"Thanks for that info. Can you tell me more about what's happening?",
+        f"Understood. Is this urgent or are you planning ahead?",
+    ]
+    
+    import random
+    return random.choice(templates) + f"\n\n- {business_name}"
