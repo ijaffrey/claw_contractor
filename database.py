@@ -389,6 +389,7 @@ if __name__ != "__main__":
         logger.warning(f"Could not initialize database on import: {str(e)}")
 # Import ConversationState model
 from conversation_schema import ConversationState
+from conversation_schema import Conversations
 
 # Export for easy importing
 __all__ = ['Base', 'Lead', 'LeadStatus', 'NotificationLog', 'NotificationType', 'NotificationStatus', 'ConversationState', 'get_db_session', 'create_database_engine']
