@@ -1,0 +1,43 @@
+{
+  "test_data_versioning": {
+    "current_version": "1.0.0",
+    "schema_version": "1.0",
+    "retention_policy": {
+      "max_versions": 10,
+      "retention_days": 30
+    },
+    "data_types": {
+      "leads": {
+        "schema_version": "1.0",
+        "current_version": "1.0.0",
+        "description": "Lead test data"
+      },
+      "conversations": {
+        "schema_version": "1.0",
+        "current_version": "1.0.0",
+        "description": "Conversation test data"
+      },
+      "contractors": {
+        "schema_version": "1.0",
+        "current_version": "1.0.0",
+        "description": "Contractor test data"
+      }
+    },
+    "privacy_compliance": {
+      "enabled": true,
+      "anonymization_required": true,
+      "pii_scanning": true
+    },
+    "cleanup_schedule": {
+      "enabled": true,
+      "frequency": "daily",
+      "retention_days": 7
+    },
+    "versioning_metadata": {
+      "created_at": "2024-01-01T00:00:00",
+      "last_updated": "2024-01-01T00:00:00",
+      "created_by": "test_data_manager",
+      "version_format": "YYYY-MM-DD_HHMMSS"
+    }
+  }
+}
