@@ -6,7 +6,11 @@ Validates email parsing and processing functionality
 
 import logging
 import sys
+import os
 from typing import Dict, Any
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import required modules
 import lead_parser
