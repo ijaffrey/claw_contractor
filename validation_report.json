@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-03-31T17:43:45.840582",
+  "coverage_validation": {
+    "status": "ERROR",
+    "error": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  },
+  "quality_validation": {
+    "status": "ERROR",
+    "error": "Expecting value: line 1 column 1 (char 0)"
+  },
+  "test_execution": {
+    "status": "FAIL",
+    "output": "\ud83e\uddea Starting Basic Test Suite Execution...\n\nFound 9 test files to execute\n\nRunning test_config.py...\n\u2705 test_config.py: PASS (0.04s)\nRunning test_database.py...\n\u274c test_database.py: FAIL (0.14s)\n   Error: Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_datab...\nRunning test_lead_parser.py...\n\u274c test_lead_parser.py: FAIL (0.19s)\n   Error: /Users/Clawdbot/Library/Python/3.14/lib/python/site-packages/requests/__init__.py:113: RequestsDepen...\nRunning test_email_sender.py...\n\u274c test_email_sender.py: FAIL (0.08s)\n   Error: Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_email...\nRunning test_notification_manager.py...\n\u274c test_notification_manager.py: FAIL (0.08s)\n   Error: Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_notif...\nRunning test_reply_generator.py...\n\u274c test_reply_generator.py: FAIL (0.32s)\n   Error: Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_reply...\nRunning test_qualified_lead_detector.py...\n\u274c test_qualified_lead_detector.py: FAIL (0.08s)\n   Error: Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_quali...\nRunning test_contractor_notifier.py...\n\u274c test_contractor_notifier.py: FAIL (0.04s)\n   Error: Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_contr...\nRunning test_health_check.py...\n\u2705 test_health_check.py: PASS (0.03s)\n\n============================================================\n\ud83d\udcca BASIC TEST SUITE EXECUTION REPORT\n============================================================\n\u23f1\ufe0f  Duration: 0.99s\n\ud83d\udcc8 Coverage: 22.2% (2/9 tests passed)\n\u274c 80% Coverage Target: NOT MET\n\n\u26a0\ufe0f  Failed Tests:\n  \u274c test_database.py: FAIL\n  \u274c test_lead_parser.py: FAIL\n  \u274c test_email_sender.py: FAIL\n  \u274c test_notification_manager.py: FAIL\n  \u274c test_reply_generator.py: FAIL\n  \u274c test_qualified_lead_detector.py: FAIL\n  \u274c test_contractor_notifier.py: FAIL\n\n============================================================\n\ud83d\udcc4 Detailed report saved to basic_test_report.json\n\n\u26a0\ufe0f  80% coverage target not met\n"
+  },
+  "overall_status": "ERROR"
+}

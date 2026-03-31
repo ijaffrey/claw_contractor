@@ -1,6 +1,6 @@
 {
   "overall_status": "UNHEALTHY",
-  "timestamp": 1774993243.740911,
+  "timestamp": 1774993427.456427,
   "checks": {
     "database": {
       "status": "PASSED",
@@ -8,7 +8,7 @@
     },
     "environment": {
       "status": "FAILED",
-      "details": "Missing variables: ['DATABASE_URL', 'TESTING']"
+      "details": "Missing variables: ['TESTING']"
     },
     "logging": {
       "status": "PASSED",
