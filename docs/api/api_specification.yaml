@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: Lead Management System API
+  description: RESTful API for the Lead Management System
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@example.com
+
+servers:
+  - url: https://api.leadmanagement.com/v1
+    description: Production server
+  - url: http://localhost:8000/v1
+    description: Development server
+
+paths:
+  /leads:
+    get:
+      summary: Get all leads
+      description: Retrieve a list of all leads with optional filtering
+      tags:
+        - Leads
+      parameters:
+        - name: status
+          in: query
+          description: Filter by lead status
+          required: false
+          schema:
+            type: string
+            enum: [new, qualified, contacted, converted, rejected]
+        - name: limit
+          in: query
+          description: Maximum number of results
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leads:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Lead'
+                  total:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    
+    post:
+      summary: Create a new lead
+      description: Add a new lead to the system
+      tags:
+        - Leads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeadRequest'
+      responses:
+        '201':
+          description: Lead created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lead'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /leads/{leadId}:
+    get:
+      summary: Get a specific lead
+      description: Retrieve details for a specific lead
+      tags:
+        - Leads
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          description: The unique identifier for the lead
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lead'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Lead:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the lead
+        email:
+          type: string
+          format: email
+          description: Lead's email address
+        name:
+          type: string
+          description: Lead's full name
+        phone:
+          type: string
+          description: Lead's phone number
+        status:
+          type: string
+          enum: [new, qualified, contacted, converted, rejected]
+          description: Current status of the lead
+        project_type:
+          type: string
+          description: Type of construction project
+        created_at:
+          type: string
+          format: date-time
+          description: When the lead was created
+      required:
+        - id
+        - email
+        - status
+
+    CreateLeadRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Lead's email address
+        name:
+          type: string
+          description: Lead's full name
+        phone:
+          type: string
+          description: Lead's phone number
+        project_type:
+          type: string
+          description: Type of construction project
+        message:
+          type: string
+          description: Initial message from the lead
+      required:
+        - email
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+      required:
+        - error
+        - code
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []
