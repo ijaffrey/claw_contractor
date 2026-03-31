@@ -1,8 +1,8 @@
 {
   "test_execution_summary": {
-    "start_time": "2026-03-31T17:46:32.784272",
-    "end_time": "2026-03-31T17:46:33.786321",
-    "total_duration_seconds": 1.0
+    "start_time": "2026-03-31T17:51:54.341265",
+    "end_time": "2026-03-31T17:51:55.322582",
+    "total_duration_seconds": 0.98
   },
   "coverage_summary": {
     "total_tests": 9,
@@ -23,7 +23,7 @@
     {
       "test_file": "test_database.py",
       "status": "FAIL",
-      "duration": 0.14,
+      "duration": 0.13,
       "stdout": "\n============================================================\nDATABASE TEST SUITE\n============================================================\nThis will test all database operations against Supabase\n============================================================\n\n============================================================\nTEST 1: Supabase Connection\n============================================================\n",
       "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_database.py\", line 184, in <module>\n    main()\n    ~~~~^^\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_database.py\", line 145, in main\n    if not test_connection():\n           ~~~~~~~~~~~~~~~^^\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_database.py\", line 15, in test_connection\n    success = db.test_connection()\n              ^^^^^^^^^^^^^^^^^^\nAttributeError: module 'database' has no attribute 'test_connection'\n",
       "return_code": 1
@@ -47,7 +47,7 @@
     {
       "test_file": "test_notification_manager.py",
       "status": "FAIL",
-      "duration": 0.07,
+      "duration": 0.08,
       "stdout": "",
       "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_notification_manager.py\", line 7, in <module>\n    from src.notification_manager import NotificationManager\nModuleNotFoundError: No module named 'src.notification_manager'\n",
       "return_code": 1
@@ -55,7 +55,7 @@
     {
       "test_file": "test_reply_generator.py",
       "status": "FAIL",
-      "duration": 0.32,
+      "duration": 0.31,
       "stdout": "",
       "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_reply_generator.py\", line 7, in <module>\n    from reply_generator import generate_reply\n  File \"/private/tmp/patrick_workspace/claw_contractor/reply_generator.py\", line 7, in <module>\n    from config import Config\n  File \"/private/tmp/patrick_workspace/claw_contractor/config.py\", line 111, in <module>\n    class ProductionConfig(Config):\n    ...<14 lines>...\n            raise ValueError(\"DATABASE_URL environment variable must be set in production\")\n  File \"/private/tmp/patrick_workspace/claw_contractor/config.py\", line 123, in ProductionConfig\n    raise ValueError(\"SECRET_KEY environment variable must be set in production\")\nValueError: SECRET_KEY environment variable must be set in production\n",
       "return_code": 1
@@ -80,8 +80,8 @@
       "test_file": "test_health_check.py",
       "status": "PASS",
       "duration": 0.03,
-      "stdout": "\nTest Environment Health: UNHEALTHY\nDetailed results:\n  \u2705 DATABASE: PASSED - Database accessible. Tables: 5, Leads: 3, Contractors: 3\n  \u274c ENVIRONMENT: FAILED - Missing variables: ['TESTING']\n  \u2705 LOGGING: PASSED - All 3 log files accessible\n\n\u26a0\ufe0f  Test environment has issues that need to be resolved.\n",
-      "stderr": "2026-03-31 17:46:33,782 - __main__ - INFO - Running test environment health checks...\n",
+      "stdout": "\nTest Environment Health: HEALTHY\nDetailed results:\n  \u2705 DATABASE: PASSED - Database accessible. Tables: 5, Leads: 3, Contractors: 3\n  \u2705 ENVIRONMENT: PASSED - All required environment variables set\n  \u2705 LOGGING: PASSED - All 3 log files accessible\n\n\ud83c\udf89 Test environment is ready for testing!\n",
+      "stderr": "2026-03-31 17:51:55,319 - __main__ - INFO - Running test environment health checks...\n",
       "return_code": 0
     }
   ]
