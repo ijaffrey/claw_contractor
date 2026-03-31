@@ -1,14 +1,14 @@
 {
-  "overall_status": "UNHEALTHY",
-  "timestamp": 1774992622.769397,
+  "overall_status": "HEALTHY",
+  "timestamp": 1774993197.1785312,
   "checks": {
     "database": {
       "status": "PASSED",
       "details": "Database accessible. Tables: 5, Leads: 3, Contractors: 3"
     },
     "environment": {
-      "status": "FAILED",
-      "details": "Missing variables: ['TESTING']"
+      "status": "PASSED",
+      "details": "All required environment variables set"
     },
     "logging": {
       "status": "PASSED",
