@@ -66,3 +66,21 @@ The CLAW Contractor system is a Python-based lead management platform that autom
 - **Flask Application** (`patrick_web/app.py`): Web dashboard
 - **Routes** (`routes/`): API endpoints for web interface
 - **Templates** (`templates/`): HTML email templates
+
+## Test Environment Architecture Integration
+
+The test environment architecture is designed to mirror the production system while providing isolation and controllability for testing purposes. Key integration points:
+
+### Test-Specific Components
+- Test configuration management via `test_env_config.py`
+- Mock service implementations for external dependencies
+- Synthetic data generation for consistent test scenarios
+- Validation frameworks for end-to-end testing
+
+### Integration with Production Architecture
+- Maintains same module structure and interfaces as production
+- Uses identical data flow patterns with test data substitution
+- Preserves security patterns with test-appropriate credentials
+- Scales down resource requirements for test environment constraints
+
+For detailed test environment architecture specifications, see [test_architecture_design.md](test_architecture_design.md).
