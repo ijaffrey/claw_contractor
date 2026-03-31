@@ -1,0 +1,88 @@
+{
+  "test_execution_summary": {
+    "start_time": "2026-03-31T17:30:20.452099",
+    "end_time": "2026-03-31T17:30:22.773133",
+    "total_duration_seconds": 2.32
+  },
+  "coverage_summary": {
+    "total_tests": 9,
+    "passed": 2,
+    "failed": 7,
+    "coverage_percentage": 22.2,
+    "meets_80_percent_target": false
+  },
+  "detailed_results": [
+    {
+      "test_file": "test_config.py",
+      "status": "PASS",
+      "duration": 0.05,
+      "stdout": "",
+      "stderr": "",
+      "return_code": 0
+    },
+    {
+      "test_file": "test_database.py",
+      "status": "FAIL",
+      "duration": 1.45,
+      "stdout": "\n============================================================\nDATABASE TEST SUITE\n============================================================\nThis will test all database operations against Supabase\n============================================================\n\n============================================================\nTEST 1: Supabase Connection\n============================================================\n",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_database.py\", line 184, in <module>\n    main()\n    ~~~~^^\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_database.py\", line 145, in main\n    if not test_connection():\n           ~~~~~~~~~~~~~~~^^\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_database.py\", line 15, in test_connection\n    success = db.test_connection()\n              ^^^^^^^^^^^^^^^^^^\nAttributeError: module 'database' has no attribute 'test_connection'\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_lead_parser.py",
+      "status": "FAIL",
+      "duration": 0.19,
+      "stdout": "",
+      "stderr": "/Users/Clawdbot/Library/Python/3.14/lib/python/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.3.0)/charset_normalizer (3.4.6) doesn't match a supported version!\n  warnings.warn(\nTraceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_lead_parser.py\", line 7, in <module>\n    from gmail_listener import poll_inbox\n  File \"/private/tmp/patrick_workspace/claw_contractor/gmail_listener.py\", line 15, in <module>\n    from config import Config\n  File \"/private/tmp/patrick_workspace/claw_contractor/config.py\", line 111, in <module>\n    class ProductionConfig(Config):\n    ...<14 lines>...\n            raise ValueError(\"DATABASE_URL environment variable must be set in production\")\n  File \"/private/tmp/patrick_workspace/claw_contractor/config.py\", line 123, in ProductionConfig\n    raise ValueError(\"SECRET_KEY environment variable must be set in production\")\nValueError: SECRET_KEY environment variable must be set in production\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_email_sender.py",
+      "status": "FAIL",
+      "duration": 0.08,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_email_sender.py\", line 11, in <module>\n    from src.email_sender import (\n    ...<7 lines>...\n    )\nModuleNotFoundError: No module named 'src.email_sender'\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_notification_manager.py",
+      "status": "FAIL",
+      "duration": 0.07,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_notification_manager.py\", line 7, in <module>\n    from src.notification_manager import NotificationManager\nModuleNotFoundError: No module named 'src.notification_manager'\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_reply_generator.py",
+      "status": "FAIL",
+      "duration": 0.32,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_reply_generator.py\", line 7, in <module>\n    from reply_generator import generate_reply\n  File \"/private/tmp/patrick_workspace/claw_contractor/reply_generator.py\", line 7, in <module>\n    from config import Config\n  File \"/private/tmp/patrick_workspace/claw_contractor/config.py\", line 111, in <module>\n    class ProductionConfig(Config):\n    ...<14 lines>...\n            raise ValueError(\"DATABASE_URL environment variable must be set in production\")\n  File \"/private/tmp/patrick_workspace/claw_contractor/config.py\", line 123, in ProductionConfig\n    raise ValueError(\"SECRET_KEY environment variable must be set in production\")\nValueError: SECRET_KEY environment variable must be set in production\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_qualified_lead_detector.py",
+      "status": "FAIL",
+      "duration": 0.08,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_qualified_lead_detector.py\", line 7, in <module>\n    from app.modules.qualified_lead_detector import (\n    ...<6 lines>...\n    )\nModuleNotFoundError: No module named 'app.modules'\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_contractor_notifier.py",
+      "status": "FAIL",
+      "duration": 0.04,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/patrick_workspace/claw_contractor/test_contractor_notifier.py\", line 7, in <module>\n    from lead_management.contractor_notifier import (\n    ...<6 lines>...\n    )\nModuleNotFoundError: No module named 'lead_management'\n",
+      "return_code": 1
+    },
+    {
+      "test_file": "test_health_check.py",
+      "status": "PASS",
+      "duration": 0.03,
+      "stdout": "\nTest Environment Health: UNHEALTHY\nDetailed results:\n  \u2705 DATABASE: PASSED - Database accessible. Tables: 5, Leads: 3, Contractors: 3\n  \u274c ENVIRONMENT: FAILED - Missing variables: ['TESTING']\n  \u2705 LOGGING: PASSED - All 3 log files accessible\n\n\u26a0\ufe0f  Test environment has issues that need to be resolved.\n",
+      "stderr": "2026-03-31 17:30:22,769 - __main__ - INFO - Running test environment health checks...\n",
+      "return_code": 0
+    }
+  ]
+}
