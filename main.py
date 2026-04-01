@@ -365,3 +365,149 @@ if __name__ == "__main__":
                 self.db.store_conversation_log(log_entry)
             except Exception as e:
                 logger.warning(f"Failed to store conversation log: {e}")
+
+# Flask web server for OAuth endpoints
+from flask import Flask, request, redirect, session, url_for
+import secrets
+import os
+from google_auth_oauthlib.flow import InstalledAppFlow
+from config import Config
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-key-change-in-production')
+
+@app.route('/auth/google')
+def auth_google():
+    """Initiate Gmail OAuth flow with CSRF protection"""
+    try:
+        # Check required environment variables
+        client_id = os.environ.get('GOOGLE_CLIENT_ID')
+        client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+        
+        if not client_id or not client_secret:
+            missing_vars = []
+            if not client_id:
+                missing_vars.append('GOOGLE_CLIENT_ID')
+            if not client_secret:
+                missing_vars.append('GOOGLE_CLIENT_SECRET')
+            
+            logger.error(f"Missing required environment variables: {missing_vars}")
+            return f"Missing environment variables: {', '.join(missing_vars)}", 500
+        
+        # Generate state parameter for CSRF protection
+        state = secrets.token_urlsafe(32)
+        session['oauth_state'] = state
+        
+        # Create OAuth flow using existing config
+        client_config = {
+            'web': {
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
+                'redirect_uris': ['http://localhost:5000/auth/google/callback']
+            }
+        }
+        
+        flow = InstalledAppFlow.from_client_config(
+            client_config, 
+            Config.GMAIL_SCOPES
+        )
+        flow.redirect_uri = 'http://localhost:5000/auth/google/callback'
+        
+        # Generate authorization URL with state
+        authorization_url, _ = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            state=state
+        )
+        
+        # Store flow in session for callback
+        session['oauth_flow'] = flow.to_json()
+        
+        logger.info(f"Redirecting to Google OAuth: {authorization_url}")
+        return redirect(authorization_url)
+        
+    except Exception as e:
+        logger.error(f"Error initiating OAuth flow: {e}")
+        return f"Error initiating OAuth: {str(e)}", 500
+
+@app.route('/auth/google/callback')
+def auth_google_callback():
+    """Handle OAuth callback from Google"""
+    try:
+        # Verify state parameter
+        state = request.args.get('state')
+        if not state or state != session.get('oauth_state'):
+            logger.error("Invalid state parameter in OAuth callback")
+            return "Invalid state parameter", 400
+        
+        # Get authorization code
+        code = request.args.get('code')
+        if not code:
+            error = request.args.get('error')
+            logger.error(f"OAuth authorization failed: {error}")
+            return f"OAuth authorization failed: {error}", 400
+        
+        # Complete OAuth flow
+        flow_json = session.get('oauth_flow')
+        if not flow_json:
+            logger.error("No OAuth flow found in session")
+            return "OAuth flow not found", 400
+        
+        flow = InstalledAppFlow.from_client_config(
+            client_config={'web': {
+                'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+                'client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token'
+            }}, 
+            scopes=Config.GMAIL_SCOPES
+        )
+        flow.redirect_uri = 'http://localhost:5000/auth/google/callback'
+        
+        # Exchange code for token
+        flow.fetch_token(code=code)
+        
+        # Save credentials
+        credentials = flow.credentials
+        token_data = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        
+        # Save to token.json for local development
+        with open('token.json', 'w') as token_file:
+            import json
+            json.dump(token_data, token_file)
+        
+        # Clean up session
+        session.pop('oauth_state', None)
+        session.pop('oauth_flow', None)
+        
+        logger.info("OAuth flow completed successfully")
+        return "OAuth authentication successful! You can now close this window and restart the application."
+        
+    except Exception as e:
+        logger.error(f"Error in OAuth callback: {e}")
+        return f"Error completing OAuth: {str(e)}", 500
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Lead Management System')
+    parser.add_argument('--dry-run', action='store_true', help='Run in dry run mode (no emails sent, no database writes)')
+    parser.add_argument('--oauth-server', action='store_true', help='Run OAuth server for Gmail authentication')
+    
+    args = parser.parse_args()
+    
+    if args.oauth_server:
+        print("Starting OAuth server on http://localhost:5000")
+        print("Visit http://localhost:5000/auth/google to authenticate with Gmail")
+        app.run(debug=True, port=5000)
+    else:
+        # Run the main lead management system
+        system = LeadManagementSystem(dry_run=args.dry_run)
+        system.run()
