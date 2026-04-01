@@ -117,3 +117,51 @@ CREATE TRIGGER update_contractors_updated_at BEFORE UPDATE ON contractors FOR EA
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO test_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO test_user;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO test_user;
+-- OAuth tokens table for secure token storage
+-- Designed with encryption, security, and data retention in mind
+
+-- Create extension for encryption if not exists
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Create enum for token types
+CREATE TYPE oauth_token_type AS ENUM ('access_token', 'refresh_token', 'id_token');
+CREATE TYPE oauth_token_status AS ENUM ('active', 'expired', 'revoked', 'invalid');
+
+-- Create oauth_tokens table with security considerations
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_email VARCHAR(255) NOT NULL,
+    service_provider VARCHAR(50) NOT NULL DEFAULT 'gmail',
+    client_id VARCHAR(255) NOT NULL,
+    token_type oauth_token_type NOT NULL,
+    encrypted_token TEXT NOT NULL, -- Encrypted using pgcrypto
+    token_hash VARCHAR(64) NOT NULL, -- SHA-256 hash for quick lookups
+    scope TEXT, -- Comma-separated OAuth scopes
+    expires_at TIMESTAMP WITH TIME ZONE,
+    issued_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    status oauth_token_status NOT NULL DEFAULT 'active',
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    usage_count INTEGER DEFAULT 0,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    auto_delete_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT valid_expiry CHECK (expires_at IS NULL OR expires_at > issued_at),
+    CONSTRAINT valid_usage CHECK (usage_count >= 0)
+);
+
+-- Create indexes for performance and security
+CREATE INDEX idx_oauth_tokens_user_service ON oauth_tokens(user_email, service_provider);
+CREATE INDEX idx_oauth_tokens_status ON oauth_tokens(status);
+CREATE INDEX idx_oauth_tokens_expires_at ON oauth_tokens(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX idx_oauth_tokens_token_hash ON oauth_tokens(token_hash);
+CREATE INDEX idx_oauth_tokens_auto_delete ON oauth_tokens(auto_delete_at) WHERE auto_delete_at IS NOT NULL;
+
+-- Create unique constraint to prevent duplicate active tokens
+CREATE UNIQUE INDEX idx_oauth_tokens_unique_active 
+ON oauth_tokens(user_email, service_provider, token_type) 
+WHERE status = 'active';
+
+-- Row Level Security (RLS) policies
+ALTER TABLE oauth_tokens ENABLE ROW LEVEL SECURITY;
