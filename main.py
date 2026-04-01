@@ -614,3 +614,39 @@ def landing_files(filename):
     """Serve static files from landing directory"""
     from flask import send_from_directory
     return send_from_directory('landing', filename)
+
+@app.route('/api/leads/source')
+def source_leads():
+    """Call NYC DOB API and store results in sourced_leads table"""
+    import requests as req
+    try:
+        response = req.get(
+            'https://data.cityofnewyork.us/resource/ipu4-2q9a.json',
+            timeout=10
+        )
+        response.raise_for_status()
+        leads = response.json()
+
+        from database import get_db_session
+        session_db = get_db_session()
+        count = 0
+        try:
+            for lead in leads:
+                session_db.execute(
+                    "INSERT INTO sourced_leads (job_number, job_type, raw_data, created_at) "
+                    "VALUES (:job_number, :job_type, :raw_data, NOW()) ON CONFLICT DO NOTHING",
+                    {
+                        "job_number": lead.get("job__", ""),
+                        "job_type": lead.get("job_type", ""),
+                        "raw_data": str(lead)
+                    }
+                )
+                count += 1
+            session_db.commit()
+        finally:
+            session_db.close()
+
+        return {"records_stored": count}
+    except Exception as e:
+        logger.error(f"Error sourcing leads: {str(e)}")
+        return {"error": str(e)}, 500

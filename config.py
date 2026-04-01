@@ -119,11 +119,11 @@ class ProductionConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     
     # Ensure critical production settings
-    if not os.getenv('SECRET_KEY'):
-        raise ValueError("SECRET_KEY environment variable must be set in production")
-    
-    if not os.getenv('DATABASE_URL'):
-        raise ValueError("DATABASE_URL environment variable must be set in production")
+    def __init__(self):
+        if not os.getenv('SECRET_KEY'):
+            raise ValueError("SECRET_KEY environment variable must be set in production")
+        if not os.getenv('DATABASE_URL'):
+            raise ValueError("DATABASE_URL environment variable must be set in production")
 
 class TestingConfig(Config):
     """Testing configuration."""
