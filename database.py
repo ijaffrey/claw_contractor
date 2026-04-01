@@ -402,3 +402,32 @@ try:
     ConversationState.__table__._set_parent_with_dispatch(Base.metadata)
 except ImportError:
     logger.warning("conversation_schema module not found - conversation tables will not be created")
+
+
+class UserToken(Base):
+    __tablename__ = 'user_tokens'
+    
+    id = Column(Integer, primary_key=True)
+    user_email = Column(String(255), nullable=False, unique=True)
+    access_token = Column(Text, nullable=False)
+    refresh_token = Column(Text, nullable=True)
+    token_expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<UserToken {self.user_email}>'
+
+class UserToken(Base):
+    __tablename__ = 'user_tokens'
+    
+    id = Column(Integer, primary_key=True)
+    user_email = Column(String(255), nullable=False, unique=True)
+    access_token = Column(Text, nullable=False)
+    refresh_token = Column(Text, nullable=True)
+    token_expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<UserToken {self.user_email}>'

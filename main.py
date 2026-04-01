@@ -516,3 +516,101 @@ if __name__ == '__main__':
         # Run the main lead management system
         system = LeadManagementSystem(dry_run=args.dry_run)
         system.run()
+
+
+@app.route('/oauth/callback')
+def oauth_callback():
+    """Handle OAuth callback and exchange code for tokens"""
+    from google_auth_oauthlib.flow import Flow
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    from database import get_db_session, UserToken
+    import json
+    import os
+    
+    # Check for error parameter
+    error = request.args.get('error')
+    if error:
+        logger.error(f"OAuth error: {error}")
+        return f"Authentication failed: {error}", 400
+    
+    # Get authorization code
+    code = request.args.get('code')
+    if not code:
+        return "Missing authorization code", 400
+    
+    try:
+        # Create OAuth flow
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": os.getenv('GOOGLE_CLIENT_ID'),
+                    "client_secret": os.getenv('GOOGLE_CLIENT_SECRET'),
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [os.getenv('GOOGLE_REDIRECT_URI')]
+                }
+            },
+            scopes=['openid', 'email', 'profile']
+        )
+        flow.redirect_uri = os.getenv('GOOGLE_REDIRECT_URI')
+        
+        # Exchange code for tokens
+        flow.fetch_token(code=code)
+        credentials = flow.credentials
+        
+        # Get user info from ID token
+        id_info = id_token.verify_oauth2_token(
+            credentials.id_token, 
+            google_requests.Request(), 
+            os.getenv('GOOGLE_CLIENT_ID')
+        )
+        
+        user_email = id_info.get('email')
+        if not user_email:
+            return "Unable to get user email from token", 400
+        
+        # Store tokens in database
+        session_db = get_db_session()
+        try:
+            # Check if user already exists
+            existing_token = session_db.query(UserToken).filter_by(user_email=user_email).first()
+            
+            if existing_token:
+                # Update existing token
+                existing_token.access_token = credentials.token
+                existing_token.refresh_token = credentials.refresh_token
+                existing_token.token_expires_at = credentials.expiry
+                existing_token.updated_at = datetime.utcnow()
+            else:
+                # Create new token record
+                new_token = UserToken(
+                    user_email=user_email,
+                    access_token=credentials.token,
+                    refresh_token=credentials.refresh_token,
+                    token_expires_at=credentials.expiry
+                )
+                session_db.add(new_token)
+            
+            session_db.commit()
+            logger.info(f"OAuth tokens stored for user: {user_email}")
+            
+        except Exception as db_error:
+            session_db.rollback()
+            logger.error(f"Database error storing tokens: {str(db_error)}")
+            return "Failed to store authentication data", 500
+        finally:
+            session_db.close()
+        
+        # Redirect to success page
+        return redirect('/landing/success.html')
+        
+    except Exception as e:
+        logger.error(f"OAuth callback error: {str(e)}")
+        return f"Authentication failed: {str(e)}", 500
+
+@app.route('/landing/<path:filename>')
+def landing_files(filename):
+    """Serve static files from landing directory"""
+    from flask import send_from_directory
+    return send_from_directory('landing', filename)
