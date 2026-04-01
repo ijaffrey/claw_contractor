@@ -22,6 +22,11 @@ import reply_generator
 import conversation_manager
 from datetime import datetime
 
+# OAuth imports
+from google_auth_oauthlib.flow import Flow
+from google.auth.transport.requests import Request
+from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, GOOGLE_SCOPES
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

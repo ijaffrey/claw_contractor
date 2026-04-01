@@ -182,3 +182,12 @@ DATABASE_POOLS = {
         'pool_timeout': 10
     }
 }
+# OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8080/callback')
+GOOGLE_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+# OAuth Flow Configuration
+GOOGLE_ACCESS_TYPE = os.getenv('GOOGLE_ACCESS_TYPE', 'offline')
+GOOGLE_INCLUDE_GRANTED_SCOPES = os.getenv('GOOGLE_INCLUDE_GRANTED_SCOPES', 'true').lower() == 'true'
