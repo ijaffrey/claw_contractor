@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 import os
 from pathlib import Path
 
@@ -17,6 +17,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Landing page route
+@app.get("/")
+async def landing_page():
+    """Serve the ContractorAI landing page"""
+    with open("landing/index.html", "r") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content, status_code=200)
+
 # Health check endpoint
 @app.get("/api/health")
 async def health_check():
@@ -25,7 +33,7 @@ async def health_check():
 # Mount static files
 static_path = Path(__file__).parent / "static"
 if static_path.exists():
-    app.mount("/", StaticFiles(directory=str(static_path), html=True), name="static")
+    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 if __name__ == "__main__":
     import uvicorn
