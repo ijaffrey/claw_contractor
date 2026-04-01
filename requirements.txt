@@ -4,6 +4,9 @@ google-auth-oauthlib==1.2.0
 google-auth-httplib2==0.2.0
 google-api-python-client==2.116.0
 
+# OAuth utilities
+requests-oauthlib==2.0.0
+
 # Supabase
 supabase==2.28.2
 websockets>=15.0,<16.0
