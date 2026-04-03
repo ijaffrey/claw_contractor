@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContractorAI — Get More Jobs, Respond Faster</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .wordmark { text-align: center; margin-bottom: 3rem; }
+
+        .wordmark h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            letter-spacing: -1px;
+        }
+
+        .hero {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 4rem 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .headline {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 2rem;
+            line-height: 1.2;
+        }
+
+        .value-props { margin: 3rem 0; }
+
+        .value-props ul {
+            list-style: none;
+            text-align: left;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .value-props li {
+            font-size: 1.25rem;
+            color: #4a5568;
+            margin-bottom: 1.5rem;
+            padding-left: 2.5rem;
+            position: relative;
+        }
+
+        .value-props li::before {
+            content: "\2713";
+            position: absolute;
+            left: 0;
+            color: #48bb78;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .value-prop-emphasis {
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .cta-section { margin-top: 3rem; }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 600;
+            padding: 1.25rem 3rem;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(72, 187, 120, 0.3);
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(72, 187, 120, 0.4);
+            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+        }
+
+        .trust-text {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #718096;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .wordmark h1 { font-size: 2rem; }
+            .hero { padding: 2rem 1.5rem; }
+            .headline { font-size: 1.8rem; }
+            .value-props li { font-size: 1.1rem; }
+            .cta-button { font-size: 1.2rem; padding: 1rem 2rem; }
+        }
+
+        @media (max-width: 480px) {
+            .wordmark h1 { font-size: 1.5rem; }
+            .headline { font-size: 1.5rem; }
+            .value-props li { font-size: 1rem; padding-left: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="wordmark">
+            <h1>ContractorAI</h1>
+        </div>
+
+        <div class="hero">
+            <h2 class="headline">Win more jobs. Reply instantly.</h2>
+
+            <div class="value-props">
+                <ul>
+                    <li>
+                        <span class="value-prop-emphasis">We find you jobs from NYC permit filings</span>
+                        before other contractors even see them
+                    </li>
+                    <li>
+                        <span class="value-prop-emphasis">Every inbound lead gets a reply in 60 seconds</span>
+                        — in your voice, automatically
+                    </li>
+                </ul>
+            </div>
+
+            <div class="cta-section">
+                <a href="/auth/gmail" class="cta-button">Connect Your Gmail &mdash; It's Free</a>
+                <p class="trust-text">Read-only access. We never send emails without your permission.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
