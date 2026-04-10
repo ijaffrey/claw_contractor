@@ -1,0 +1,21 @@
+{
+  "slug": "sanz_construction",
+  "name": "Sanz Construction",
+  "contact": "Nauman Sanz",
+  "license": "[Nauman to fill in]",
+  "phone": "[Nauman to fill in]",
+  "email": "[Nauman to fill in]",
+  "address": "Staten Island, NY",
+  "credentials": {
+    "licensed_boroughs": ["Manhattan", "Bronx", "Brooklyn", "Queens", "Staten Island"],
+    "government_clients": ["MTA", "NYS Parks"],
+    "tagline": "Licensed contractor serving all five boroughs of NYC"
+  },
+  "payment_terms": {
+    "deposit_pct": 0.10,
+    "mobilization_pct": 0.40,
+    "progress_pct": 0.40,
+    "completion_pct": 0.10
+  },
+  "proposal_validity_days": 30
+}

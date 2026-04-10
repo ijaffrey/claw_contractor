@@ -62,3 +62,6 @@ htmlcov/
 
 # dob_puller generated output
 dob_output/
+
+# proposal_generator + outreach_engine generated output
+proposals/
