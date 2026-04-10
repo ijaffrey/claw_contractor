@@ -20,6 +20,7 @@ from . import (
     dobnow_scraper,
     document_downloader,
     permit_fetcher,
+    playwright_scraper,
     reference_forms,
     result_builder,
 )
@@ -39,6 +40,7 @@ def run_dob_pull(
     address_or_job_number: str,
     *,
     output_root: Path | None = None,
+    use_playwright: bool = False,
 ) -> dict:
     """Pull all DOB metadata + documents for an address (or job number).
 
@@ -90,6 +92,21 @@ def run_dob_pull(
         except Exception as exc:
             log.error("DOB NOW doc scrape failed: %s", exc)
 
+    # Step 4b: optional Playwright scrape for real per-job CO PDFs
+    playwright_docs: list = []
+    if use_playwright and resolved and resolved.get("bin"):
+        if playwright_scraper.is_available():
+            try:
+                playwright_docs = playwright_scraper.fetch_co_documents_for_bin(
+                    resolved["bin"], docs_dir
+                )
+            except Exception as exc:
+                log.error("Playwright CO scrape failed: %s", exc)
+        else:
+            log.warning(
+                "use_playwright=True but playwright is not installed; skipping"
+            )
+
     # Step 5: download in priority order
     all_docs: list = []
     # Reference DOB form templates — guaranteed-downloadable baseline
@@ -111,6 +128,11 @@ def run_dob_pull(
     download_results = document_downloader.download_documents(
         all_docs, docs_dir
     )
+    # Playwright results are already downloaded on disk — merge them in
+    # rather than re-fetching through document_downloader.
+    for d in playwright_docs:
+        if d.get("status") == "ok":
+            download_results.append(d)
 
     # Step 6: build + write result
     result = result_builder.build_result(
@@ -146,13 +168,20 @@ def main(argv: list | None = None) -> int:
         default="dob_output",
         help="Output directory root (default: dob_output)",
     )
+    parser.add_argument(
+        "--playwright",
+        action="store_true",
+        help="Use Playwright to fetch real per-job CO PDFs from BIS.",
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
     _setup_logging(verbose=not args.quiet)
     try:
         result = run_dob_pull(
-            args.address, output_root=Path(args.output_root)
+            args.address,
+            output_root=Path(args.output_root),
+            use_playwright=args.playwright,
         )
     except Exception as exc:
         log.exception("dob_puller failed: %s", exc)
