@@ -65,3 +65,6 @@ dob_output/
 
 # proposal_generator + outreach_engine generated output
 proposals/
+
+# permit_scanner generated output
+scan_results/
