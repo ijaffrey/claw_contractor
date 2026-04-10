@@ -43,27 +43,35 @@ def fetch_recent_permits(
     days_back: int = 90,
     limit: int | None = None,
     timeout: int = 60,
+    job_types: tuple | None = None,
 ) -> list:
-    """Return active Alteration/Demolition permits filed in the last N days.
+    """Return permits filed in the last N days for the given borough.
 
     Pagination: fetches in batches of PAGE_SIZE (1000) using $offset until a
     batch comes back with fewer than PAGE_SIZE rows, signaling exhaustion.
     Pass limit=N to cap early; limit=None means "pull all".
+
+    job_types defaults to the scoring-scanner's (Alteration, Alteration CO,
+    Demolition). Pass None or () to fetch ALL job types (needed by
+    bucket_analyzer which wants New Building and Full Demolition too).
     """
     since = (
         datetime.date.today() - datetime.timedelta(days=days_back)
     ).isoformat()
-    types_sql = ",".join(f"'{t}'" for t in JOB_TYPE_FILTER)
-    where = (
-        f"upper(borough)=upper('{borough}') "
-        f"AND job_type in({types_sql}) "
-        f"AND filing_date >= '{since}'"
-    )
+    effective_types = JOB_TYPE_FILTER if job_types is None else tuple(job_types)
+    clauses = [
+        f"upper(borough)=upper('{borough}')",
+        f"filing_date >= '{since}'",
+    ]
+    if effective_types:
+        types_sql = ",".join(f"'{t}'" for t in effective_types)
+        clauses.append(f"job_type in({types_sql})")
+    where = " AND ".join(clauses)
     log.info(
         "Socrata query: borough=%s since=%s types=%s limit=%s page=%d",
         borough,
         since,
-        JOB_TYPE_FILTER,
+        effective_types or "ALL",
         "ALL" if limit is None else str(limit),
         PAGE_SIZE,
     )
