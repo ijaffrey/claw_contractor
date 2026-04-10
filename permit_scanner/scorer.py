@@ -161,6 +161,51 @@ def _address(permit: dict) -> str:
     return bor or "(unknown address)"
 
 
+SCORE_BUCKETS = [
+    (80, 100, "80-100 (hot)"),
+    (65, 79, "65-79 (strong)"),
+    (50, 64, "50-64 (qualify)"),
+    (35, 49, "35-49 (marginal)"),
+    (0, 34, "0-34 (skip)"),
+]
+
+
+def bucket_label(score: int) -> str:
+    for lo, hi, label in SCORE_BUCKETS:
+        if lo <= score <= hi:
+            return label
+    return "unknown"
+
+
+def bucket_breakdown(scored: list) -> dict:
+    """Return aggregated stats per score bucket for a list of scored permits."""
+    out: list = []
+    for lo, hi, label in SCORE_BUCKETS:
+        members = [s for s in scored if lo <= s["score"] <= hi]
+        costs = [s["initial_cost_usd"] for s in members if s.get("initial_cost_usd")]
+        total_cost = sum(costs) if costs else 0.0
+        out.append(
+            {
+                "bucket": label,
+                "min_score": lo,
+                "max_score": hi,
+                "count": len(members),
+                "pct": None,  # filled in by caller
+                "total_initial_cost_usd": total_cost,
+                "avg_initial_cost_usd": (total_cost / len(costs)) if costs else 0.0,
+            }
+        )
+    total = sum(b["count"] for b in out) or 1
+    for b in out:
+        b["pct"] = round(100.0 * b["count"] / total, 1)
+    return {"total_scored": sum(b["count"] for b in out), "buckets": out}
+
+
+def score_all(permits: list, *, pluto_by_bbl: dict) -> list:
+    """Score every permit (no filtering, no dedupe) — used for bucket stats."""
+    return [score_permit(p, pluto_by_bbl=pluto_by_bbl) for p in permits]
+
+
 def rank_permits(
     permits: list,
     *,

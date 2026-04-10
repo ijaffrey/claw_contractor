@@ -34,14 +34,22 @@ JOB_TYPE_CODE = {
 }
 
 
+PAGE_SIZE = 1000
+
+
 def fetch_recent_permits(
     borough: str = "MANHATTAN",
     *,
     days_back: int = 90,
-    limit: int = 1000,
+    limit: int | None = None,
     timeout: int = 60,
 ) -> list:
-    """Return active Alteration/Demolition permits filed in the last N days."""
+    """Return active Alteration/Demolition permits filed in the last N days.
+
+    Pagination: fetches in batches of PAGE_SIZE (1000) using $offset until a
+    batch comes back with fewer than PAGE_SIZE rows, signaling exhaustion.
+    Pass limit=N to cap early; limit=None means "pull all".
+    """
     since = (
         datetime.date.today() - datetime.timedelta(days=days_back)
     ).isoformat()
@@ -49,24 +57,28 @@ def fetch_recent_permits(
     where = (
         f"upper(borough)=upper('{borough}') "
         f"AND job_type in({types_sql}) "
-        f"AND filing_date > '{since}'"
+        f"AND filing_date >= '{since}'"
     )
     log.info(
-        "Socrata query: borough=%s since=%s types=%s limit=%d",
+        "Socrata query: borough=%s since=%s types=%s limit=%s page=%d",
         borough,
         since,
         JOB_TYPE_FILTER,
-        limit,
+        "ALL" if limit is None else str(limit),
+        PAGE_SIZE,
     )
     rows: list = []
-    page_size = 500
     offset = 0
-    while len(rows) < limit:
-        batch = min(page_size, limit - len(rows))
+    while True:
+        if limit is not None and len(rows) >= limit:
+            break
+        batch_size = PAGE_SIZE
+        if limit is not None:
+            batch_size = min(PAGE_SIZE, limit - len(rows))
         params = {
             "$where": where,
             "$order": "filing_date DESC",
-            "$limit": batch,
+            "$limit": batch_size,
             "$offset": offset,
         }
         try:
@@ -76,15 +88,21 @@ def fetch_recent_permits(
             resp.raise_for_status()
             batch_rows = resp.json()
         except Exception as exc:
-            log.error("Socrata fetch failed: %s", exc)
+            log.error("Socrata fetch failed at offset %d: %s", offset, exc)
             break
         if not batch_rows:
             break
         rows.extend(batch_rows)
-        log.info("Fetched %d rows (total %d)", len(batch_rows), len(rows))
-        if len(batch_rows) < batch:
+        log.info(
+            "Fetched %d rows at offset=%d (cumulative %d)",
+            len(batch_rows),
+            offset,
+            len(rows),
+        )
+        # Exhausted if Socrata returns fewer than a full page
+        if len(batch_rows) < batch_size:
             break
-        offset += batch
+        offset += batch_size
     log.info("Total permits returned: %d", len(rows))
     return rows
 

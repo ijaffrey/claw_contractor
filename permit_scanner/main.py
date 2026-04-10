@@ -33,7 +33,7 @@ def run_scan(
     *,
     borough: str = "MANHATTAN",
     days_back: int = 90,
-    limit: int = 1000,
+    limit: int | None = None,
     min_score: int = 50,
     top_n: int = 20,
     auto_run_top: int = 0,
@@ -47,21 +47,30 @@ def run_scan(
         trades = ["abatement", "concrete", "demo"]
 
     log.info(
-        "scan start: borough=%s days_back=%d limit=%d top_n=%d auto_run=%d",
+        "scan start: borough=%s days_back=%d limit=%s top_n=%d auto_run=%d",
         borough,
         days_back,
-        limit,
+        "ALL" if limit is None else str(limit),
         top_n,
         auto_run_top,
     )
     permits = socrata.fetch_recent_permits(
         borough=borough, days_back=days_back, limit=limit
     )
-    log.info("raw permits fetched: %d", len(permits))
+    total_fetched = len(permits)
+    log.info("raw permits fetched: %d", total_fetched)
+    print(
+        f"\nTotal {borough} permits pulled from DOB NOW (last {days_back} days): "
+        f"{total_fetched:,}\n"
+    )
 
     # Enrich with PLUTO year (for +30 abatement rule)
     bbls = [p.get("bbl") for p in permits if p.get("bbl")]
     pluto_by_bbl = socrata.batch_lookup_pluto_year(bbls)
+
+    # Score ALL fetched permits (pre-dedupe, pre-filter) for bucket stats
+    all_scored = scorer.score_all(permits, pluto_by_bbl=pluto_by_bbl)
+    buckets = scorer.bucket_breakdown(all_scored)
 
     ranked = scorer.rank_permits(
         permits,
@@ -99,7 +108,7 @@ def run_scan(
             auto_run_results.append(artifacts)
 
     scan_results = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "borough": borough,
         "days_back": days_back,
@@ -108,8 +117,9 @@ def run_scan(
         "top_n": top_n,
         "contractor": contractor,
         "trades": trades,
-        "permits_fetched": len(permits),
+        "permits_fetched": total_fetched,
         "pluto_enriched": len(pluto_by_bbl),
+        "score_buckets": buckets,
         "ranked_count": len(ranked),
         "ranked": ranked,
         "auto_run_top": auto_run_top,
@@ -129,9 +139,23 @@ def _print_summary(scan: dict) -> None:
     print("\n=== PERMIT SCAN SUMMARY ===")
     print(f"Borough:          {scan['borough']}")
     print(f"Window:           last {scan['days_back']} days")
-    print(f"Permits fetched:  {scan['permits_fetched']}")
-    print(f"PLUTO enriched:   {scan['pluto_enriched']}")
-    print(f"Ranked (>= {scan['min_score']}):  {scan['ranked_count']}")
+    print(f"Permits fetched:  {scan['permits_fetched']:,}")
+    print(f"PLUTO enriched:   {scan['pluto_enriched']:,}")
+    print(f"Ranked (>= {scan['min_score']}):  {scan['ranked_count']:,}")
+
+    buckets = (scan.get("score_buckets") or {}).get("buckets") or []
+    if buckets:
+        print()
+        print("--- Score bucket breakdown (all scored, pre-dedupe) ---")
+        print(f"  {'Bucket':<20} {'Count':>8} {'%':>7} {'Avg cost':>14} {'Total cost':>18}")
+        for b in buckets:
+            avg = b.get("avg_initial_cost_usd") or 0
+            tot = b.get("total_initial_cost_usd") or 0
+            print(
+                f"  {b['bucket']:<20} {b['count']:>8,} {b['pct']:>6.1f}% "
+                f"{('$' + format(avg, ',.0f')):>14} "
+                f"{('$' + format(tot, ',.0f')):>18}"
+            )
     print()
     print(f"--- Top {min(len(scan['ranked']), 10)} ranked permits ---")
     for i, r in enumerate(scan["ranked"][:10], start=1):
@@ -166,7 +190,12 @@ def main(argv: list | None = None) -> int:
     )
     parser.add_argument("--borough", default="MANHATTAN")
     parser.add_argument("--days", type=int, default=90)
-    parser.add_argument("--limit", type=int, default=1000)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Cap rows pulled from Socrata (0 = pull all via pagination).",
+    )
     parser.add_argument("--min-score", type=int, default=50)
     parser.add_argument("--top", type=int, default=20, help="Top-N to include in ranked output")
     parser.add_argument(
@@ -191,7 +220,7 @@ def main(argv: list | None = None) -> int:
         result = run_scan(
             borough=args.borough,
             days_back=args.days,
-            limit=args.limit,
+            limit=args.limit if args.limit and args.limit > 0 else None,
             min_score=args.min_score,
             top_n=args.top,
             auto_run_top=args.auto_run,
