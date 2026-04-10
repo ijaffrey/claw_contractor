@@ -11,6 +11,12 @@ log = logging.getLogger(__name__)
 JOB_FILINGS_ENDPOINT = "https://data.cityofnewyork.us/resource/ipu4-2q9a.json"
 # DOB NOW: Build – Approved Permits
 APPROVED_PERMITS_ENDPOINT = "https://data.cityofnewyork.us/resource/rbx6-tga4.json"
+# DOB NOW: Build – Approved Permit Applications (has job_type + initial_cost
+# + total_construction_floor_area — the only active dataset that carries
+# the scope area per filing).
+BUILD_APPROVED_APPS_ENDPOINT = (
+    "https://data.cityofnewyork.us/resource/w9ak-ipjd.json"
+)
 
 MAX_ROWS_PER_DATASET = 500  # hard cap to prevent unbounded download
 
@@ -74,6 +80,36 @@ def fetch_job_filings(
     return _fetch_paginated(JOB_FILINGS_ENDPOINT, where)
 
 
+def fetch_build_approved_apps(
+    bin_: Optional[str] = None,
+    house_number: Optional[str] = None,
+    street: Optional[str] = None,
+    borough: Optional[str] = None,
+) -> list:
+    """Fetch DOB NOW Build Approved Permit Applications (w9ak-ipjd).
+
+    This dataset carries total_construction_floor_area and initial_cost
+    per filing — fields that rbx6-tga4 lacks.
+    """
+    clauses = []
+    if bin_:
+        clauses.append(f"bin='{bin_}'")
+    else:
+        if house_number:
+            clauses.append(f"house_no='{house_number}'")
+        if street:
+            clauses.append(f"upper(street_name)=upper('{street}')")
+        if borough:
+            clauses.append(f"upper(borough)=upper('{borough}')")
+    if not clauses:
+        raise ValueError(
+            "fetch_build_approved_apps needs bin_ or address components"
+        )
+    where = " AND ".join(clauses)
+    log.info("Build Approved Apps query: %s", where)
+    return _fetch_paginated(BUILD_APPROVED_APPS_ENDPOINT, where)
+
+
 def fetch_approved_permits(
     bin_: Optional[str] = None,
     house_number: Optional[str] = None,
@@ -99,10 +135,11 @@ def fetch_approved_permits(
 
 
 def fetch_all_permits(resolved: dict) -> dict:
-    """Given an address_resolver result, fetch from both datasets."""
+    """Given an address_resolver result, fetch from all DOB NOW datasets."""
     bin_ = resolved.get("bin")
     job_filings = []
     approved_permits = []
+    build_approved_apps = []
 
     # Try BIN first (most precise), fall back to address components
     try:
@@ -127,7 +164,19 @@ def fetch_all_permits(resolved: dict) -> dict:
     except Exception as exc:
         log.error("Approved permits fetch error: %s", exc)
 
+    try:
+        if bin_:
+            build_approved_apps = fetch_build_approved_apps(bin_=bin_)
+        if not build_approved_apps:
+            build_approved_apps = fetch_build_approved_apps(
+                house_number=resolved.get("house_number"),
+                street=resolved.get("street"),
+            )
+    except Exception as exc:
+        log.error("Build approved apps fetch error: %s", exc)
+
     return {
         "job_filings": job_filings,
         "approved_permits": approved_permits,
+        "build_approved_apps": build_approved_apps,
     }

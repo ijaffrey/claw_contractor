@@ -52,6 +52,7 @@ def build_result(
         "permits": {
             "dob_now_job_filings": permits.get("job_filings", []),
             "dob_now_approved_permits": permits.get("approved_permits", []),
+            "dob_now_build_approved_apps": permits.get("build_approved_apps", []),
             "bis_jobs": bis_jobs,
         },
         "documents": {
@@ -62,6 +63,9 @@ def build_result(
             "job_filing_count": len(permits.get("job_filings", []) or []),
             "approved_permit_count": len(
                 permits.get("approved_permits", []) or []
+            ),
+            "build_approved_apps_count": len(
+                permits.get("build_approved_apps", []) or []
             ),
             "bis_job_count": len(bis_jobs or []),
             "documents_referenced": (len(dobnow_docs or []))

@@ -96,6 +96,43 @@ def _collect_floor_area_from_vision(vision_pages: list) -> float | None:
     return None
 
 
+def _permit_reported_floor_area(permits: dict) -> tuple[float | None, dict | None]:
+    """Scan DOB NOW Build Approved Permit Applications (w9ak-ipjd) for the
+    single filing with the largest total_construction_floor_area > 0.
+
+    Returns (sqft, source_row) or (None, None).
+    """
+    best_area = 0.0
+    best_row: dict | None = None
+    for row in (permits.get("dob_now_build_approved_apps") or []):
+        raw = row.get("total_construction_floor_area")
+        try:
+            area = float(raw) if raw not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            continue
+        if area > best_area:
+            best_area = area
+            best_row = row
+    if best_area > 0 and best_row is not None:
+        return best_area, {
+            "job_filing_number": best_row.get("job_filing_number"),
+            "job_type": best_row.get("job_type"),
+            "initial_cost_usd": _to_float(best_row.get("initial_cost")),
+            "work_on_floor": best_row.get("work_on_floor"),
+            "filing_date": best_row.get("filing_date"),
+            "approved_date": best_row.get("approved_date"),
+            "total_construction_floor_area_sqft": best_area,
+        }
+    return None, None
+
+
+def _to_float(v) -> float | None:
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _highest_value_permit(permits: dict) -> dict | None:
     """Scan approved_permits for the highest estimated_job_costs entry.
 
@@ -253,15 +290,25 @@ def build_scope(
         vision_pages, permits
     )
 
-    # Floor area precedence: PLUTO typical_floor_plate > Vision > None
-    # (quantity_estimator supplies the 1000 sqft default when both miss).
+    # Floor area precedence:
+    #   1. Permit-reported total_construction_floor_area (w9ak-ipjd)
+    #   2. PLUTO typical_floor_plate (bldgarea / numfloors)
+    #   3. Vision-extracted floor_area
+    #   4. None (quantity_estimator supplies a 1000 sqft default)
+    permit_area, permit_area_row = _permit_reported_floor_area(permits)
     vision_fa = _collect_floor_area_from_vision(vision_pages)
-    floor_area = bldg.get("typical_floor_plate_sqft") or vision_fa
-    floor_area_source = None
-    if bldg.get("typical_floor_plate_sqft"):
+    if permit_area:
+        floor_area = permit_area
+        floor_area_source = "permit_total_construction_floor_area"
+    elif bldg.get("typical_floor_plate_sqft"):
+        floor_area = bldg["typical_floor_plate_sqft"]
         floor_area_source = "pluto_typical_floor_plate"
     elif vision_fa:
+        floor_area = vision_fa
         floor_area_source = "vision_extraction"
+    else:
+        floor_area = None
+        floor_area_source = None
 
     best_permit = _highest_value_permit(permits)
 
@@ -281,6 +328,7 @@ def build_scope(
             "building_year": year,
             "floor_area_sqft_estimate": floor_area,
             "floor_area_source": floor_area_source,
+            "permit_floor_area_row": permit_area_row,
             "bldg_area_sqft_total": bldg.get("bldg_area_sqft"),
             "num_floors": bldg.get("num_floors"),
             "bldg_class": bldg.get("bldg_class"),
@@ -288,6 +336,9 @@ def build_scope(
             "n_job_filings": len(permits.get("dob_now_job_filings") or []),
             "n_approved_permits": len(
                 permits.get("dob_now_approved_permits") or []
+            ),
+            "n_build_approved_apps": len(
+                permits.get("dob_now_build_approved_apps") or []
             ),
         },
         "trades": assessments,
