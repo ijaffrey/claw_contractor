@@ -98,6 +98,7 @@ def run_takeoff(
         trades,
         permits=sprint_a_result.get("permits", {}),
         vision_pages=vision_pages,
+        resolved=sprint_a_result.get("resolved", {}),
     )
     priced = quantity_estimator.price_scope(scope, price_sheet, trades)
     takeoff = takeoff_builder.build_takeoff(

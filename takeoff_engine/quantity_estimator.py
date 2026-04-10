@@ -45,8 +45,18 @@ def load_price_sheet(contractor: str, root: Path | None = None) -> dict:
 
 
 def _area_for_trade(shared: dict) -> tuple[float, str]:
+    """Return (scope_area_sqft, confidence).
+
+    Precedence:
+      1. PLUTO typical floor plate (floor_area_source=pluto_*) — high
+      2. Vision-extracted floor area (floor_area_source=vision_*) — medium
+      3. FALLBACK_FLOOR_AREA_SQFT (1000) — low
+    """
     fa = shared.get("floor_area_sqft_estimate")
+    src = shared.get("floor_area_source")
     if isinstance(fa, (int, float)) and fa > 0:
+        if src and src.startswith("pluto"):
+            return float(fa), "high"
         return float(fa), "medium"
     return float(FALLBACK_FLOOR_AREA_SQFT), "low"
 

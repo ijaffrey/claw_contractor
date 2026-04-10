@@ -38,6 +38,11 @@ def build_takeoff(
     scope_summary = {
         "building_year": shared.get("building_year"),
         "floor_area_sqft_estimate": shared.get("floor_area_sqft_estimate"),
+        "floor_area_source": shared.get("floor_area_source"),
+        "bldg_area_sqft_total": shared.get("bldg_area_sqft_total"),
+        "num_floors": shared.get("num_floors"),
+        "bldg_class": shared.get("bldg_class"),
+        "highest_value_permit": shared.get("highest_value_permit"),
         "job_types": shared.get("job_types", []),
         "n_job_filings": shared.get("n_job_filings", 0),
         "n_approved_permits": shared.get("n_approved_permits", 0),

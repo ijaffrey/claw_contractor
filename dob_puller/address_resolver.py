@@ -152,7 +152,10 @@ def resolve_address(address: str) -> Optional[dict]:
     params = {
         "$where": " AND ".join(where_clauses),
         "$limit": 5,
-        "$select": "bbl,address,borough,zipcode,block,lot",
+        "$select": (
+            "bbl,address,borough,zipcode,block,lot,"
+            "bldgarea,numfloors,yearbuilt,bldgclass,unitstotal,lotarea"
+        ),
     }
     log.info("Querying PLUTO with: %s", params["$where"])
     try:
@@ -173,7 +176,10 @@ def resolve_address(address: str) -> Optional[dict]:
         params = {
             "$where": " AND ".join(like_clauses),
             "$limit": 5,
-            "$select": "bbl,address,borough,zipcode,block,lot",
+            "$select": (
+                "bbl,address,borough,zipcode,block,lot,"
+                "bldgarea,numfloors,yearbuilt,bldgclass,unitstotal,lotarea"
+            ),
         }
         try:
             resp = http_utils.get(PLUTO_ENDPOINT, params=params)
@@ -189,6 +195,13 @@ def resolve_address(address: str) -> Optional[dict]:
     row = rows[0]
     bbl = row.get("bbl")
     bin_ = lookup_bin_for_bbl(bbl) if bbl else None
+
+    def _num(v):
+        try:
+            return float(v) if v not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+
     result = {
         "bin": bin_,
         "bbl": bbl,
@@ -200,6 +213,14 @@ def resolve_address(address: str) -> Optional[dict]:
         "house_number": parsed["house_number"],
         "street": parsed["street"],
         "raw_input": parsed["raw"],
+        # PLUTO building metrics — used by takeoff_engine for real-sqft
+        # scope estimation instead of the 1000 sqft placeholder.
+        "bldg_area_sqft": _num(row.get("bldgarea")),
+        "num_floors": _num(row.get("numfloors")),
+        "year_built": int(_num(row.get("yearbuilt")) or 0) or None,
+        "bldg_class": row.get("bldgclass"),
+        "units_total": _num(row.get("unitstotal")),
+        "lot_area_sqft": _num(row.get("lotarea")),
     }
     log.info("Resolved %s -> BIN=%s BBL=%s", address, result["bin"], result["bbl"])
     return result

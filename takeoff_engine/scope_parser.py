@@ -87,13 +87,62 @@ def _collect_job_types(permits: dict) -> set:
     return out
 
 
-def _collect_floor_area(vision_pages: list) -> float | None:
-    """Prefer floor area from Vision if available, else None."""
+def _collect_floor_area_from_vision(vision_pages: list) -> float | None:
+    """Prefer floor area from Vision extractions if available."""
     for p in vision_pages or []:
         fa = p.get("floor_area_sqft") or p.get("total_sqft")
         if isinstance(fa, (int, float)) and fa > 0:
             return float(fa)
     return None
+
+
+def _highest_value_permit(permits: dict) -> dict | None:
+    """Scan approved_permits for the highest estimated_job_costs entry.
+
+    Used as a proxy for "most significant job at this address".
+    """
+    best: dict | None = None
+    best_cost = -1.0
+    for p in (permits.get("dob_now_approved_permits") or []):
+        raw = p.get("estimated_job_costs")
+        try:
+            cost = float(raw) if raw not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            continue
+        if cost > best_cost:
+            best_cost = cost
+            best = p
+    if best is None or best_cost <= 0:
+        return None
+    return {
+        "estimated_job_costs_usd": best_cost,
+        "work_type": best.get("work_type"),
+        "job_filing_number": best.get("job_filing_number"),
+        "work_on_floor": best.get("work_on_floor"),
+        "job_description": best.get("job_description"),
+        "approved_date": best.get("approved_date"),
+        "permit_status": best.get("permit_status"),
+    }
+
+
+def _resolved_building_metrics(resolved: dict | None) -> dict:
+    """Extract PLUTO building metrics + derived typical floor plate."""
+    resolved = resolved or {}
+    bldg_area = resolved.get("bldg_area_sqft")
+    num_floors = resolved.get("num_floors")
+    typical_floor = None
+    if (
+        isinstance(bldg_area, (int, float)) and bldg_area > 0
+        and isinstance(num_floors, (int, float)) and num_floors > 0
+    ):
+        typical_floor = round(bldg_area / num_floors, 2)
+    return {
+        "bldg_area_sqft": bldg_area,
+        "num_floors": num_floors,
+        "year_built": resolved.get("year_built"),
+        "bldg_class": resolved.get("bldg_class"),
+        "typical_floor_plate_sqft": typical_floor,
+    }
 
 
 def _collect_building_year(vision_pages: list, permits: dict) -> int | None:
@@ -185,11 +234,36 @@ def build_scope(
     *,
     permits: dict,
     vision_pages: list,
+    resolved: dict | None = None,
 ) -> dict:
     """Return a scope dict shared across trades + per-trade assessments."""
     job_types = _collect_job_types(permits)
-    year = _collect_building_year(vision_pages, permits)
-    floor_area = _collect_floor_area(vision_pages)
+
+    vision_year = None
+    for p in (vision_pages or []):
+        y = p.get("building_year")
+        if isinstance(y, (int, float)) and 1700 < y < 2100:
+            vision_year = int(y)
+            break
+
+    bldg = _resolved_building_metrics(resolved)
+
+    # Year precedence: PLUTO yearbuilt > Vision > permit text regex fallback
+    year = bldg.get("year_built") or vision_year or _collect_building_year(
+        vision_pages, permits
+    )
+
+    # Floor area precedence: PLUTO typical_floor_plate > Vision > None
+    # (quantity_estimator supplies the 1000 sqft default when both miss).
+    vision_fa = _collect_floor_area_from_vision(vision_pages)
+    floor_area = bldg.get("typical_floor_plate_sqft") or vision_fa
+    floor_area_source = None
+    if bldg.get("typical_floor_plate_sqft"):
+        floor_area_source = "pluto_typical_floor_plate"
+    elif vision_fa:
+        floor_area_source = "vision_extraction"
+
+    best_permit = _highest_value_permit(permits)
 
     assessments = {}
     for t in trades:
@@ -206,6 +280,11 @@ def build_scope(
             "job_types": sorted(job_types),
             "building_year": year,
             "floor_area_sqft_estimate": floor_area,
+            "floor_area_source": floor_area_source,
+            "bldg_area_sqft_total": bldg.get("bldg_area_sqft"),
+            "num_floors": bldg.get("num_floors"),
+            "bldg_class": bldg.get("bldg_class"),
+            "highest_value_permit": best_permit,
             "n_job_filings": len(permits.get("dob_now_job_filings") or []),
             "n_approved_permits": len(
                 permits.get("dob_now_approved_permits") or []
