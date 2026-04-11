@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ bucket.bucket }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <a class="back" href="{{ url_for('dashboard') }}">&larr; Dashboard</a>
+  <h1>{{ bucket.bucket }}</h1>
+  <p class="muted">
+    {{ "{:,}".format(bucket.count_raw or 0) }} raw ·
+    {{ "{:,}".format(bucket.count_clustered or 0) }} clustered ·
+    ${{ "{:,.0f}".format(bucket.total_initial_cost_usd or 0) }}
+  </p>
+</section>
+
+<section class="card">
+  <h2>Top Permits</h2>
+  {% if permits %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Address</th>
+          <th>Year</th>
+          <th>Type</th>
+          <th>Est. Size</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in permits %}
+        <tr>
+          <td>{{ p.address }}</td>
+          <td>{{ p.year_built or "—" }}</td>
+          <td>{{ p.job_type or "—" }}</td>
+          <td>
+            {% if p.bldg_area_sqft %}
+              {{ "{:,.0f}".format(p.bldg_area_sqft) }} sf
+            {% else %}—{% endif %}
+          </td>
+          <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+          <td>
+            {% if p.status == 'generated' %}
+            <a class="btn" href="{{ url_for('proposal_view', slug=p.slug) }}">View Proposal</a>
+            {% else %}
+            <button class="btn btn-primary gen-btn" data-address="{{ p.address }}">Generate</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No permits in this bucket's top-10.</p>
+  {% endif %}
+</section>
+
+<script>
+document.querySelectorAll('.gen-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var addr = btn.dataset.address;
+    btn.disabled = true;
+    btn.textContent = 'Queueing…';
+    var fd = new FormData();
+    fd.append('address', addr);
+    fetch('{{ url_for("generate") }}', {method: 'POST', body: fd})
+      .then(function(r){ return r.json(); })
+      .then(function(){
+        btn.textContent = 'Running…';
+        var url = '{{ url_for("generate_status") }}?address=' + encodeURIComponent(addr);
+        var t = setInterval(function(){
+          fetch(url).then(function(r){return r.json();}).then(function(s){
+            btn.textContent = s.status + (s.step ? ' · ' + s.step : '');
+            if (s.status === 'generated' || s.status === 'error') {
+              clearInterval(t);
+              if (s.status === 'generated') {
+                location.reload();
+              }
+            }
+          });
+        }, 2000);
+      });
+  });
+});
+</script>
+{% endblock %}

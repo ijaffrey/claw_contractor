@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Proposal — {{ takeoff.input_address }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <a class="back" href="{{ url_for('dashboard') }}">&larr; Dashboard</a>
+  <h1>{{ takeoff.input_address }}</h1>
+  <p class="muted">
+    Built {{ takeoff.resolved.year_built or "—" }} ·
+    {{ "{:,.0f}".format(takeoff.resolved.bldg_area_sqft or 0) }} sf ·
+    {{ takeoff.resolved.bldg_class or "—" }}
+  </p>
+  <div class="grand-total">
+    <div class="metric-value">${{ "{:,.0f}".format(grand_total) }}</div>
+    <div class="metric-label">Grand Total (all trades)</div>
+  </div>
+</section>
+
+<section class="actions">
+  {% if has_pdf %}
+  <a class="btn btn-primary" href="{{ url_for('proposal_pdf', slug=slug) }}">Download PDF</a>
+  {% endif %}
+  {% if has_drip %}
+  <a class="btn" href="{{ url_for('outreach_view', slug=slug) }}">Outreach</a>
+  {% endif %}
+  <button class="btn btn-approve" id="approve-btn">Approve</button>
+  <button class="btn btn-regen" id="regen-btn" data-address="{{ takeoff.input_address }}">Regenerate</button>
+</section>
+
+{% for trade in takeoff.trades %}
+<section class="card">
+  <h2>
+    {{ trade.name|title }}
+    <span class="badge badge-{{ trade.confidence }}">{{ trade.confidence }}</span>
+  </h2>
+  {% if trade.reasons %}
+  <ul class="reasons">
+    {% for r in trade.reasons %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if trade.line_items %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty</th>
+          <th>Unit</th>
+          <th>Rate</th>
+          <th>Subtotal</th>
+          <th>Conf</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for li in trade.line_items %}
+        <tr>
+          <td>{{ li.item }}</td>
+          <td>{{ "{:,.0f}".format(li.quantity or 0) }}</td>
+          <td>{{ li.unit }}</td>
+          <td>${{ "{:,.0f}".format(li.unit_rate or 0) }}</td>
+          <td>${{ "{:,.0f}".format(li.subtotal or 0) }}</td>
+          <td><span class="badge badge-{{ li.confidence }}">{{ li.confidence }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if trade.pricing %}
+  <dl class="pricing">
+    <dt>Subtotal</dt><dd>${{ "{:,.0f}".format(trade.pricing.subtotal or 0) }}</dd>
+    <dt>Overhead ({{ (trade.pricing.overhead_pct*100)|round(0) }}%)</dt><dd>${{ "{:,.0f}".format(trade.pricing.overhead or 0) }}</dd>
+    <dt>Profit ({{ (trade.pricing.profit_pct*100)|round(0) }}%)</dt><dd>${{ "{:,.0f}".format(trade.pricing.profit or 0) }}</dd>
+    <dt>Contingency ({{ (trade.pricing.contingency_pct*100)|round(0) }}%)</dt><dd>${{ "{:,.0f}".format(trade.pricing.contingency or 0) }}</dd>
+    <dt><strong>Total</strong></dt><dd><strong>${{ "{:,.0f}".format(trade.pricing.total or 0) }}</strong></dd>
+  </dl>
+  {% endif %}
+</section>
+{% endfor %}
+
+<script>
+document.getElementById('approve-btn').addEventListener('click', function(){
+  this.textContent = 'Approved ✓';
+  this.disabled = true;
+});
+document.getElementById('regen-btn').addEventListener('click', function(){
+  var addr = this.dataset.address;
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Queueing…';
+  var fd = new FormData();
+  fd.append('address', addr);
+  fetch('{{ url_for("generate") }}', {method: 'POST', body: fd})
+    .then(function(r){return r.json();})
+    .then(function(){
+      var url = '{{ url_for("generate_status") }}?address=' + encodeURIComponent(addr);
+      var t = setInterval(function(){
+        fetch(url).then(function(r){return r.json();}).then(function(s){
+          btn.textContent = s.status + (s.step ? ' · ' + s.step : '');
+          if (s.status === 'generated') { clearInterval(t); location.reload(); }
+          if (s.status === 'error') { clearInterval(t); }
+        });
+      }, 2000);
+    });
+});
+</script>
+{% endblock %}

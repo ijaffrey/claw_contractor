@@ -68,3 +68,6 @@ proposals/
 
 # permit_scanner generated output
 scan_results/
+
+# portal runtime state
+pipeline_state.json

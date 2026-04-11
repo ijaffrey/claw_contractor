@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Outreach — {{ drip.project }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <a class="back" href="{{ url_for('proposal_view', slug=slug) }}">&larr; Proposal</a>
+  <h1>Outreach — {{ drip.project }}</h1>
+  <p class="muted">{{ drip.contractor }} → {{ drip.contact }}</p>
+</section>
+
+{% for e in emails %}
+<section class="card email">
+  <div class="email-head">
+    <span class="badge badge-{{ e.status }}">{{ e.status }}</span>
+    <span class="muted">Day {{ e.day }} · {{ e.send_date }}</span>
+  </div>
+  <h3>{{ e.subject }}</h3>
+  <pre class="email-body">{{ e.body }}</pre>
+</section>
+{% endfor %}
+
+{% if not emails %}
+<p class="muted">No emails in this drip schedule.</p>
+{% endif %}
+{% endblock %}

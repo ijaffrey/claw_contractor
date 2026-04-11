@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Pipeline Dashboard</h1>
+  <p class="muted">{{ borough }} · scan {{ scan_date[:10] }}</p>
+</section>
+
+<section class="metrics">
+  {% for m in metrics %}
+  <div class="metric-card">
+    <div class="metric-value">{{ m.value }}</div>
+    <div class="metric-label">{{ m.label }}</div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <h2>Buckets</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Bucket</th>
+          <th>Raw</th>
+          <th>Clustered</th>
+          <th>Value</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in buckets %}
+        <tr>
+          <td>{{ b.bucket }}</td>
+          <td>{{ "{:,}".format(b.count_raw or 0) }}</td>
+          <td>{{ "{:,}".format(b.count_clustered or 0) }}</td>
+          <td>${{ "{:,.0f}".format(b.total_initial_cost_usd or 0) }}</td>
+          <td>
+            {% if b.count_raw and b.count_raw > 0 %}
+            <a class="btn" href="{{ url_for('bucket_view', name=b.bucket) }}">View</a>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Run New Address</h2>
+  <form id="gen-form">
+    <input name="address" id="gen-address" type="text" placeholder="e.g. 425 Lexington Avenue, Manhattan" required>
+    <button class="btn btn-primary" type="submit">Generate</button>
+  </form>
+  <div id="gen-status" class="status muted"></div>
+</section>
+
+<script>
+(function(){
+  var form = document.getElementById('gen-form');
+  var status = document.getElementById('gen-status');
+  if (!form) return;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var addr = document.getElementById('gen-address').value.trim();
+    if (!addr) return;
+    status.textContent = 'Queueing ' + addr + '…';
+    var fd = new FormData();
+    fd.append('address', addr);
+    fetch('{{ url_for("generate") }}', {method: 'POST', body: fd})
+      .then(function(r){ return r.json(); })
+      .then(function(){
+        pollStatus(addr);
+      })
+      .catch(function(err){ status.textContent = 'Error: ' + err; });
+  });
+  function pollStatus(addr){
+    var url = '{{ url_for("generate_status") }}?address=' + encodeURIComponent(addr);
+    var tries = 0;
+    var t = setInterval(function(){
+      tries++;
+      fetch(url).then(function(r){return r.json();}).then(function(s){
+        status.textContent = addr + ' — ' + (s.status || 'unknown') + (s.step ? ' (' + s.step + ')' : '');
+        if (s.status === 'generated' || s.status === 'error' || tries > 600) {
+          clearInterval(t);
+        }
+      });
+    }, 2000);
+  }
+})();
+</script>
+{% endblock %}
