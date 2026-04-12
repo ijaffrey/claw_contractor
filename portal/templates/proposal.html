@@ -167,8 +167,8 @@
           <td><input type="text" value="{{ li.item }}" class="cell-item"></td>
           <td><input type="number" value="{{ li.quantity or 0 }}" class="cell-qty" step="any"></td>
           <td><input type="text" value="{{ li.unit }}" class="cell-unit"></td>
-          <td><input type="number" value="{{ (li.unit_rate or 0) * 0.6 }}" class="cell-mat" step="any" placeholder="0"></td>
-          <td><input type="number" value="{{ (li.unit_rate or 0) * 0.4 }}" class="cell-lab" step="any" placeholder="0"></td>
+          <td><input type="number" value="{{ "%.2f"|format((li.unit_rate or 0) * 0.6) }}" class="cell-mat" step="any" placeholder="0"></td>
+          <td><input type="number" value="{{ "%.2f"|format((li.unit_rate or 0) * 0.4) }}" class="cell-lab" step="any" placeholder="0"></td>
           <td class="cell-total readonly"></td>
         </tr>
         {% endfor %}
@@ -309,6 +309,14 @@
     });
   });
 
+  // ─── Format item names (snake_case → Title Case) ───
+  function formatItemName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+  document.querySelectorAll('.cell-item').forEach(function(inp){
+    inp.value = formatItemName(inp.value);
+  });
+
   // ─── Spreadsheet live recalc ───
   function recalcAll() {
     var trades = {};
@@ -318,7 +326,7 @@
       var mat = parseFloat(row.querySelector('.cell-mat').value) || 0;
       var lab = parseFloat(row.querySelector('.cell-lab').value) || 0;
       var total = qty * (mat + lab);
-      row.querySelector('.cell-total').textContent = '$' + total.toLocaleString('en-US', {maximumFractionDigits:0});
+      row.querySelector('.cell-total').textContent = '$' + total.toFixed(2);
       trades[trade] = (trades[trade] || 0) + total;
     });
     var subtotal = 0;

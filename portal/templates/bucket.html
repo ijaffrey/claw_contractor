@@ -101,6 +101,8 @@
               <button class="btn btn-blue btn-sm" disabled data-tooltip="Send is coming in Sprint F">Send</button>
             {% elif p.status == 'sent' %}
               <a class="btn btn-purple btn-sm" href="{{ url_for('outreach_view', slug=p.slug) }}">View Outreach</a>
+            {% elif p.status == 'error' %}
+              <button class="btn btn-primary btn-sm gen-btn" data-address="{{ p.address }}" data-slug="{{ p.slug }}">Retry</button>
             {% endif %}
           </td>
         </tr>
