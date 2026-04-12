@@ -1,0 +1,54 @@
+{% extends "architect/base.html" %}
+{% block title %}My RFPs — Drafted{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+  <div>
+    <h1>My RFPs</h1>
+    <p class="subtitle">Manage your requests for proposals</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('architect_rfp_new') }}">Start New RFP</a>
+</div>
+
+{% if rfps %}
+<div class="card" style="padding:0;">
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Created</th>
+        <th>Status</th>
+        <th>Responses</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rfps %}
+      <tr>
+        <td><strong>{{ r.address }}</strong></td>
+        <td>{{ r.created_at[:10] if r.created_at else '—' }}</td>
+        <td>
+          <span class="badge badge-{{ r.status }}">{{ r.status|replace('_',' ')|title }}</span>
+        </td>
+        <td>{{ r.response_count or 0 }}</td>
+        <td>
+          {% if r.status == 'draft' %}
+          <a class="btn btn-sm" href="{{ url_for('architect_rfp_edit', slug=r.slug) }}">Edit</a>
+          {% elif r.status == 'published' or r.status == 'bids_received' %}
+          <a class="btn btn-sm" href="{{ url_for('architect_rfp_view', slug=r.slug) }}">View</a>
+          {% elif r.status == 'awarded' %}
+          <a class="btn btn-sm" href="{{ url_for('architect_rfp_view', slug=r.slug) }}">View</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state card">
+  <h2>No RFPs yet</h2>
+  <p>Create your first RFP to start receiving bids from qualified contractors.</p>
+  <a class="btn btn-primary" href="{{ url_for('architect_rfp_new') }}">Start New RFP</a>
+</div>
+{% endif %}
+{% endblock %}

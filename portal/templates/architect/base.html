@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Drafted{% endblock %}</title>
+  <style>
+    :root { --accent: #E8621A; --accent-hover: #d45510; --text: #1A1A2E; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF; --bg-light: #F9FAFB; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); font-size: 14px; line-height: 1.6; }
+    .topnav { border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; max-width: 900px; margin: 0 auto; }
+    .topnav-brand { font-weight: 700; font-size: 16px; color: var(--accent); text-decoration: none; letter-spacing: -0.02em; }
+    .topnav-links { display: flex; gap: 16px; align-items: center; }
+    .topnav-links a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500; }
+    .topnav-links a:hover { color: var(--text); }
+    .page { max-width: 800px; margin: 0 auto; padding: 32px 24px; }
+    h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+    h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; border: 1px solid var(--border); background: var(--bg); color: var(--text); transition: all 0.15s; }
+    .btn:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-green { background: #16A34A; color: #fff; border-color: #16A34A; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 16px; }
+    .input-group { margin-bottom: 16px; }
+    .input-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .input-group input, .input-group textarea, .input-group select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: inherit; color: var(--text); }
+    .input-group input:focus, .input-group textarea:focus { border-color: var(--accent); outline: none; }
+    .input-group textarea { min-height: 80px; resize: vertical; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 12px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
+    tr:hover { background: #FAFAFA; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-draft { background: #F3F4F6; color: var(--muted); }
+    .badge-published { background: #EFF6FF; color: #2563EB; }
+    .badge-bids { background: #F0FDF4; color: #16A34A; }
+    .badge-awarded { background: #F5F3FF; color: #7C3AED; }
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); }
+    .empty-state p { margin: 8px 0 20px; }
+    .progress-box { text-align: center; padding: 48px; }
+    .progress-box p { color: var(--muted); margin: 12px 0; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .alert-error { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+    .alert-success { background: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0; }
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    .actions-bar { display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 24px; }
+  </style>
+</head>
+<body>
+  {% if session.get('architect_email') %}
+  <nav class="topnav">
+    <a class="topnav-brand" href="{{ url_for('architect_dashboard') }}">Drafted</a>
+    <div class="topnav-links">
+      <a href="{{ url_for('architect_dashboard') }}">My RFPs</a>
+      <a href="{{ url_for('architect_logout') }}">Logout</a>
+    </div>
+  </nav>
+  {% endif %}
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,24 @@
+{% extends "architect/base.html" %}
+{% block title %}Login — Drafted{% endblock %}
+{% block content %}
+<div style="max-width:380px;margin:80px auto;">
+  <div style="text-align:center;margin-bottom:32px;">
+    <div style="font-size:24px;font-weight:800;color:var(--accent);letter-spacing:-0.02em;">Drafted</div>
+    <p style="color:var(--muted);margin-top:4px;">Sign in to manage your RFPs</p>
+  </div>
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+  <form method="POST" class="card">
+    <div class="input-group">
+      <label>Email</label>
+      <input type="email" name="email" required autofocus placeholder="you@firm.com">
+    </div>
+    <div class="input-group">
+      <label>Password</label>
+      <input type="password" name="password" required>
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Sign In</button>
+  </form>
+</div>
+{% endblock %}

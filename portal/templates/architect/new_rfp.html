@@ -1,0 +1,73 @@
+{% extends "architect/base.html" %}
+{% block title %}New RFP — Drafted{% endblock %}
+{% block content %}
+<h1>Start New RFP</h1>
+<p class="subtitle">Enter a project address and we'll build your RFP automatically.</p>
+
+<div class="card" id="address-card">
+  <h2>Option A — Enter address</h2>
+  <form id="address-form">
+    <div class="input-group">
+      <label>Project Address</label>
+      <input type="text" id="address-input" name="address" placeholder="e.g. 280 Park Avenue, Manhattan" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Build RFP</button>
+  </form>
+</div>
+
+<div class="card" style="opacity:0.6;">
+  <h2>Option B — Upload Construction Documents</h2>
+  <div style="border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;color:var(--muted);">
+    <p style="margin-bottom:8px;">CD upload coming soon</p>
+    <p style="font-size:12px;">Use address entry for now — we'll look up building data automatically.</p>
+  </div>
+</div>
+
+<div class="card" id="progress-card" style="display:none;">
+  <div class="progress-box">
+    <div class="spinner"></div>
+    <p id="progress-msg">Looking up building data...</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var form = document.getElementById('address-form');
+  var addrCard = document.getElementById('address-card');
+  var progCard = document.getElementById('progress-card');
+  var progMsg = document.getElementById('progress-msg');
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var addr = document.getElementById('address-input').value.trim();
+    if (!addr) return;
+
+    addrCard.style.display = 'none';
+    progCard.style.display = 'block';
+    progMsg.textContent = 'Looking up building data...';
+
+    fetch('{{ url_for("architect_rfp_create") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({address: addr})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.ok) {
+        progMsg.textContent = 'Building your RFP...';
+        setTimeout(function(){
+          window.location.href = '/architect/rfp/' + d.slug + '/edit';
+        }, 800);
+      } else {
+        progMsg.textContent = 'Error: ' + (d.error || 'failed');
+        addrCard.style.display = 'block';
+      }
+    })
+    .catch(function(err){
+      progMsg.textContent = 'Error: ' + err;
+      addrCard.style.display = 'block';
+    });
+  });
+})();
+</script>
+{% endblock %}

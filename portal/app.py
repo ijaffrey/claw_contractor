@@ -13,14 +13,18 @@ import time
 from pathlib import Path
 from typing import Any
 
+from functools import wraps
+
 from flask import (
     Flask,
     Response,
     abort,
     jsonify,
+    redirect,
     render_template,
     request,
     send_file,
+    session,
     stream_with_context,
     url_for,
 )
@@ -40,12 +44,17 @@ DOB_OUTPUT_DIR = REPO_ROOT / "dob_output"
 PROPOSALS_DIR = REPO_ROOT / "proposals"
 
 
+ARCHITECT_RFPS_PATH = Path(__file__).resolve().parent.parent / "architect_rfps.json"
+RFP_MATCHES_PATH = Path(__file__).resolve().parent.parent / "rfp_matches.json"
+
+
 def create_app() -> Flask:
     app = Flask(
         __name__,
         template_folder=str(Path(__file__).parent / "templates"),
         static_folder=str(Path(__file__).parent / "static"),
     )
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "drafted-demo-key-change-in-prod")
 
     # ------------------------------------------------------------------
     # sidebar context processor
@@ -683,6 +692,305 @@ def create_app() -> Flask:
     @app.route("/healthz")
     def healthz():
         return {"ok": True}
+
+    # ------------------------------------------------------------------
+    # Architect portal (Sprint D2)
+    # ------------------------------------------------------------------
+
+    DEMO_CREDENTIALS = {"admin@drafted.com": "drafted2026"}
+
+    def architect_required(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not session.get("architect_email"):
+                return redirect(url_for("architect_login"))
+            return f(*args, **kwargs)
+        return decorated
+
+    def _load_architect_rfps() -> list:
+        if not ARCHITECT_RFPS_PATH.exists():
+            return []
+        try:
+            with open(ARCHITECT_RFPS_PATH) as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return []
+
+    def _save_architect_rfps(rfps: list) -> None:
+        with open(ARCHITECT_RFPS_PATH, "w") as fh:
+            json.dump(rfps, fh, indent=2)
+
+    def _get_rfp(slug: str) -> dict | None:
+        for r in _load_architect_rfps():
+            if r.get("slug") == slug:
+                return r
+        return None
+
+    def _update_rfp(slug: str, updates: dict) -> dict | None:
+        rfps = _load_architect_rfps()
+        for r in rfps:
+            if r.get("slug") == slug:
+                r.update(updates)
+                _save_architect_rfps(rfps)
+                return r
+        return None
+
+    def _load_matches() -> list:
+        if not RFP_MATCHES_PATH.exists():
+            return []
+        try:
+            with open(RFP_MATCHES_PATH) as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return []
+
+    def _save_matches(matches: list) -> None:
+        with open(RFP_MATCHES_PATH, "w") as fh:
+            json.dump(matches, fh, indent=2)
+
+    @app.route("/architect/login", methods=["GET", "POST"])
+    def architect_login():
+        error = None
+        if request.method == "POST":
+            email = (request.form.get("email") or "").strip().lower()
+            password = request.form.get("password") or ""
+            if DEMO_CREDENTIALS.get(email) == password:
+                session["architect_email"] = email
+                return redirect(url_for("architect_dashboard"))
+            error = "Invalid email or password."
+        return render_template("architect/login.html", error=error)
+
+    @app.route("/architect/logout")
+    def architect_logout():
+        session.pop("architect_email", None)
+        return redirect(url_for("architect_login"))
+
+    @app.route("/architect/dashboard")
+    @architect_required
+    def architect_dashboard():
+        rfps = _load_architect_rfps()
+        email = session["architect_email"]
+        my_rfps = [r for r in rfps if r.get("owner") == email]
+        # Add response counts
+        matches = _load_matches()
+        for r in my_rfps:
+            r["response_count"] = sum(
+                1 for m in matches
+                if m.get("slug") == r.get("slug") and m.get("notified")
+            )
+        return render_template("architect/dashboard.html", rfps=my_rfps)
+
+    @app.route("/architect/rfp/new")
+    @architect_required
+    def architect_rfp_new():
+        return render_template("architect/new_rfp.html")
+
+    @app.route("/architect/rfp/create", methods=["POST"])
+    @architect_required
+    def architect_rfp_create():
+        data = request.get_json(force=True)
+        address = (data.get("address") or "").strip()
+        if not address:
+            return jsonify({"ok": False, "error": "address required"}), 400
+
+        slug = _slugify_address(address)
+
+        # Build RFP using existing D1 builder
+        import sys
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from drafted.rfp_builder import build_rfp
+        result = build_rfp(slug)
+
+        # Load takeoff data for pre-populating editor fields
+        takeoff = _load_takeoff(slug)
+        resolved = (takeoff or {}).get("resolved", {})
+        trades = []
+        if takeoff:
+            for t in takeoff.get("trades", []):
+                trades.append({
+                    "name": (t.get("name") or "").replace("_", " ").title(),
+                    "total": t.get("pricing", {}).get("total", 0),
+                })
+
+        from datetime import datetime, timezone
+        rfp_entry = {
+            "slug": slug,
+            "address": address,
+            "owner": session["architect_email"],
+            "status": "draft",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "project_name": address,
+            "year_built": resolved.get("year_built"),
+            "sqft": resolved.get("bldg_area_sqft"),
+            "floors": resolved.get("num_floors"),
+            "job_type": resolved.get("job_type") or "Alteration",
+            "trades": trades,
+            "requirements": None,
+            "deadline": None,
+            "contact_email": None,
+            "logo_path": None,
+            "rfp_pdf_path": result.get("pdf_path"),
+            "rfp_html_path": result.get("html_path"),
+        }
+
+        rfps = _load_architect_rfps()
+        # Replace if exists
+        rfps = [r for r in rfps if r.get("slug") != slug]
+        rfps.append(rfp_entry)
+        _save_architect_rfps(rfps)
+
+        return jsonify({"ok": True, "slug": slug})
+
+    @app.route("/architect/rfp/<slug>/edit", methods=["GET", "POST"])
+    @architect_required
+    def architect_rfp_edit(slug: str):
+        rfp = _get_rfp(slug)
+        if not rfp:
+            abort(404)
+
+        if request.method == "POST":
+            action = request.form.get("action", "save")
+
+            # Parse trades
+            trade_names = request.form.getlist("trade_name[]")
+            trade_values = request.form.getlist("trade_value[]")
+            trades = []
+            for n, v in zip(trade_names, trade_values):
+                try:
+                    val = float(v)
+                except (TypeError, ValueError):
+                    val = 0
+                trades.append({"name": n.strip(), "total": val})
+
+            updates = {
+                "project_name": request.form.get("project_name", rfp.get("address")),
+                "year_built": request.form.get("year_built") or None,
+                "sqft": request.form.get("sqft") or None,
+                "floors": request.form.get("floors") or None,
+                "job_type": request.form.get("job_type") or "Alteration",
+                "trades": trades,
+                "requirements": request.form.get("requirements"),
+                "deadline": request.form.get("deadline") or None,
+                "contact_email": request.form.get("contact_email") or None,
+            }
+
+            if action == "publish":
+                updates["status"] = "published"
+                from datetime import datetime, timezone
+                updates["published_at"] = datetime.now(timezone.utc).isoformat()
+
+            _update_rfp(slug, updates)
+
+            if action == "publish":
+                # Contractor matching
+                _match_contractors(slug, trades)
+                matches = _load_matches()
+                count = sum(1 for m in matches if m.get("slug") == slug)
+                return render_template(
+                    "architect/view_rfp.html",
+                    rfp={**rfp, **updates},
+                    match_count=count,
+                )
+
+            # Reload after save
+            rfp = _get_rfp(slug)
+            return redirect(url_for("architect_rfp_edit", slug=slug))
+
+        return render_template("architect/edit_rfp.html", rfp=rfp)
+
+    @app.route("/architect/rfp/<slug>/upload-logo", methods=["POST"])
+    @architect_required
+    def architect_upload_logo(slug: str):
+        if "logo" not in request.files:
+            return jsonify({"ok": False}), 400
+        f = request.files["logo"]
+        if not f.filename:
+            return jsonify({"ok": False}), 400
+        logo_dir = REPO_ROOT / "rfps" / "logos"
+        logo_dir.mkdir(parents=True, exist_ok=True)
+        ext = Path(f.filename).suffix or ".png"
+        logo_path = logo_dir / f"{slug}{ext}"
+        f.save(str(logo_path))
+        _update_rfp(slug, {"logo_path": str(logo_path)})
+        return jsonify({"ok": True, "path": str(logo_path)})
+
+    @app.route("/architect/rfp/<slug>/publish", methods=["POST"])
+    @architect_required
+    def architect_rfp_publish(slug: str):
+        rfp = _get_rfp(slug)
+        if not rfp:
+            abort(404)
+        from datetime import datetime, timezone
+        _update_rfp(slug, {
+            "status": "published",
+            "published_at": datetime.now(timezone.utc).isoformat(),
+        })
+        _match_contractors(slug, rfp.get("trades", []))
+        return redirect(url_for("architect_rfp_view", slug=slug))
+
+    @app.route("/architect/rfp/<slug>/close", methods=["POST"])
+    @architect_required
+    def architect_rfp_close(slug: str):
+        _update_rfp(slug, {"status": "awarded"})
+        return redirect(url_for("architect_rfp_view", slug=slug))
+
+    @app.route("/architect/rfp/<slug>")
+    @architect_required
+    def architect_rfp_view(slug: str):
+        rfp = _get_rfp(slug)
+        if not rfp:
+            abort(404)
+        matches = _load_matches()
+        match_count = sum(1 for m in matches if m.get("slug") == slug)
+        return render_template("architect/view_rfp.html", rfp=rfp, match_count=match_count)
+
+    def _match_contractors(slug: str, trades: list) -> None:
+        """Match RFP trades to contractor buckets and write to rfp_matches.json."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+
+        trade_to_contractor = {
+            "abatement": "sanz_construction",
+            "demo": "sanz_construction",
+            "demolition": "sanz_construction",
+            "concrete": "sanz_construction",
+            "gc": "sanz_construction",
+            "general contractor": "sanz_construction",
+            "kitchen": "sanz_construction",
+            "roofing": "sanz_construction",
+            "sitework": "sanz_construction",
+        }
+
+        matches = _load_matches()
+        # Remove old matches for this slug
+        matches = [m for m in matches if m.get("slug") != slug]
+
+        matched_contractors = set()
+        for t in trades:
+            name_lower = (t.get("name") or "").lower().strip()
+            contractor = trade_to_contractor.get(name_lower)
+            if contractor and contractor not in matched_contractors:
+                matched_contractors.add(contractor)
+                matches.append({
+                    "slug": slug,
+                    "contractor_slug": contractor,
+                    "trade": t.get("name"),
+                    "matched_at": now,
+                    "notified": False,
+                })
+
+        # Always ensure at least Sanz if any trades exist
+        if trades and "sanz_construction" not in matched_contractors:
+            matches.append({
+                "slug": slug,
+                "contractor_slug": "sanz_construction",
+                "trade": "general",
+                "matched_at": now,
+                "notified": False,
+            })
+
+        _save_matches(matches)
 
     return app
 

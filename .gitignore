@@ -78,3 +78,8 @@ tier1_cache.json
 # Sprint D1 RFP builder output
 rfps/
 rfp_outreach_queue.json
+
+# Sprint D2 architect portal state
+architect_sessions.json
+architect_rfps.json
+rfp_matches.json

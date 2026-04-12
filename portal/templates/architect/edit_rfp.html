@@ -1,0 +1,120 @@
+{% extends "architect/base.html" %}
+{% block title %}Edit RFP — {{ rfp.address }}{% endblock %}
+{% block content %}
+<h1>{{ rfp.address }}</h1>
+<p class="subtitle">Edit your RFP before publishing to the contractor network.</p>
+
+<form id="rfp-form" method="POST">
+  <div class="card">
+    <h2>Project Overview</h2>
+    <div class="input-group">
+      <label>Project Name</label>
+      <input type="text" name="project_name" value="{{ rfp.project_name or rfp.address }}">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="input-group">
+        <label>Year Built</label>
+        <input type="text" name="year_built" value="{{ rfp.year_built or '' }}">
+      </div>
+      <div class="input-group">
+        <label>Building Area (sqft)</label>
+        <input type="text" name="sqft" value="{{ rfp.sqft or '' }}">
+      </div>
+      <div class="input-group">
+        <label>Floors</label>
+        <input type="text" name="floors" value="{{ rfp.floors or '' }}">
+      </div>
+      <div class="input-group">
+        <label>Job Type</label>
+        <input type="text" name="job_type" value="{{ rfp.job_type or 'Alteration' }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Scope of Work</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">Trades included in this RFP. Edit quantities and values as needed.</p>
+    <div id="trades-list">
+      {% for t in rfp.trades or [] %}
+      <div class="trade-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <input type="text" name="trade_name[]" value="{{ t.name }}" style="flex:2;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;">
+        <input type="number" name="trade_value[]" value="{{ t.total or 0 }}" step="any" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:right;">
+        <button type="button" class="remove-trade" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">&times;</button>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="add-trade" class="btn btn-sm" style="margin-top:4px;">+ Add trade</button>
+  </div>
+
+  <div class="card">
+    <h2>Contractor Requirements</h2>
+    <div class="input-group">
+      <textarea name="requirements">{{ rfp.requirements or 'All contractors must be licensed and insured in New York State, registered with NYC Department of Buildings, and carry a minimum $1M general liability and $2M umbrella policy.' }}</textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Submission Details</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="input-group">
+        <label>Submission Deadline</label>
+        <input type="date" name="deadline" value="{{ rfp.deadline or '' }}">
+      </div>
+      <div class="input-group">
+        <label>Contact Email for Submissions</label>
+        <input type="email" name="contact_email" value="{{ rfp.contact_email or '' }}" placeholder="bids@yourfirm.com">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Company Logo</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">Upload your firm's logo to appear on the RFP cover page.</p>
+    {% if rfp.logo_path %}
+    <p style="font-size:13px;margin-bottom:8px;">Current: <strong>{{ rfp.logo_path.split('/')[-1] }}</strong></p>
+    {% endif %}
+    <input type="file" id="logo-upload" accept="image/*" style="font-size:13px;">
+  </div>
+
+  <div class="actions-bar">
+    <button type="submit" name="action" value="save" class="btn">Save Draft</button>
+    <button type="submit" name="action" value="publish" class="btn btn-green">Publish to Contractor Network</button>
+  </div>
+</form>
+
+<script>
+(function(){
+  // Add trade
+  document.getElementById('add-trade').addEventListener('click', function(){
+    var list = document.getElementById('trades-list');
+    var row = document.createElement('div');
+    row.className = 'trade-row';
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;';
+    row.innerHTML = '<input type="text" name="trade_name[]" value="New Trade" style="flex:2;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;">'
+      + '<input type="number" name="trade_value[]" value="0" step="any" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:right;">'
+      + '<button type="button" class="remove-trade" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">&times;</button>';
+    list.appendChild(row);
+  });
+
+  // Remove trade
+  document.addEventListener('click', function(e){
+    if (e.target.classList.contains('remove-trade')) {
+      e.target.closest('.trade-row').remove();
+    }
+  });
+
+  // Logo upload
+  var logoInput = document.getElementById('logo-upload');
+  logoInput.addEventListener('change', function(){
+    if (!logoInput.files[0]) return;
+    var fd = new FormData();
+    fd.append('logo', logoInput.files[0]);
+    fetch('/architect/rfp/{{ rfp.slug }}/upload-logo', {method:'POST', body:fd})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if (d.ok) { logoInput.insertAdjacentHTML('afterend', '<span style="color:#16A34A;font-size:12px;margin-left:8px;">Uploaded</span>'); }
+      });
+  });
+})();
+</script>
+{% endblock %}

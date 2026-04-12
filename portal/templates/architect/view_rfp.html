@@ -1,0 +1,74 @@
+{% extends "architect/base.html" %}
+{% block title %}{{ rfp.address }} — Drafted{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+  <div>
+    <h1>{{ rfp.project_name or rfp.address }}</h1>
+    <p class="subtitle">
+      <span class="badge badge-{{ rfp.status }}">{{ rfp.status|replace('_',' ')|title }}</span>
+      {% if rfp.deadline %} &middot; Deadline: {{ rfp.deadline }}{% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    {% if rfp.status != 'awarded' %}
+    <a class="btn" href="{{ url_for('architect_rfp_edit', slug=rfp.slug) }}">Edit RFP</a>
+    {% endif %}
+    {% if rfp.status == 'published' or rfp.status == 'bids_received' %}
+    <form method="POST" action="{{ url_for('architect_rfp_close', slug=rfp.slug) }}" style="display:inline;">
+      <button type="submit" class="btn btn-sm" onclick="return confirm('Close bidding and award this project?')">Close Bidding</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if match_count > 0 %}
+<div class="alert alert-success">
+  {{ match_count }} contractor{{ 's' if match_count != 1 }} matched to this project.
+</div>
+{% endif %}
+
+<!-- RFP content -->
+<div class="card">
+  <h2>Project Overview</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:13px;">
+    <div><span style="color:var(--muted);">Address:</span> {{ rfp.address }}</div>
+    <div><span style="color:var(--muted);">Year Built:</span> {{ rfp.year_built or '—' }}</div>
+    <div><span style="color:var(--muted);">Building Area:</span> {{ "{:,}".format(rfp.sqft|int) if rfp.sqft else '—' }} sqft</div>
+    <div><span style="color:var(--muted);">Floors:</span> {{ rfp.floors or '—' }}</div>
+    <div><span style="color:var(--muted);">Job Type:</span> {{ rfp.job_type or '—' }}</div>
+    <div><span style="color:var(--muted);">Contact:</span> {{ rfp.contact_email or '—' }}</div>
+  </div>
+</div>
+
+{% if rfp.trades %}
+<div class="card">
+  <h2>Scope of Work</h2>
+  <table>
+    <thead><tr><th>Trade</th><th style="text-align:right;">Estimated Value</th></tr></thead>
+    <tbody>
+      {% for t in rfp.trades %}
+      <tr>
+        <td>{{ t.name|title }}</td>
+        <td style="text-align:right;">${{ "{:,.0f}".format(t.total or 0) }}</td>
+      </tr>
+      {% endfor %}
+      <tr style="font-weight:700;border-top:2px solid var(--border);">
+        <td>Total</td>
+        <td style="text-align:right;">${{ "{:,.0f}".format(rfp.trades|sum(attribute='total')) }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Contractor Requirements</h2>
+  <p style="font-size:13px;color:var(--muted);white-space:pre-wrap;">{{ rfp.requirements or '—' }}</p>
+</div>
+
+<div class="card">
+  <h2>Submission Details</h2>
+  <p style="font-size:13px;">Deadline: <strong>{{ rfp.deadline or 'Not set' }}</strong></p>
+  <p style="font-size:13px;">Submit bids to: <strong>{{ rfp.contact_email or 'Not set' }}</strong></p>
+</div>
+{% endblock %}
