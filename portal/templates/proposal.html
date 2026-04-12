@@ -31,6 +31,7 @@
   <button class="tab-btn" data-tab="documents">Documents</button>
   <button class="tab-btn" data-tab="proposal">Proposal</button>
   <button class="tab-btn" data-tab="emails">Email Outreach</button>
+  <button class="tab-btn" data-tab="rfp">RFP</button>
 </div>
 
 <!-- ═══ OVERVIEW TAB ═══ -->
@@ -265,6 +266,26 @@
 </div>
 </div>
 
+<!-- ═══ RFP TAB ═══ -->
+<div class="tab-panel" id="tab-rfp">
+{% if has_rfp %}
+<div style="display:flex;gap:8px;margin-bottom:16px;">
+  <a class="btn btn-primary" href="{{ url_for('rfp_pdf', slug=slug) }}">Download RFP PDF</a>
+  <a class="btn" href="{{ url_for('rfp_view', slug=slug) }}">Full RFP View</a>
+  <button class="btn btn-green" id="send-hook-btn">Send Hook Email</button>
+</div>
+<div class="card-panel" style="padding:0;">
+  <iframe id="rfp-frame" srcdoc="{{ rfp_html_content|e }}" style="width:100%;min-height:600px;border:none;border-radius:var(--radius);"></iframe>
+</div>
+{% else %}
+<div class="generate-cta">
+  <h2>No RFP Yet</h2>
+  <p>Build an RFP from the project data to send to the applicant firm.</p>
+  <button class="btn btn-primary" id="build-rfp-btn">Build RFP</button>
+</div>
+{% endif %}
+</div>
+
 <!-- Confirmation modal -->
 <div class="modal-overlay" id="regen-modal">
   <div class="modal-box">
@@ -450,6 +471,34 @@
         if (warn && email) warn.style.display = 'none';
         setTimeout(function(){ saveEmailBtn.textContent = 'Save Contact'; }, 1500);
       });
+    });
+  }
+  // ─── Build RFP button ───
+  var buildRfpBtn = document.getElementById('build-rfp-btn');
+  if (buildRfpBtn) {
+    buildRfpBtn.addEventListener('click', function(){
+      buildRfpBtn.disabled = true;
+      buildRfpBtn.innerHTML = '<span class="spinner"></span> Building...';
+      fetch('/rfp/build/{{ slug }}', {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.ok) location.reload();
+          else { buildRfpBtn.textContent = 'Error'; }
+        });
+    });
+  }
+
+  // ─── Send hook email button ───
+  var sendHookBtn = document.getElementById('send-hook-btn');
+  if (sendHookBtn) {
+    sendHookBtn.addEventListener('click', function(){
+      sendHookBtn.disabled = true;
+      sendHookBtn.textContent = 'Sending...';
+      fetch('/rfp/send-hook/{{ slug }}', {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          sendHookBtn.textContent = d.status === 'sent' ? 'Sent' : (d.status === 'queued' ? 'Queued' : d.status);
+        });
     });
   }
 })();

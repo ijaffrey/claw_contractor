@@ -188,12 +188,22 @@ def create_app() -> Flask:
                 return f"${v/1e3:.0f}K"
             return f"${v:,.0f}"
 
+        # RFP counts
+        rfps_built = sum(
+            1 for v in state.get("addresses", {}).values()
+            if v.get("rfp_built_at")
+        )
+        rfps_sent = sum(
+            1 for v in state.get("addresses", {}).values()
+            if v.get("rfp_hook_status") == "sent"
+        )
+
         metrics = [
             {"label": "Active Opportunities", "value": f"{total_permits:,}"},
             {"label": "Pipeline Value", "value": _fmt_value(pipeline_total)},
+            {"label": "RFPs Built", "value": str(rfps_built)},
+            {"label": "RFPs Sent", "value": str(rfps_sent)},
             {"label": "Proposals Sent", "value": str(sent_count)},
-            {"label": "Emails in Flight", "value": "0"},
-            {"label": "Jobs Won", "value": "0"},
         ]
         return render_template(
             "dashboard.html",
@@ -248,6 +258,20 @@ def create_app() -> Flask:
             t1_est = t1_entry.get("tier1_estimate_usd", 0)
             tier1_total += tier3_value if tier3_value else t1_est
 
+            # RFP status
+            addr_entry = addrs.get(address, {})
+            rfp_status = "none"
+            if addr_entry.get("rfp_hook_status") == "sent":
+                resp_status = addr_entry.get("rfp_response_status")
+                if resp_status == "interested":
+                    rfp_status = "interested"
+                elif resp_status == "not_interested":
+                    rfp_status = "not_interested"
+                else:
+                    rfp_status = "hook_sent"
+            elif addr_entry.get("rfp_built_at"):
+                rfp_status = "rfp_ready"
+
             permits.append({
                 "address": address,
                 "year_built": p.get("year_built"),
@@ -260,6 +284,7 @@ def create_app() -> Flask:
                 "tier1_estimate": t1_est,
                 "tier3_value": tier3_value,
                 "tier3_confidence": tier3_confidence,
+                "rfp_status": rfp_status,
             })
 
         avg_deal = tier1_total / len(permits) if permits else 0
@@ -326,6 +351,13 @@ def create_app() -> Flask:
         t1_entry = tier1.get(slug, {})
         bucket_name = t1_entry.get("bucket", "")
 
+        # RFP state
+        rfp_html_path = REPO_ROOT / "rfps" / f"{slug}_rfp.html"
+        has_rfp = rfp_html_path.exists()
+        rfp_html_content = ""
+        if has_rfp:
+            rfp_html_content = rfp_html_path.read_text(encoding="utf-8")
+
         return render_template(
             "proposal.html",
             slug=slug,
@@ -341,6 +373,8 @@ def create_app() -> Flask:
             drip_data=drip_data,
             bucket_name=bucket_name,
             bucket_label=BUCKET_LABELS.get(bucket_name, bucket_name),
+            has_rfp=has_rfp,
+            rfp_html_content=rfp_html_content,
             active_page="",
         )
 
@@ -503,6 +537,148 @@ def create_app() -> Flask:
         if address:
             return jsonify(state.get("addresses", {}).get(address, {"status": "unknown"}))
         return jsonify({"status": "unknown"})
+
+    # ------------------------------------------------------------------
+    # RFP routes (Sprint D1)
+    # ------------------------------------------------------------------
+
+    @app.route("/rfp/<slug>")
+    def rfp_view(slug: str):
+        """Full RFP view with inline HTML and send button."""
+        rfp_html_path = REPO_ROOT / "rfps" / f"{slug}_rfp.html"
+        rfp_exists = rfp_html_path.exists()
+        rfp_html_content = ""
+        if rfp_exists:
+            rfp_html_content = rfp_html_path.read_text(encoding="utf-8")
+
+        # RFP state
+        import sys
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from drafted.rfp_state import get_rfp_state
+        rfp_state = get_rfp_state(slug)
+
+        address_display = slug.replace("_", " ").title()
+        state = load_state()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                address_display = addr
+                break
+
+        return render_template(
+            "rfp.html",
+            slug=slug,
+            address=address_display,
+            rfp_exists=rfp_exists,
+            rfp_html_content=rfp_html_content,
+            rfp_state=rfp_state,
+            active_page="",
+        )
+
+    @app.route("/rfp/<slug>/pdf")
+    def rfp_pdf(slug: str):
+        pdf_path = REPO_ROOT / "rfps" / f"{slug}_rfp.pdf"
+        if not pdf_path.exists():
+            abort(404)
+        return send_file(str(pdf_path), mimetype="application/pdf",
+                         as_attachment=True, download_name=f"{slug}_rfp.pdf")
+
+    @app.route("/rfp/build/<slug>", methods=["POST"])
+    def rfp_build(slug: str):
+        """Trigger firm scrape + RFP build for one address."""
+        import sys
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from drafted.firm_scraper import scrape_firm
+        from drafted.rfp_builder import build_rfp
+        from drafted.rfp_state import update_rfp_state
+
+        # Get applicant name from takeoff or state
+        takeoff = _load_takeoff(slug)
+        applicant = ""
+        if takeoff:
+            applicant = (takeoff.get("permit", {}) or {}).get("applicant_last_name") or ""
+            if not applicant:
+                applicant = (takeoff.get("resolved", {}) or {}).get("owner_name") or ""
+
+        # Scrape firm
+        firm_info = scrape_firm(applicant or slug.replace("_", " ").title())
+
+        # Build RFP
+        result = build_rfp(slug, firm_info)
+
+        # Update state
+        from datetime import datetime, timezone
+        update_rfp_state(
+            slug,
+            firm_name=firm_info.get("firm_name"),
+            firm_email=firm_info.get("email"),
+            firm_logo_url=firm_info.get("logo_url"),
+            firm_scrape_source=firm_info.get("source"),
+            rfp_built_at=datetime.now(timezone.utc).isoformat(),
+            rfp_pdf_path=result.get("pdf_path"),
+            rfp_html_path=result.get("html_path"),
+        )
+
+        return jsonify({"ok": True, **result})
+
+    @app.route("/rfp/build-batch", methods=["POST"])
+    def rfp_build_batch():
+        """Build RFPs for top 20 uncontacted addresses in a bucket."""
+        import sys
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from drafted.rfp_state import get_rfp_state
+
+        bucket_name = (request.get_json(force=True) or {}).get("bucket", "Abatement")
+        scan = _latest_scan()
+        bucket = next((b for b in scan.get("buckets", []) if b.get("bucket") == bucket_name), None)
+        if not bucket:
+            return jsonify({"error": "bucket not found"}), 404
+
+        built = []
+        for p in (bucket.get("top_10") or [])[:20]:
+            address = p.get("address", "")
+            slug = _slugify_address(address)
+            rfp_st = get_rfp_state(slug)
+            if rfp_st.get("rfp_built_at"):
+                continue  # Already built
+            # Build in foreground (could be threaded for perf)
+            try:
+                with app.test_request_context():
+                    resp = rfp_build(slug)
+                    built.append(slug)
+            except Exception:
+                pass
+
+        return jsonify({"ok": True, "built": built, "count": len(built)})
+
+    @app.route("/rfp/send-hook/<slug>", methods=["POST"])
+    def rfp_send_hook(slug: str):
+        """Send hook email for an address."""
+        import sys
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from drafted.rfp_outreach import send_rfp_hook
+        from drafted.rfp_state import get_rfp_state, update_rfp_state
+
+        rfp_st = get_rfp_state(slug)
+        pdf_path = rfp_st.get("rfp_pdf_path") or str(REPO_ROOT / "rfps" / f"{slug}_rfp.pdf")
+
+        firm_info = {
+            "firm_name": rfp_st.get("firm_name"),
+            "email": rfp_st.get("firm_email"),
+        }
+
+        result = send_rfp_hook(slug, firm_info, pdf_path)
+
+        update_rfp_state(
+            slug,
+            rfp_hook_sent_at=result.get("timestamp"),
+            rfp_hook_status=result.get("status"),
+        )
+
+        return jsonify(result)
 
     @app.route("/healthz")
     def healthz():

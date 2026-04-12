@@ -56,6 +56,7 @@
           <th>Est. Deal Size</th>
           <th>Confidence</th>
           <th>Status</th>
+          <th>RFP</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -89,6 +90,19 @@
           </td>
           <td>
             <span class="status-pill status-{{ p.status }}">{{ p.status|replace('_',' ')|title }}</span>
+          </td>
+          <td>
+            {% if p.rfp_status == 'interested' %}
+              <span class="badge badge-high">Interested</span>
+            {% elif p.rfp_status == 'not_interested' %}
+              <span class="badge badge-low">Declined</span>
+            {% elif p.rfp_status == 'hook_sent' %}
+              <span class="badge badge-medium">Hook Sent</span>
+            {% elif p.rfp_status == 'rfp_ready' %}
+              <span class="badge badge-type">RFP Ready</span>
+            {% else %}
+              <span style="color:var(--text-muted);font-size:12px;">—</span>
+            {% endif %}
           </td>
           <td>
             {% if p.status == 'not_generated' or p.status == 'new' %}

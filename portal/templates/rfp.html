@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}RFP — {{ address }}{% endblock %}
+{% block topbar_title %}RFP{% endblock %}
+{% block topbar_subtitle %}{{ address }}{% endblock %}
+{% block topbar_actions %}
+{% if rfp_exists %}
+<a class="btn btn-sm" href="{{ url_for('rfp_pdf', slug=slug) }}">Download PDF</a>
+<button class="btn btn-sm btn-green" id="send-hook-btn">Send Hook Email</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+  <span class="sep">&rsaquo;</span>
+  <a href="{{ url_for('proposal_view', slug=slug) }}">{{ address }}</a>
+  <span class="sep">&rsaquo;</span>
+  <span>RFP</span>
+</div>
+
+{% if rfp_exists %}
+<div class="card-panel" style="padding:0;">
+  <iframe srcdoc="{{ rfp_html_content|e }}" style="width:100%;min-height:800px;border:none;border-radius:var(--radius);"></iframe>
+</div>
+
+{% if rfp_state.get('firm_email') %}
+<div class="detail-card" style="margin-top:16px;max-width:500px;">
+  <h3>Hook Email</h3>
+  <div class="detail-row"><span class="detail-label">To</span><span class="detail-value">{{ rfp_state.get('firm_email') }}</span></div>
+  <div class="detail-row"><span class="detail-label">Firm</span><span class="detail-value">{{ rfp_state.get('firm_name') or '—' }}</span></div>
+  <div class="detail-row"><span class="detail-label">Source</span><span class="detail-value">{{ rfp_state.get('firm_scrape_source') or '—' }}</span></div>
+  <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">{{ rfp_state.get('rfp_hook_status') or 'not sent' }}</span></div>
+</div>
+{% else %}
+<div class="email-warning" style="margin-top:16px;max-width:500px;">
+  No contact email found for this firm. Add one manually to enable sending.
+</div>
+{% endif %}
+
+{% else %}
+<div class="generate-cta">
+  <h2>No RFP Built Yet</h2>
+  <p>Build an RFP from the project data to send to the applicant firm.</p>
+  <button class="btn btn-primary" id="build-rfp-btn">Build RFP</button>
+</div>
+{% endif %}
+
+<script>
+(function(){
+  var buildBtn = document.getElementById('build-rfp-btn');
+  if (buildBtn) {
+    buildBtn.addEventListener('click', function(){
+      buildBtn.disabled = true;
+      buildBtn.innerHTML = '<span class="spinner"></span> Building...';
+      fetch('/rfp/build/{{ slug }}', {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (d.ok) location.reload(); });
+    });
+  }
+  var sendBtn = document.getElementById('send-hook-btn');
+  if (sendBtn) {
+    sendBtn.addEventListener('click', function(){
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+      fetch('/rfp/send-hook/{{ slug }}', {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          sendBtn.textContent = d.status === 'sent' ? 'Sent' : (d.status === 'queued' ? 'Queued' : d.status);
+        });
+    });
+  }
+})();
+</script>
+{% endblock %}
