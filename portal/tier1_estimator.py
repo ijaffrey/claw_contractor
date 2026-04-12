@@ -55,6 +55,7 @@ TIER1_RATES: dict[str, dict[str, float]] = {
     "GC_opportunity":{"rate_per_sqft": 45.00, "affected_pct": 0.25},
     "Roofing":       {"rate_per_sqft": 18.00, "affected_pct": 0.08},
     "Sitework":      {"rate_per_sqft": 12.00, "affected_pct": 0.10},
+    "Kitchen":       {"rate_per_sqft": 150.00, "affected_pct": 0.05},
 }
 MARKUP = 1.22
 COST_PROXY_RATIO = 0.35  # when PLUTO sqft is missing

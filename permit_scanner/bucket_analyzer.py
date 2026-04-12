@@ -28,6 +28,12 @@ log = logging.getLogger("bucket_analyzer")
 
 ROOF_RE = re.compile(r"roof", re.IGNORECASE)
 EXCAVATE_RE = re.compile(r"excavat", re.IGNORECASE)
+KITCHEN_RE = re.compile(
+    r"kitchen|gut\s*reno|gut\s*renovation|interior\s*alteration|residential",
+    re.IGNORECASE,
+)
+KITCHEN_JOB_TYPES = {"A2", "A3", "Alteration"}  # A2/A3 per DOB codes; Alteration as fallback
+KITCHEN_BLDG_CLASSES = {"A", "B", "C", "D", "R"}  # residential classes
 
 # In w9ak-ipjd the demolition job_type string is "Full Demolition", not
 # "Demolition". We treat them as synonyms so the user-facing rule text
@@ -122,6 +128,43 @@ def is_sitework(permit: dict) -> bool:
     return bool(EXCAVATE_RE.search(_description_blob(permit)))
 
 
+def is_kitchen(permit: dict, *, pluto_by_bbl: dict) -> bool:
+    """Residential kitchen renovation bucket.
+
+    Matches if ALL of:
+      - job_type is A2, A3, or Alteration
+      - PLUTO bldgclass starts with A/B/C/D/R (residential)
+      - permit cost between $10,000 and $200,000
+    AND ANY of:
+      - description contains a kitchen keyword
+      - OR no description but type+class+cost all match (lower confidence)
+    """
+    job_type = (permit.get("job_type") or "").strip()
+    # Check job_type — DOB uses "Alteration" for A2/A3 in most datasets
+    if job_type not in KITCHEN_JOB_TYPES and job_type not in ALTERATION_TYPES:
+        return False
+
+    # Cost range check
+    cost = _to_float(permit.get("initial_cost"))
+    if cost is None or cost < 10_000 or cost > 200_000:
+        return False
+
+    # Building class check via PLUTO
+    bbl_key = str(permit.get("bbl", "")).split(".")[0]
+    pluto = pluto_by_bbl.get(bbl_key) or {}
+    bldg_class = str(pluto.get("bldg_class") or "").strip().upper()
+    if not bldg_class or bldg_class[0] not in KITCHEN_BLDG_CLASSES:
+        return False
+
+    # Keyword check — match if description has kitchen terms,
+    # OR if no description available (still include at lower confidence)
+    desc = _description_blob(permit)
+    if desc.strip():
+        return bool(KITCHEN_RE.search(desc))
+    # No description — type+class+cost match is enough
+    return True
+
+
 BUCKETS: list = [
     ("GC_opportunity", is_gc_opportunity, False),
     ("Abatement", is_abatement, True),  # True => needs pluto_by_bbl
@@ -129,6 +172,7 @@ BUCKETS: list = [
     ("Demo", is_demo, False),
     ("Roofing", is_roofing, False),
     ("Sitework", is_sitework, False),
+    ("Kitchen", is_kitchen, True),  # True => needs pluto_by_bbl
 ]
 
 
@@ -348,6 +392,7 @@ def run(
             "Demo": "job_type == 'Demolition' (matched as 'Full Demolition' in w9ak-ipjd)",
             "Roofing": "'roof' appears in any work_type_/description field (case-insensitive)",
             "Sitework": "job_type == 'New Building' OR 'excavat' appears in description",
+            "Kitchen": "job_type in (A2, A3, Alteration) AND bldgclass starts with A/B/C/D/R AND cost $10K-$200K AND (kitchen keyword in description OR no description)",
         },
         "data_caveats": [
             "w9ak-ipjd work_type_* fields are binary flags ('0'/'1'/'Yes'/'No'), not free-text descriptions.",

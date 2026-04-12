@@ -55,6 +55,7 @@ def create_app() -> Flask:
         "Concrete": "Concrete",
         "Demo": "Demolition",
         "GC_opportunity": "General Contractor",
+        "Kitchen": "Kitchen",
         "Roofing": "Roofing",
         "Sitework": "Sitework",
     }
