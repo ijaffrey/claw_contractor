@@ -32,6 +32,12 @@
 </div>
 
 <!-- Filter chips -->
+<!-- Search -->
+<div class="search-bar">
+  <input type="text" id="address-search" placeholder="Search by address..." autocomplete="off">
+  <button class="search-clear" id="search-clear">&times;</button>
+</div>
+
 <div class="filter-bar" id="filter-bar">
   <button class="filter-chip active" data-filter="all">All</button>
   <button class="filter-chip" data-filter="not_generated">Not started</button>
@@ -134,9 +140,29 @@
 
 <script>
 (function(){
+  var rows = document.querySelectorAll('.permit-row');
+
+  // ─── Address search ───
+  var searchInput = document.getElementById('address-search');
+  var clearBtn = document.getElementById('search-clear');
+  searchInput.addEventListener('input', function(){
+    var q = searchInput.value.trim().toLowerCase();
+    clearBtn.classList.toggle('visible', q.length > 0);
+    if (q.length > 0 && q.length < 2) return; // wait for 2+ chars
+    rows.forEach(function(row){
+      if (q.length < 2) { row.style.display = ''; return; }
+      var addr = (row.dataset.address || '').toLowerCase();
+      row.style.display = addr.indexOf(q) !== -1 ? '' : 'none';
+    });
+  });
+  clearBtn.addEventListener('click', function(){
+    searchInput.value = '';
+    clearBtn.classList.remove('visible');
+    rows.forEach(function(row){ row.style.display = ''; });
+  });
+
   // Filter chips
   var chips = document.querySelectorAll('#filter-bar .filter-chip');
-  var rows = document.querySelectorAll('.permit-row');
   chips.forEach(function(chip){
     chip.addEventListener('click', function(){
       chips.forEach(function(c){ c.classList.remove('active'); });
