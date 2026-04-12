@@ -57,6 +57,26 @@ def create_app() -> Flask:
     app.secret_key = os.environ.get("FLASK_SECRET_KEY", "drafted-demo-key-change-in-prod")
 
     # ------------------------------------------------------------------
+    # APScheduler (Sprint D3)
+    # ------------------------------------------------------------------
+    try:
+        import sys
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from drafted.scheduler import send_contractor_hooks, send_architect_summaries
+
+        scheduler = BackgroundScheduler(daemon=True)
+        scheduler.add_job(send_contractor_hooks, "interval", hours=1, id="contractor_hooks",
+                          replace_existing=True, misfire_grace_time=300)
+        scheduler.add_job(send_architect_summaries, "cron", hour=7, id="architect_summaries",
+                          replace_existing=True, misfire_grace_time=300)
+        scheduler.start()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("APScheduler failed to start: %s", exc)
+
+    # ------------------------------------------------------------------
     # sidebar context processor
     # ------------------------------------------------------------------
     BUCKET_LABELS = {
@@ -207,17 +227,22 @@ def create_app() -> Flask:
             if v.get("rfp_hook_status") == "sent"
         )
 
+        # Warm leads
+        from drafted.bid_sourcer import get_pending_leads
+        warm_leads = get_pending_leads()
+
         metrics = [
             {"label": "Active Opportunities", "value": f"{total_permits:,}"},
             {"label": "Pipeline Value", "value": _fmt_value(pipeline_total)},
             {"label": "RFPs Built", "value": str(rfps_built)},
-            {"label": "RFPs Sent", "value": str(rfps_sent)},
+            {"label": "Warm Leads", "value": str(len(warm_leads))},
             {"label": "Proposals Sent", "value": str(sent_count)},
         ]
         return render_template(
             "dashboard.html",
             metrics=metrics,
             bucket_cards=bucket_cards,
+            warm_leads=warm_leads,
             scan_date=scan.get("generated_at", ""),
             borough=scan.get("borough", ""),
             active_page="dashboard",
@@ -883,8 +908,10 @@ def create_app() -> Flask:
             _update_rfp(slug, updates)
 
             if action == "publish":
-                # Contractor matching
+                # Contractor matching + bid sourcing
                 _match_contractors(slug, trades)
+                from drafted.bid_sourcer import source_bids
+                source_bids(slug, trades, architect_email=session.get("architect_email", ""))
                 matches = _load_matches()
                 count = sum(1 for m in matches if m.get("slug") == slug)
                 return render_template(
@@ -927,6 +954,8 @@ def create_app() -> Flask:
             "published_at": datetime.now(timezone.utc).isoformat(),
         })
         _match_contractors(slug, rfp.get("trades", []))
+        from drafted.bid_sourcer import source_bids
+        source_bids(slug, rfp.get("trades", []), architect_email=session.get("architect_email", ""))
         return redirect(url_for("architect_rfp_view", slug=slug))
 
     @app.route("/architect/rfp/<slug>/close", methods=["POST"])
@@ -943,7 +972,18 @@ def create_app() -> Flask:
             abort(404)
         matches = _load_matches()
         match_count = sum(1 for m in matches if m.get("slug") == slug)
-        return render_template("architect/view_rfp.html", rfp=rfp, match_count=match_count)
+        # Contractor responses from notifications
+        from drafted.bid_sourcer import load_notifications
+        notifications = load_notifications()
+        contractor_responses = [
+            n for n in notifications if n.get("rfp_slug") == slug
+        ]
+        return render_template(
+            "architect/view_rfp.html",
+            rfp=rfp,
+            match_count=match_count,
+            contractor_responses=contractor_responses,
+        )
 
     def _match_contractors(slug: str, trades: list) -> None:
         """Match RFP trades to contractor buckets and write to rfp_matches.json."""
@@ -991,6 +1031,33 @@ def create_app() -> Flask:
             })
 
         _save_matches(matches)
+
+    # ------------------------------------------------------------------
+    # Contractor lead response (Sprint D3)
+    # ------------------------------------------------------------------
+
+    @app.route("/leads/respond/<notification_id>", methods=["POST"])
+    def lead_respond(notification_id: str):
+        from drafted.bid_sourcer import respond_to_lead
+        data = request.get_json(force=True) if request.is_json else {}
+        response = data.get("response", "interested")
+        if response not in ("interested", "not_interested"):
+            return jsonify({"error": "invalid response"}), 400
+        result = respond_to_lead(notification_id, response)
+        if result is None:
+            return jsonify({"error": "notification not found"}), 404
+        return jsonify({"ok": True, "response": response})
+
+    # ------------------------------------------------------------------
+    # Email queue admin (Sprint D3)
+    # ------------------------------------------------------------------
+
+    @app.route("/admin/email-queue")
+    @architect_required
+    def email_queue_view():
+        from drafted.scheduler import load_email_queue
+        queue = load_email_queue()
+        return render_template("architect/email_queue.html", queue=queue)
 
     return app
 

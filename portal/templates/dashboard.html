@@ -45,6 +45,28 @@
   {% endfor %}
 </div>
 
+<!-- Warm leads -->
+{% if warm_leads %}
+<div class="card-panel" style="padding:20px;margin-bottom:24px;">
+  <h2 style="margin-bottom:16px;font-size:15px;font-weight:700;">Warm Leads</h2>
+  {% for lead in warm_leads %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid rgba(0,0,0,0.06);" id="lead-{{ lead.notification_id }}">
+    <div>
+      <div style="font-weight:600;">{{ lead.address }}</div>
+      <div style="font-size:12px;color:var(--text-secondary);">
+        {{ lead.trades|join(', ') }} &middot; ~${{ "{:,.0f}".format(lead.estimated_value or 0) }}
+        &middot; Published {{ (lead.rfp_published_at or '')[:10] }}
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <a class="btn btn-green btn-sm lead-interested" href="{{ url_for('proposal_view', slug=lead.rfp_slug) }}" data-id="{{ lead.notification_id }}">View Proposal</a>
+      <button class="btn btn-sm lead-decline" data-id="{{ lead.notification_id }}">Not Interested</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- Generate new address -->
 <div id="gen-section" class="card-panel" style="padding:20px;">
   <h2 style="margin-bottom:12px;font-size:15px;font-weight:700;">Run New Address</h2>
@@ -80,5 +102,26 @@
       .catch(function(err){ status.textContent = 'Error: ' + err; });
   });
 })();
+
+// Warm lead responses
+document.querySelectorAll('.lead-interested').forEach(function(a){
+  a.addEventListener('click', function(){
+    fetch('/leads/respond/' + a.dataset.id, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({response:'interested'})
+    });
+  });
+});
+document.querySelectorAll('.lead-decline').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    fetch('/leads/respond/' + btn.dataset.id, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({response:'not_interested'})
+    }).then(function(){
+      var el = document.getElementById('lead-' + btn.dataset.id);
+      if (el) el.style.display = 'none';
+    });
+  });
+});
 </script>
 {% endblock %}

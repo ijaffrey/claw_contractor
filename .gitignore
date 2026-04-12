@@ -83,3 +83,7 @@ rfp_outreach_queue.json
 architect_sessions.json
 architect_rfps.json
 rfp_matches.json
+
+# Sprint D3 bid sourcing state
+contractor_notifications.json
+email_queue.json

@@ -71,4 +71,31 @@
   <p style="font-size:13px;">Deadline: <strong>{{ rfp.deadline or 'Not set' }}</strong></p>
   <p style="font-size:13px;">Submit bids to: <strong>{{ rfp.contact_email or 'Not set' }}</strong></p>
 </div>
+
+{% if contractor_responses %}
+<div class="card">
+  <h2>Contractor Responses</h2>
+  <table>
+    <thead><tr><th>Contractor</th><th>Trades</th><th>Status</th><th>Responded</th></tr></thead>
+    <tbody>
+      {% for cr in contractor_responses %}
+      <tr>
+        <td>{{ cr.contractor_slug|replace('_',' ')|title }}</td>
+        <td>{{ cr.trades|join(', ') }}</td>
+        <td>
+          {% if cr.contractor_response == 'interested' %}
+          <span class="badge badge-bids">Interested</span>
+          {% elif cr.contractor_response == 'not_interested' %}
+          <span class="badge badge-draft">Declined</span>
+          {% else %}
+          <span class="badge badge-published">Pending</span>
+          {% endif %}
+        </td>
+        <td>{{ (cr.responded_at or '—')[:10] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% endblock %}

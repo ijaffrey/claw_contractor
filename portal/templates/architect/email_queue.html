@@ -1,0 +1,28 @@
+{% extends "architect/base.html" %}
+{% block title %}Email Queue — Drafted{% endblock %}
+{% block content %}
+<h1>Email Queue</h1>
+<p class="subtitle">Emails pending manual review (Gmail OAuth not configured).</p>
+
+{% if queue %}
+<div class="card" style="padding:0;">
+  <table>
+    <thead><tr><th>To</th><th>Subject</th><th>Queued</th><th>Sent</th></tr></thead>
+    <tbody>
+      {% for e in queue %}
+      <tr>
+        <td>{{ e.to }}</td>
+        <td>{{ e.subject }}</td>
+        <td>{{ (e.queued_at or '')[:16] }}</td>
+        <td>{{ 'Yes' if e.sent else 'No' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state card">
+  <p>No queued emails.</p>
+</div>
+{% endif %}
+{% endblock %}
