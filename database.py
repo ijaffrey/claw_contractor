@@ -1,11 +1,21 @@
 """
 Database Module
-Handles all Supabase interactions for businesses and leads
+Handles all Supabase interactions for businesses and leads.
+When SUPABASE_URL is not configured, all operations are no-ops
+so the pipeline can run without a database.
 """
 
-from supabase import create_client, Client
 from config import Config
 from datetime import datetime
+
+# Conditional import — only pull in supabase if we'll actually use it
+_supabase_available = False
+try:
+    if Config.SUPABASE_URL:
+        from supabase import create_client, Client
+        _supabase_available = True
+except ImportError:
+    pass
 
 
 # Global Supabase client instance
@@ -14,13 +24,17 @@ _supabase_client = None
 
 def init_database():
     """
-    Initialize Supabase client
-    Returns configured Supabase client
+    Initialize Supabase client.
+    Returns None if SUPABASE_URL is not configured.
     """
     global _supabase_client
 
     if _supabase_client:
         return _supabase_client
+
+    if not _supabase_available or not Config.SUPABASE_URL:
+        print("⊘ Supabase not configured — database operations will be skipped")
+        return None
 
     try:
         _supabase_client = create_client(
@@ -36,10 +50,18 @@ def init_database():
 
 
 def get_client():
-    """Get or create Supabase client"""
+    """Get or create Supabase client. Returns None if not configured."""
     if not _supabase_client:
         return init_database()
     return _supabase_client
+
+
+def _require_client():
+    """Return client or None with a warning. Callers should early-return on None."""
+    client = get_client()
+    if client is None:
+        return None
+    return client
 
 
 # ============================================================================
@@ -57,6 +79,8 @@ def insert_business(business_data):
         dict: Inserted business record with id
     """
     client = get_client()
+    if client is None:
+        return None
 
     try:
         response = client.table('businesses').insert(business_data).execute()
@@ -86,6 +110,9 @@ def get_business(business_id):
     """
     client = get_client()
 
+    if client is None:
+        return None
+
     try:
         response = client.table('businesses').select('*').eq('id', business_id).execute()
 
@@ -112,6 +139,9 @@ def get_business_by_email(email):
     """
     client = get_client()
 
+    if client is None:
+        return None
+
     try:
         response = client.table('businesses').select('*').eq('email', email).execute()
 
@@ -133,6 +163,9 @@ def get_all_businesses():
         list: All business records
     """
     client = get_client()
+
+    if client is None:
+        return []
 
     try:
         response = client.table('businesses').select('*').execute()
@@ -173,6 +206,9 @@ def insert_lead(lead_data):
     """
     client = get_client()
 
+    if client is None:
+        return None
+
     # Ensure status is set
     if 'status' not in lead_data:
         lead_data['status'] = 'new'
@@ -205,6 +241,9 @@ def get_lead(lead_id):
     """
     client = get_client()
 
+    if client is None:
+        return None
+
     try:
         response = client.table('leads').select('*').eq('id', lead_id).execute()
 
@@ -233,6 +272,9 @@ def get_leads(business_id, status=None, limit=100):
     """
     client = get_client()
 
+    if client is None:
+        return []
+
     try:
         query = client.table('leads').select('*').eq('business_id', business_id)
 
@@ -260,6 +302,9 @@ def update_lead_status(lead_id, status):
         dict: Updated lead record or None
     """
     client = get_client()
+
+    if client is None:
+        return None
 
     try:
         response = client.table('leads').update({
@@ -292,6 +337,9 @@ def update_lead(lead_id, update_data):
     """
     client = get_client()
 
+    if client is None:
+        return None
+
     try:
         response = client.table('leads').update(update_data).eq('id', lead_id).execute()
 
@@ -318,6 +366,9 @@ def get_lead_by_email_id(email_id):
         dict: Lead record or None
     """
     client = get_client()
+
+    if client is None:
+        return None
 
     try:
         response = client.table('leads').select('*').eq('email_id', email_id).execute()
@@ -346,6 +397,9 @@ def get_lead_by_thread_id(thread_id):
         dict: Lead record or None
     """
     client = get_client()
+
+    if client is None:
+        return None
 
     try:
         print(f"🔍 DEBUG (database.py): Looking up lead by thread_id: {thread_id}")
@@ -392,6 +446,9 @@ def insert_conversation_message(lead_id, role, message, email_id=None):
         dict: Inserted conversation record or None
     """
     client = get_client()
+
+    if client is None:
+        return None
 
     conversation_data = {
         'lead_id': lead_id,
@@ -441,6 +498,9 @@ def get_conversation_history(lead_id):
     """
     client = get_client()
 
+    if client is None:
+        return []
+
     try:
         response = client.table('conversations').select('*').eq(
             'lead_id', lead_id
@@ -465,6 +525,9 @@ def update_qualification_step(lead_id, step):
         dict: Updated lead record or None
     """
     client = get_client()
+
+    if client is None:
+        return None
 
     try:
         response = client.table('leads').update({
@@ -496,6 +559,8 @@ def test_connection():
     """
     try:
         client = get_client()
+        if client is None:
+            return None
         response = client.table('businesses').select('count').execute()
         print(f"✓ Supabase connection successful")
         return True
