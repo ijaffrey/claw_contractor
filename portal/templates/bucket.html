@@ -1,48 +1,106 @@
 {% extends "base.html" %}
-{% block title %}{{ bucket.bucket }}{% endblock %}
-{% block content %}
-<section class="hero">
-  <a class="back" href="{{ url_for('dashboard') }}">&larr; Dashboard</a>
-  <h1>{{ bucket.bucket }}</h1>
-  <p class="muted">
-    {{ "{:,}".format(bucket.count_raw or 0) }} raw ·
-    {{ "{:,}".format(bucket.count_clustered or 0) }} clustered ·
-    ${{ "{:,.0f}".format(bucket.total_initial_cost_usd or 0) }}
-  </p>
-</section>
+{% block title %}{{ bucket_label }}{% endblock %}
+{% block topbar_title %}{{ bucket_label }}{% endblock %}
+{% block topbar_subtitle %}{{ "{:,}".format(bucket.count_raw or 0) }} permits{% endblock %}
 
-<section class="card">
-  <h2>Top Permits</h2>
-  {% if permits %}
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+  <span class="sep">&rsaquo;</span>
+  <span>{{ bucket_label }}</span>
+</div>
+
+<!-- Summary cards -->
+<div class="summary-row">
+  <div class="metric-card">
+    <div class="metric-label">Total Permits</div>
+    <div class="metric-value">{{ "{:,}".format(bucket.count_raw or 0) }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Est. Pipeline</div>
+    <div class="metric-value">~${{ "{:,.0f}".format(tier1_total) }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Proposals Ready</div>
+    <div class="metric-value">{{ proposals_ready }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Avg Deal Size</div>
+    <div class="metric-value">~${{ "{:,.0f}".format(avg_deal) }}</div>
+  </div>
+</div>
+
+<!-- Filter chips -->
+<div class="filter-bar" id="filter-bar">
+  <button class="filter-chip active" data-filter="all">All</button>
+  <button class="filter-chip" data-filter="not_generated">Not started</button>
+  <button class="filter-chip" data-filter="generated">Proposal ready</button>
+  <button class="filter-chip" data-filter="sent">Sent</button>
+  <button class="filter-chip" data-filter="500k">$500K+</button>
+  {% for n in neighborhoods %}
+  <button class="filter-chip" data-filter="neighborhood:{{ n }}">{{ n|title }}</button>
+  {% endfor %}
+</div>
+
+<!-- Permit table -->
+<div class="card-panel">
   <div class="table-wrap">
-    <table class="data">
+    <table class="data" id="permit-table">
       <thead>
         <tr>
           <th>Address</th>
           <th>Year</th>
-          <th>Type</th>
-          <th>Est. Size</th>
+          <th>Neighborhood</th>
+          <th>Job Type</th>
+          <th>Est. Deal Size</th>
+          <th>Confidence</th>
           <th>Status</th>
-          <th></th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>
         {% for p in permits %}
-        <tr>
-          <td>{{ p.address }}</td>
+        <tr class="clickable permit-row"
+            data-status="{{ p.status }}"
+            data-neighborhood="{{ p.neighborhood }}"
+            data-deal="{{ p.tier3_value or p.tier1_estimate }}"
+            data-slug="{{ p.slug }}"
+            data-address="{{ p.address }}">
+          <td><strong>{{ p.address }}</strong></td>
           <td>{{ p.year_built or "—" }}</td>
+          <td>{{ (p.neighborhood or "—")|title }}</td>
           <td>{{ p.job_type or "—" }}</td>
           <td>
-            {% if p.bldg_area_sqft %}
-              {{ "{:,.0f}".format(p.bldg_area_sqft) }} sf
-            {% else %}—{% endif %}
-          </td>
-          <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-          <td>
-            {% if p.status == 'generated' %}
-            <a class="btn" href="{{ url_for('proposal_view', slug=p.slug) }}">View Proposal</a>
+            {% if p.tier3_value %}
+              <strong>${{ "{:,.0f}".format(p.tier3_value) }}</strong>
+            {% elif p.tier1_estimate %}
+              <span class="tier1-value"><span class="est-prefix">~</span>${{ "{:,.0f}".format(p.tier1_estimate) }} <span class="badge badge-est">est.</span></span>
             {% else %}
-            <button class="btn btn-primary gen-btn" data-address="{{ p.address }}">Generate</button>
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if p.tier3_confidence %}
+              <span class="badge badge-{{ p.tier3_confidence }}">{{ p.tier3_confidence|title }}</span>
+            {% else %}
+              <span class="badge badge-tier1">Tier 1</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="status-pill status-{{ p.status }}">{{ p.status|replace('_',' ')|title }}</span>
+          </td>
+          <td>
+            {% if p.status == 'not_generated' or p.status == 'new' %}
+              <button class="btn btn-primary btn-sm gen-btn" data-address="{{ p.address }}" data-slug="{{ p.slug }}">Generate</button>
+            {% elif p.status == 'running' or p.status == 'queued' %}
+              <button class="btn btn-sm" disabled><span class="spinner"></span></button>
+            {% elif p.status == 'generated' %}
+              <a class="btn btn-green btn-sm" href="{{ url_for('proposal_view', slug=p.slug) }}">Review</a>
+            {% elif p.status == 'approved' %}
+              <button class="btn btn-blue btn-sm" disabled data-tooltip="Send is coming in Sprint F">Send</button>
+            {% elif p.status == 'sent' %}
+              <a class="btn btn-purple btn-sm" href="{{ url_for('outreach_view', slug=p.slug) }}">View Outreach</a>
             {% endif %}
           </td>
         </tr>
@@ -50,37 +108,67 @@
       </tbody>
     </table>
   </div>
-  {% else %}
-  <p class="muted">No permits in this bucket's top-10.</p>
-  {% endif %}
-</section>
+</div>
+
+{% if not permits %}
+<div class="empty-state">
+  <p>No permits in this bucket's top-10.</p>
+</div>
+{% endif %}
 
 <script>
-document.querySelectorAll('.gen-btn').forEach(function(btn){
-  btn.addEventListener('click', function(){
-    var addr = btn.dataset.address;
-    btn.disabled = true;
-    btn.textContent = 'Queueing…';
-    var fd = new FormData();
-    fd.append('address', addr);
-    fetch('{{ url_for("generate") }}', {method: 'POST', body: fd})
-      .then(function(r){ return r.json(); })
-      .then(function(){
-        btn.textContent = 'Running…';
-        var url = '{{ url_for("generate_status") }}?address=' + encodeURIComponent(addr);
-        var t = setInterval(function(){
-          fetch(url).then(function(r){return r.json();}).then(function(s){
-            btn.textContent = s.status + (s.step ? ' · ' + s.step : '');
-            if (s.status === 'generated' || s.status === 'error') {
-              clearInterval(t);
-              if (s.status === 'generated') {
-                location.reload();
-              }
-            }
-          });
-        }, 2000);
+(function(){
+  // Filter chips
+  var chips = document.querySelectorAll('#filter-bar .filter-chip');
+  var rows = document.querySelectorAll('.permit-row');
+  chips.forEach(function(chip){
+    chip.addEventListener('click', function(){
+      chips.forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+      var f = chip.dataset.filter;
+      rows.forEach(function(row){
+        var show = true;
+        if (f === 'all') show = true;
+        else if (f === '500k') show = parseFloat(row.dataset.deal) >= 500000;
+        else if (f.startsWith('neighborhood:')) show = row.dataset.neighborhood === f.split(':')[1];
+        else show = row.dataset.status === f;
+        row.style.display = show ? '' : 'none';
       });
+    });
   });
-});
+
+  // Row click → navigate to project detail
+  rows.forEach(function(row){
+    row.addEventListener('click', function(e){
+      if (e.target.closest('button') || e.target.closest('a')) return;
+      var slug = row.dataset.slug;
+      var status = row.dataset.status;
+      if (status === 'generated' || status === 'approved' || status === 'sent') {
+        window.location.href = '/proposal/' + slug;
+      } else if (status === 'not_generated' || status === 'new') {
+        // Trigger generate
+        row.querySelector('.gen-btn').click();
+      }
+    });
+  });
+
+  // Generate buttons
+  document.querySelectorAll('.gen-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var addr = btn.dataset.address;
+      var slug = btn.dataset.slug;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>';
+      var fd = new FormData();
+      fd.append('address', addr);
+      fetch('{{ url_for("generate") }}', {method:'POST', body:fd})
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          window.location.href = '/generate/progress/' + encodeURIComponent(slug) + '?address=' + encodeURIComponent(addr);
+        });
+    });
+  });
+})();
 </script>
 {% endblock %}

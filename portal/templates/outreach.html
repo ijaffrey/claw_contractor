@@ -1,24 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Outreach — {{ drip.project }}{% endblock %}
+{% block topbar_title %}Outreach{% endblock %}
+{% block topbar_subtitle %}{{ drip.project or slug }}{% endblock %}
+
 {% block content %}
-<section class="hero">
-  <a class="back" href="{{ url_for('proposal_view', slug=slug) }}">&larr; Proposal</a>
-  <h1>Outreach — {{ drip.project }}</h1>
-  <p class="muted">{{ drip.contractor }} → {{ drip.contact }}</p>
-</section>
+<div class="breadcrumb">
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+  <span class="sep">&rsaquo;</span>
+  <a href="{{ url_for('proposal_view', slug=slug) }}">{{ drip.project or slug }}</a>
+  <span class="sep">&rsaquo;</span>
+  <span>Outreach</span>
+</div>
+
+<div class="page-header">
+  <h1>Email Outreach</h1>
+  <p style="color:var(--text-secondary);">{{ drip.contractor or 'Sanz Construction' }} &rarr; {{ drip.contact or 'Contact not set' }}</p>
+</div>
 
 {% for e in emails %}
-<section class="card email">
-  <div class="email-head">
-    <span class="badge badge-{{ e.status }}">{{ e.status }}</span>
-    <span class="muted">Day {{ e.day }} · {{ e.send_date }}</span>
+<div class="detail-card" style="margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span class="status-pill status-{{ e.status }}">{{ e.status|title }}</span>
+    <span style="font-size:12px;color:var(--text-muted);">Day {{ e.day }} &middot; {{ e.send_date }}</span>
   </div>
-  <h3>{{ e.subject }}</h3>
-  <pre class="email-body">{{ e.body }}</pre>
-</section>
+  <h3 style="font-size:15px;margin-bottom:8px;">{{ e.subject }}</h3>
+  <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:var(--text-secondary);background:var(--bg);border:var(--border);border-radius:8px;padding:12px;">{{ e.body }}</pre>
+</div>
 {% endfor %}
 
 {% if not emails %}
-<p class="muted">No emails in this drip schedule.</p>
+<div class="empty-state">
+  <p>No emails in this drip schedule.</p>
+</div>
 {% endif %}
 {% endblock %}

@@ -32,6 +32,7 @@ from .pipeline_state import (
     save_state,
     set_address_state,
 )
+from .tier1_estimator import load_cache as load_tier1_cache, refresh_cache as refresh_tier1
 
 # Repo root = parent of portal/
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +47,32 @@ def create_app() -> Flask:
         template_folder=str(Path(__file__).parent / "templates"),
         static_folder=str(Path(__file__).parent / "static"),
     )
+
+    # ------------------------------------------------------------------
+    # sidebar context processor
+    # ------------------------------------------------------------------
+    BUCKET_LABELS = {
+        "Abatement": "Abatement",
+        "Concrete": "Concrete",
+        "Demo": "Demolition",
+        "GC_opportunity": "General Contractor",
+        "Roofing": "Roofing",
+        "Sitework": "Sitework",
+    }
+
+    @app.context_processor
+    def inject_sidebar():
+        scan = _latest_scan()
+        buckets = []
+        for b in scan.get("buckets", []):
+            name = b.get("bucket", "")
+            raw = b.get("count_raw") or 0
+            buckets.append({
+                "name": name,
+                "label": BUCKET_LABELS.get(name, name),
+                "count": raw if raw else None,
+            })
+        return {"sidebar_buckets": buckets, "active_page": ""}
 
     # ------------------------------------------------------------------
     # helpers
@@ -94,34 +121,87 @@ def create_app() -> Flask:
     @app.route("/")
     def dashboard():
         scan = _latest_scan()
-        buckets = scan.get("buckets", [])
+        buckets_raw = scan.get("buckets", [])
         total_permits = scan.get("permits_fetched", 0)
-        total_clustered = sum(b.get("count_clustered", 0) for b in buckets)
-        total_value = sum(b.get("total_initial_cost_usd", 0) for b in buckets)
-        active_buckets = sum(1 for b in buckets if b.get("count_raw", 0) > 0)
         state = load_state()
         generated_count = sum(
             1
             for v in state.get("addresses", {}).values()
             if v.get("status") == "generated"
         )
+        sent_count = sum(
+            1
+            for v in state.get("addresses", {}).values()
+            if v.get("status") == "sent"
+        )
+
+        # Tier 1 cache — refresh if missing, else use disk cache
+        tier1 = load_tier1_cache()
+        if not tier1.get("permits"):
+            tier1 = refresh_tier1()
+        tier1_permits = tier1.get("permits", {})
+
+        # Build Tier 1 totals per bucket
+        tier1_by_bucket: dict[str, dict] = {}
+        for entry in tier1_permits.values():
+            b = entry.get("bucket", "")
+            row = tier1_by_bucket.setdefault(b, {"count": 0, "total": 0.0})
+            row["count"] += 1
+            row["total"] += entry.get("tier1_estimate_usd", 0)
+
+        # Also sum Tier 3 (takeoff) values from generated addresses
+        tier3_total = 0.0
+        for addr_data in state.get("addresses", {}).values():
+            slug = addr_data.get("slug")
+            if slug and addr_data.get("status") == "generated":
+                takeoff = _load_takeoff(slug)
+                if takeoff:
+                    tier3_total += sum(
+                        t.get("pricing", {}).get("total", 0)
+                        for t in takeoff.get("trades", [])
+                    )
+
+        pipeline_total = sum(r["total"] for r in tier1_by_bucket.values()) + tier3_total
+
+        # Bucket cards with Tier 1 data merged
+        bucket_cards = []
+        for b in buckets_raw:
+            name = b.get("bucket", "")
+            raw = b.get("count_raw") or 0
+            t1 = tier1_by_bucket.get(name, {"count": 0, "total": 0.0})
+            bucket_cards.append({
+                "name": name,
+                "label": BUCKET_LABELS.get(name, name),
+                "count_raw": raw,
+                "count_clustered": b.get("count_clustered", 0),
+                "tier1_count": t1["count"],
+                "tier1_total": t1["total"],
+                "total_initial_cost_usd": b.get("total_initial_cost_usd", 0),
+            })
+
+        def _fmt_value(v):
+            if v >= 1e9:
+                return f"${v/1e9:.1f}B"
+            if v >= 1e6:
+                return f"${v/1e6:.1f}M"
+            if v >= 1e3:
+                return f"${v/1e3:.0f}K"
+            return f"${v:,.0f}"
 
         metrics = [
-            {"label": "Permits Scanned", "value": f"{total_permits:,}"},
-            {"label": "Clustered Leads", "value": f"{total_clustered:,}"},
-            {"label": "Active Buckets", "value": str(active_buckets)},
-            {
-                "label": "Pipeline Value",
-                "value": f"${total_value/1e9:.1f}B" if total_value else "$0",
-            },
-            {"label": "Proposals Generated", "value": str(generated_count)},
+            {"label": "Active Opportunities", "value": f"{total_permits:,}"},
+            {"label": "Pipeline Value", "value": _fmt_value(pipeline_total)},
+            {"label": "Proposals Sent", "value": str(sent_count)},
+            {"label": "Emails in Flight", "value": "0"},
+            {"label": "Jobs Won", "value": "0"},
         ]
         return render_template(
             "dashboard.html",
             metrics=metrics,
-            buckets=buckets,
+            bucket_cards=bucket_cards,
             scan_date=scan.get("generated_at", ""),
             borough=scan.get("borough", ""),
+            active_page="dashboard",
         )
 
     @app.route("/bucket/<name>")
@@ -136,39 +216,116 @@ def create_app() -> Flask:
 
         state = load_state()
         addrs = state.get("addresses", {})
+        tier1 = load_tier1_cache().get("permits", {})
+
         permits = []
+        neighborhoods = set()
+        tier1_total = 0.0
+        proposals_ready = 0
         for p in bucket.get("top_10", []):
             address = p.get("address", "")
             slug = _slugify_address(address)
-            status = addrs.get(address, {}).get("status", "new")
-            permits.append(
-                {
-                    "address": address,
-                    "year_built": p.get("year_built"),
-                    "job_type": p.get("job_type"),
-                    "bldg_area_sqft": p.get("bldg_area_sqft"),
-                    "initial_cost_usd": p.get("initial_cost_usd"),
-                    "status": status,
-                    "slug": slug,
-                }
-            )
+            status = addrs.get(address, {}).get("status", "not_generated")
+            neighborhood = p.get("borough") or p.get("neighborhood") or ""
+            if neighborhood:
+                neighborhoods.add(neighborhood)
+
+            # Tier 3 (takeoff) value takes priority over Tier 1
+            takeoff = _load_takeoff(slug)
+            tier3_value = None
+            tier3_confidence = None
+            if takeoff:
+                tier3_value = sum(
+                    t.get("pricing", {}).get("total", 0)
+                    for t in takeoff.get("trades", [])
+                )
+                # Use average confidence from trades
+                confs = [t.get("confidence", "medium") for t in takeoff.get("trades", [])]
+                tier3_confidence = max(set(confs), key=confs.count) if confs else "medium"
+                proposals_ready += 1
+
+            t1_entry = tier1.get(slug, {})
+            t1_est = t1_entry.get("tier1_estimate_usd", 0)
+            tier1_total += tier3_value if tier3_value else t1_est
+
+            permits.append({
+                "address": address,
+                "year_built": p.get("year_built"),
+                "job_type": p.get("job_type"),
+                "bldg_area_sqft": p.get("bldg_area_sqft"),
+                "initial_cost_usd": p.get("initial_cost_usd"),
+                "neighborhood": neighborhood,
+                "status": status,
+                "slug": slug,
+                "tier1_estimate": t1_est,
+                "tier3_value": tier3_value,
+                "tier3_confidence": tier3_confidence,
+            })
+
+        avg_deal = tier1_total / len(permits) if permits else 0
         return render_template(
             "bucket.html",
             bucket=bucket,
+            bucket_label=BUCKET_LABELS.get(name, name),
             permits=permits,
+            tier1_total=tier1_total,
+            proposals_ready=proposals_ready,
+            avg_deal=avg_deal,
+            neighborhoods=sorted(neighborhoods),
+            active_page=f"bucket_{name}",
         )
 
     @app.route("/proposal/<slug>")
     def proposal_view(slug: str):
         takeoff = _load_takeoff(slug)
-        if takeoff is None:
-            abort(404)
-
-        grand_total = sum(
-            t.get("pricing", {}).get("total", 0) for t in takeoff.get("trades", [])
-        )
         has_pdf = _find_proposal_pdf(slug) is not None
         has_drip = _find_drip_schedule(slug) is not None
+
+        # Status from pipeline_state
+        state = load_state()
+        addr_entry = None
+        address_display = slug.replace("_", " ").title()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                addr_entry = entry
+                address_display = addr
+                break
+
+        status = (addr_entry or {}).get("status", "not_generated")
+        contact_email = (addr_entry or {}).get("contact_email", "")
+
+        grand_total = 0
+        if takeoff:
+            grand_total = sum(
+                t.get("pricing", {}).get("total", 0) for t in takeoff.get("trades", [])
+            )
+
+        # Documents from dob_output/<slug>/
+        doc_dir = DOB_OUTPUT_DIR / slug
+        documents = []
+        if doc_dir.exists():
+            for f in sorted(doc_dir.iterdir()):
+                if f.is_file():
+                    documents.append({
+                        "name": f.name,
+                        "size": f.stat().st_size,
+                        "ext": f.suffix.lower(),
+                    })
+
+        # Drip schedule
+        drip_emails = []
+        drip_data = {}
+        drip_path = _find_drip_schedule(slug)
+        if drip_path:
+            with open(drip_path) as f:
+                drip_data = json.load(f)
+            drip_emails = _emails_from_drip(drip_data)
+
+        # Bucket info for breadcrumb
+        tier1 = load_tier1_cache().get("permits", {})
+        t1_entry = tier1.get(slug, {})
+        bucket_name = t1_entry.get("bucket", "")
+
         return render_template(
             "proposal.html",
             slug=slug,
@@ -176,6 +333,15 @@ def create_app() -> Flask:
             grand_total=grand_total,
             has_pdf=has_pdf,
             has_drip=has_drip,
+            status=status,
+            address=address_display,
+            contact_email=contact_email,
+            documents=documents,
+            drip_emails=drip_emails,
+            drip_data=drip_data,
+            bucket_name=bucket_name,
+            bucket_label=BUCKET_LABELS.get(bucket_name, bucket_name),
+            active_page="",
         )
 
     @app.route("/proposal/<slug>/pdf")
@@ -245,6 +411,98 @@ def create_app() -> Flask:
                 time.sleep(1)
 
         return Response(gen(), mimetype="text/event-stream")
+
+    @app.route("/api/contact/<slug>", methods=["POST"])
+    def save_contact_email(slug: str):
+        """Save contact email to pipeline_state.json."""
+        data = request.get_json(force=True)
+        email = (data.get("email") or "").strip()
+        state = load_state()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                entry["contact_email"] = email
+                state["addresses"][addr] = entry
+                save_state(state)
+                return jsonify({"ok": True})
+        # Create entry if not found
+        addr_display = slug.replace("_", " ").title()
+        set_address_state(addr_display, contact_email=email, slug=slug)
+        return jsonify({"ok": True})
+
+    @app.route("/api/proposal/save/<slug>", methods=["POST"])
+    def save_proposal_edits(slug: str):
+        """Save edited proposal data back to takeoff.json."""
+        data = request.get_json(force=True)
+        takeoff_path = DOB_OUTPUT_DIR / slug / "takeoff.json"
+        if not takeoff_path.exists():
+            return jsonify({"error": "no takeoff"}), 404
+        with open(takeoff_path) as f:
+            takeoff = json.load(f)
+        # Update trades from posted data
+        takeoff["trades"] = data.get("trades", takeoff.get("trades", []))
+        takeoff["overhead_pct"] = data.get("overhead_pct", 0.10)
+        takeoff["profit_pct"] = data.get("profit_pct", 0.10)
+        tmp = takeoff_path.with_suffix(".json.tmp")
+        with open(tmp, "w") as f:
+            json.dump(takeoff, f, indent=2)
+        os.replace(tmp, takeoff_path)
+        return jsonify({"ok": True})
+
+    @app.route("/api/approve/<slug>", methods=["POST"])
+    def approve_proposal(slug: str):
+        """Set proposal status to approved."""
+        state = load_state()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                entry["status"] = "approved"
+                state["addresses"][addr] = entry
+                save_state(state)
+                return jsonify({"ok": True})
+        return jsonify({"error": "not found"}), 404
+
+    @app.route("/api/export/<slug>")
+    def export_excel(slug: str):
+        """Export proposal to Excel using openpyxl."""
+        takeoff = _load_takeoff(slug)
+        if not takeoff:
+            abort(404)
+        try:
+            from .excel_exporter import export_takeoff_to_excel
+        except ImportError:
+            return jsonify({"error": "openpyxl not installed"}), 500
+        import tempfile
+        out_path = Path(tempfile.mktemp(suffix=".xlsx"))
+        export_takeoff_to_excel(takeoff, out_path)
+        return send_file(
+            str(out_path),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=f"{slug}_sanz_construction_proposal.xlsx",
+        )
+
+    @app.route("/generate/progress/<slug>")
+    def generate_progress(slug: str):
+        address = request.args.get("address", "").strip()
+        return render_template(
+            "progress.html",
+            slug=slug,
+            address=address,
+            active_page="",
+        )
+
+    @app.route("/generate/status/<slug>")
+    def generate_status_by_slug(slug: str):
+        """Status endpoint by slug — scans pipeline_state for matching slug."""
+        state = load_state()
+        # Try matching by slug in address entries
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                return jsonify(entry)
+        # Also check if passed as address query param
+        address = request.args.get("address", "").strip()
+        if address:
+            return jsonify(state.get("addresses", {}).get(address, {"status": "unknown"}))
+        return jsonify({"status": "unknown"})
 
     @app.route("/healthz")
     def healthz():

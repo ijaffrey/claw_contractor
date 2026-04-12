@@ -1,62 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
-{% block content %}
-<section class="hero">
-  <h1>Pipeline Dashboard</h1>
-  <p class="muted">{{ borough }} · scan {{ scan_date[:10] }}</p>
-</section>
+{% block topbar_subtitle %}Last scan: {{ scan_date[:10] if scan_date else 'N/A' }}{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-primary" href="#gen-section">Generate New</a>
+{% endblock %}
 
-<section class="metrics">
+{% block content %}
+<!-- Metrics -->
+<div class="metric-row">
   {% for m in metrics %}
   <div class="metric-card">
-    <div class="metric-value">{{ m.value }}</div>
     <div class="metric-label">{{ m.label }}</div>
+    <div class="metric-value">{{ m.value }}</div>
   </div>
   {% endfor %}
-</section>
+</div>
 
-<section class="card">
-  <h2>Buckets</h2>
-  <div class="table-wrap">
-    <table class="data">
-      <thead>
-        <tr>
-          <th>Bucket</th>
-          <th>Raw</th>
-          <th>Clustered</th>
-          <th>Value</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for b in buckets %}
-        <tr>
-          <td>{{ b.bucket }}</td>
-          <td>{{ "{:,}".format(b.count_raw or 0) }}</td>
-          <td>{{ "{:,}".format(b.count_clustered or 0) }}</td>
-          <td>${{ "{:,.0f}".format(b.total_initial_cost_usd or 0) }}</td>
-          <td>
-            {% if b.count_raw and b.count_raw > 0 %}
-            <a class="btn" href="{{ url_for('bucket_view', name=b.bucket) }}">View</a>
-            {% else %}
-            <span class="muted">—</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+<!-- Bucket cards -->
+<div class="bucket-grid">
+  {% for b in bucket_cards %}
+  <a class="bucket-card" href="{{ url_for('bucket_view', name=b.name) }}">
+    <div class="bucket-card-header">
+      <div class="bucket-card-name">{{ b.label }}</div>
+      <span class="badge badge-type">{{ b.name }}</span>
+    </div>
+    <div class="bucket-card-stats">
+      <div>
+        <div class="stat-value">{{ "{:,}".format(b.count_raw) }}</div>
+        <div>permits</div>
+      </div>
+      <div>
+        <div class="stat-value">{{ "{:,}".format(b.count_clustered) }}</div>
+        <div>clustered</div>
+      </div>
+    </div>
+    <div class="bucket-card-pipeline">
+      {% if b.tier1_total %}
+        ~{{ "${:,.0f}".format(b.tier1_total) }} <span class="badge badge-est est-badge">est.</span>
+      {% else %}
+        $0
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
 
-<section class="card">
-  <h2>Run New Address</h2>
-  <form id="gen-form">
-    <input name="address" id="gen-address" type="text" placeholder="e.g. 425 Lexington Avenue, Manhattan" required>
+<!-- Generate new address -->
+<div id="gen-section" class="card-panel" style="padding:20px;">
+  <h2 style="margin-bottom:12px;font-size:15px;font-weight:700;">Run New Address</h2>
+  <form id="gen-form" style="display:flex;gap:10px;align-items:center;">
+    <input name="address" id="gen-address" type="text"
+           placeholder="e.g. 425 Lexington Avenue, Manhattan"
+           required
+           style="flex:1;padding:8px 12px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;font-size:13px;">
     <button class="btn btn-primary" type="submit">Generate</button>
   </form>
-  <div id="gen-status" class="status muted"></div>
-</section>
+  <div id="gen-status" style="margin-top:8px;font-size:13px;color:var(--text-muted);min-height:18px;"></div>
+</div>
 
 <script>
 (function(){
@@ -67,29 +67,18 @@
     e.preventDefault();
     var addr = document.getElementById('gen-address').value.trim();
     if (!addr) return;
-    status.textContent = 'Queueing ' + addr + '…';
+    status.textContent = 'Queueing ' + addr + '\u2026';
     var fd = new FormData();
     fd.append('address', addr);
-    fetch('{{ url_for("generate") }}', {method: 'POST', body: fd})
+    fetch('{{ url_for("generate") }}', {method:'POST', body:fd})
       .then(function(r){ return r.json(); })
-      .then(function(){
-        pollStatus(addr);
+      .then(function(d){
+        // Redirect to progress page
+        var slug = addr.toLowerCase().replace(/[,.'\"]/g,'').replace(/\s+/g,'_');
+        window.location.href = '/generate/progress/' + encodeURIComponent(slug) + '?address=' + encodeURIComponent(addr);
       })
       .catch(function(err){ status.textContent = 'Error: ' + err; });
   });
-  function pollStatus(addr){
-    var url = '{{ url_for("generate_status") }}?address=' + encodeURIComponent(addr);
-    var tries = 0;
-    var t = setInterval(function(){
-      tries++;
-      fetch(url).then(function(r){return r.json();}).then(function(s){
-        status.textContent = addr + ' — ' + (s.status || 'unknown') + (s.step ? ' (' + s.step + ')' : '');
-        if (s.status === 'generated' || s.status === 'error' || tries > 600) {
-          clearInterval(t);
-        }
-      });
-    }, 2000);
-  }
 })();
 </script>
 {% endblock %}
