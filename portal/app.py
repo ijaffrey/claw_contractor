@@ -8,7 +8,6 @@ from __future__ import annotations
 import glob
 import json
 import os
-import subprocess
 import threading
 import time
 from pathlib import Path
@@ -539,27 +538,48 @@ def _emails_from_drip(drip: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _run_pipeline(address: str) -> None:
-    """Invoke the existing CLI pipeline as a subprocess and update state."""
+    """Run the full pipeline for a single address via pipeline_runner.
+
+    Chains: dob_puller → takeoff_engine → proposal_generator → outreach_engine.
+    Updates pipeline_state.json at each step so the progress page can show
+    live status.
+    """
+    import sys
+    # Ensure repo root is on sys.path so the engine imports work
+    repo_str = str(REPO_ROOT)
+    if repo_str not in sys.path:
+        sys.path.insert(0, repo_str)
+    # Must import here (not top-level) — the engine modules depend on being
+    # importable from repo root, which may not be on PYTHONPATH at Flask boot.
+    from permit_scanner.pipeline_runner import run_full_pipeline  # noqa: E402
+
     slug = _slugify(address)
+    ranked = {"address": address, "score": 0}
+
     try:
         set_address_state(address, status="running", step="dob_puller", slug=slug)
-        proc = subprocess.run(
-            ["python3", "main.py", "--address", address],
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            text=True,
-            timeout=600,
+
+        artifacts = run_full_pipeline(
+            ranked,
+            contractor="sanz_construction",
+            trades=["abatement", "concrete", "demo"],
+            use_playwright=False,
         )
-        if proc.returncode != 0:
-            set_address_state(
-                address,
-                status="error",
-                step="pipeline",
-                slug=slug,
-                error=proc.stderr[-800:],
-            )
-            return
-        # Verify output was actually written
+
+        # Check for stage-level errors
+        for key in ("dob_puller_error", "takeoff_engine_error", "proposal_error"):
+            if key in artifacts:
+                failed_step = key.replace("_error", "")
+                set_address_state(
+                    address,
+                    status="error",
+                    step=failed_step,
+                    slug=slug,
+                    error=str(artifacts[key]),
+                )
+                return
+
+        # Verify takeoff was written
         takeoff_path = REPO_ROOT / "dob_output" / slug / "takeoff.json"
         if takeoff_path.exists():
             set_address_state(address, status="generated", step="complete", slug=slug)
@@ -569,8 +589,7 @@ def _run_pipeline(address: str) -> None:
                 status="error",
                 step="pipeline",
                 slug=slug,
-                error="Pipeline exited OK but no takeoff.json was written. "
-                      "Check that main.py supports --address.",
+                error="Pipeline finished but no takeoff.json was written.",
             )
     except Exception as e:  # noqa: BLE001
         set_address_state(address, status="error", step="exception", slug=slug, error=str(e))
