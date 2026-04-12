@@ -179,18 +179,17 @@
     });
   });
 
-  // Row click → navigate to project detail
+  // Row click → navigate to project detail (never auto-triggers pipeline)
   rows.forEach(function(row){
     row.addEventListener('click', function(e){
       if (e.target.closest('button') || e.target.closest('a')) return;
       var slug = row.dataset.slug;
       var status = row.dataset.status;
-      if (status === 'generated' || status === 'approved' || status === 'sent') {
+      if (status === 'generated' || status === 'approved' || status === 'sent' || status === 'won') {
         window.location.href = '/proposal/' + slug;
-      } else if (status === 'not_generated' || status === 'new') {
-        // Trigger generate
-        row.querySelector('.gen-btn').click();
       }
+      // For not_generated/error/other: do nothing on row click.
+      // User must click the explicit Generate/Retry button.
     });
   });
 
