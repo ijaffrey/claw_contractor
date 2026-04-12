@@ -286,18 +286,18 @@ def apply_buckets(
     return results
 
 
-def summarize_bucket(name: str, rows: list) -> dict:
-    """Produce per-bucket summary with clustered top-10 by initial_cost."""
+def summarize_bucket(name: str, rows: list, *, top_n: int = 10) -> dict:
+    """Produce per-bucket summary with clustered top-N by initial_cost."""
     clustered = cluster_dedupe(rows)
     clustered.sort(key=lambda r: -(r.get("initial_cost_usd") or 0.0))
-    top10 = clustered[:10]
+    top = clustered[:top_n]
     total_cost = sum(r.get("initial_cost_usd") or 0.0 for r in rows)
     return {
         "bucket": name,
         "count_raw": len(rows),
         "count_clustered": len(clustered),
         "total_initial_cost_usd": total_cost,
-        "top_10": top10,
+        "top_10": top,  # key preserved for backwards compat
     }
 
 
@@ -349,6 +349,7 @@ def run(
     days_back: int = 90,
     output_path: Path | None = None,
     limit: int | None = None,
+    top_n: int = 10,
 ) -> dict:
     logging.basicConfig(
         level=logging.INFO,
@@ -373,7 +374,7 @@ def run(
     log.info("PLUTO enriched: %d / %d BBLs", len(pluto_by_bbl), len(set(bbls)))
 
     per_bucket = apply_buckets(permits, pluto_by_bbl=pluto_by_bbl)
-    summaries = [summarize_bucket(name, per_bucket[name]) for name, _, _ in BUCKETS]
+    summaries = [summarize_bucket(name, per_bucket[name], top_n=top_n) for name, _, _ in BUCKETS]
 
     for s in summaries:
         print_bucket(s)
@@ -423,6 +424,7 @@ def main(argv: list | None = None) -> int:
         help="Cap rows pulled (0 = pull all via pagination).",
     )
     parser.add_argument("--output", default=None)
+    parser.add_argument("--top-n", type=int, default=10, help="Top N permits per bucket (default: 10)")
     args = parser.parse_args(argv)
     try:
         run(
@@ -430,6 +432,7 @@ def main(argv: list | None = None) -> int:
             days_back=args.days,
             limit=args.limit if args.limit and args.limit > 0 else None,
             output_path=Path(args.output) if args.output else None,
+            top_n=args.top_n,
         )
     except Exception as exc:
         log.exception("bucket_analyzer failed: %s", exc)
