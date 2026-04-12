@@ -540,8 +540,9 @@ def _emails_from_drip(drip: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _run_pipeline(address: str) -> None:
     """Invoke the existing CLI pipeline as a subprocess and update state."""
+    slug = _slugify(address)
     try:
-        set_address_state(address, status="running", step="dob_puller")
+        set_address_state(address, status="running", step="dob_puller", slug=slug)
         proc = subprocess.run(
             ["python3", "main.py", "--address", address],
             cwd=str(REPO_ROOT),
@@ -554,12 +555,33 @@ def _run_pipeline(address: str) -> None:
                 address,
                 status="error",
                 step="pipeline",
+                slug=slug,
                 error=proc.stderr[-800:],
             )
             return
-        set_address_state(address, status="generated", step="complete")
+        # Verify output was actually written
+        takeoff_path = REPO_ROOT / "dob_output" / slug / "takeoff.json"
+        if takeoff_path.exists():
+            set_address_state(address, status="generated", step="complete", slug=slug)
+        else:
+            set_address_state(
+                address,
+                status="error",
+                step="pipeline",
+                slug=slug,
+                error="Pipeline exited OK but no takeoff.json was written. "
+                      "Check that main.py supports --address.",
+            )
     except Exception as e:  # noqa: BLE001
-        set_address_state(address, status="error", step="exception", error=str(e))
+        set_address_state(address, status="error", step="exception", slug=slug, error=str(e))
+
+
+def _slugify(address: str) -> str:
+    """Slugify address — must match portal's _slugify_address (inside create_app)."""
+    s = (address or "").lower().strip()
+    for ch in [",", ".", "'", '"']:
+        s = s.replace(ch, "")
+    return "_".join(s.split())
 
 
 # Module-level app for `flask --app portal.app run` and WSGI servers.
