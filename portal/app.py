@@ -329,16 +329,17 @@ def api_get_campaign_leads(campaign_id):
     try:
         from sqlalchemy import text
         db, _ = _get_db()
-        rows = db.execute(text("""
+        result = db.execute(text("""
             SELECT l.*, cl.outreach_status AS cl_outreach, cl.added_at, cl.sent_at, cl.replied_at
             FROM leads l
             JOIN campaign_leads cl ON cl.lead_id = l.id
             WHERE cl.campaign_id = :cid
             ORDER BY l.enrichment_score DESC
-        """), {"cid": campaign_id}).fetchall()
+        """), {"cid": campaign_id})
+        cols = list(result.keys())
+        rows = result.fetchall()
         if not rows:
             return jsonify({"leads": []})
-        cols = list(rows[0].keys())
         leads = [dict(zip(cols, row)) for row in rows]
         db.close()
         return jsonify({"leads": leads})
