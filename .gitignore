@@ -60,3 +60,6 @@ htmlcov/
 # Supabase local
 .supabase/
 nyc_dob_sample.json
+.env
+__pycache__/
+*.pyc
