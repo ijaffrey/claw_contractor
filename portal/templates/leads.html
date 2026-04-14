@@ -134,4 +134,82 @@
 
     <script src="{{ url_for('static', filename='leads.js') }}"></script>
 </body>
+</html>ass="score-badge {% if lead.score >= 75 %}score-high{% elif lead.score >= 25 %}score-medium{% else %}score-low{% endif %}">{{ lead.score }}</span>
+                        </td>
+                        <td>{{ lead.outreach_status }}</td>
+                        <td>
+                            <button class="btn btn-small btn-outline" onclick="toggleDetails({{ lead.id }})">Details</button>
+                        </td>
+                    </tr>
+                    <tr id="details-{{ lead.id }}" class="lead-details" style="display: none;">
+                        <td colspan="8">
+                            <div class="details-content">
+                                <div class="details-section">
+                                    <h4>Contact Information</h4>
+                                    <p><strong>Email:</strong> {{ lead.email }}</p>
+                                    <p><strong>Phone:</strong> {{ lead.phone }}</p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Permit History</h4>
+                                    <p><strong>Total Permits:</strong> {{ lead.permit_count }}</p>
+                                    <p><strong>Last Permit:</strong> {{ lead.last_permit }}</p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Proposal Drafts</h4>
+                                    <p><strong>Draft Count:</strong> {{ lead.proposal_drafts }}</p>
+                                    {% if lead.proposal_drafts > 0 %}
+                                    <button class="btn btn-primary btn-small">View Drafts</button>
+                                    {% else %}
+                                    <button class="btn btn-secondary btn-small">Create Proposal</button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Toggle lead details
+        function toggleDetails(leadId) {
+            const detailsRow = document.getElementById(`details-${leadId}`);
+            if (detailsRow.style.display === 'none') {
+                detailsRow.style.display = 'table-row';
+            } else {
+                detailsRow.style.display = 'none';
+            }
+        }
+
+        // Handle bulk operations
+        function updateBulkOperations() {
+            const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+            const bulkBar = document.getElementById('bulk-operations');
+            const selectedCount = document.getElementById('selected-count');
+            
+            if (checkboxes.length > 0) {
+                bulkBar.style.display = 'flex';
+                selectedCount.textContent = checkboxes.length;
+            } else {
+                bulkBar.style.display = 'none';
+            }
+        }
+
+        // Select all checkbox
+        document.getElementById('select-all').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.lead-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateBulkOperations();
+        });
+
+        // Individual checkboxes
+        document.querySelectorAll('.lead-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateBulkOperations);
+        });
+    </script>
+</body>
 </html>
