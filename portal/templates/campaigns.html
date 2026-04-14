@@ -1,150 +1,80 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Campaigns — Contractor AI</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Campaigns - Contractor AI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .btn { background: #007bff; color: white; padding: 8px 16px; border: none; cursor: pointer; }
+        .form { display: none; margin: 1rem 0; padding: 1rem; border: 1px solid #ddd; }
+        .stats { display: none; margin: 1rem 0; padding: 1rem; border: 1px solid #ddd; }
+    </style>
 </head>
 <body>
-  <nav>
-    <div class="nav-brand">Contractor AI</div>
-    <div class="nav-links">
-      <a href="/campaigns" class="active">Campaigns</a>
-      <a href="/leads">Leads</a>
-      <a href="/proposals">Proposals</a>
-    </div>
-  </nav>
-
-  <div class="page-container">
-    <div class="page-header">
-      <h1>Campaigns</h1>
-      <button class="btn-primary" onclick="toggleNewCampaignForm()">+ New Campaign</button>
-    </div>
-
-    <!-- Inline New Campaign Form -->
-    <div id="new-campaign-form" class="form-container hidden">
-      <div class="form-header">
+    <h1>Campaigns</h1>
+    <button class="btn" onclick="toggleForm()">New Campaign</button>
+    
+    <div id="newForm" class="form">
         <h3>Create New Campaign</h3>
-        <button class="btn-close" onclick="toggleNewCampaignForm()">&times;</button>
-      </div>
-      
-      <form method="POST" action="/api/campaigns">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="name">Campaign Name</label>
-            <input type="text" id="name" name="name" required>
-          </div>
-          <div class="form-group">
-            <label for="trade">Trade</label>
-            <select id="trade" name="trade" required>
-              <option value="">Select Trade</option>
-              <option value="Roofing">Roofing</option>
-              <option value="Kitchen">Kitchen</option>
-              <option value="HVAC">HVAC</option>
-              <option value="Electrical">Electrical</option>
-              <option value="Plumbing">Plumbing</option>
-              <option value="Flooring">Flooring</option>
-              <option value="Bathroom">Bathroom</option>
-            </select>
-          </div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label for="angle">Campaign Angle</label>
-            <input type="text" id="angle" name="angle" placeholder="e.g., Storm damage repairs">
-          </div>
-          <div class="form-group">
-            <label for="borough">Borough</label>
-            <select id="borough" name="borough">
-              <option value="">All Boroughs</option>
-              <option value="Manhattan">Manhattan</option>
-              <option value="Brooklyn">Brooklyn</option>
-              <option value="Queens">Queens</option>
-              <option value="Bronx">Bronx</option>
-              <option value="Staten Island">Staten Island</option>
-            </select>
-          </div>
-        </div>
-        
-        <div class="form-actions">
-          <button type="submit" class="btn-primary">Create Campaign</button>
-          <button type="button" class="btn-secondary" onclick="toggleNewCampaignForm()">Cancel</button>
-        </div>
-      </form>
+        <input type="text" placeholder="Campaign Name" id="name">
+        <input type="text" placeholder="Angle" id="angle">
+        <select id="trade"><option>Plumbing</option><option>HVAC</option><option>Electrical</option></select>
+        <select id="borough"><option>Manhattan</option><option>Brooklyn</option><option>Queens</option></select>
+        <button class="btn" onclick="createCampaign()">Create</button>
+        <button onclick="toggleForm()">Cancel</button>
     </div>
 
-    <!-- Campaigns Table -->
-    <div class="table-container">
-      <table class="campaigns-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Angle</th>
-            <th>Trade</th>
-            <th>Borough</th>
-            <th>Lead Count</th>
-            <th>Enriched</th>
-            <th>Proposals</th>
-            <th>Replies</th>
-            <th>Interested</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for campaign in campaigns %}
-          <tr onclick="showCampaignStats({{ campaign.id }}, '{{ campaign.name }}')">
-            <td><strong>{{ campaign.name }}</strong></td>
-            <td>{{ campaign.angle or '-' }}</td>
-            <td>{{ campaign.trade or '-' }}</td>
-            <td>{{ campaign.borough or 'All' }}</td>
+    <table>
+        <tr>
+            <th>Campaign Name</th><th>Angle</th><th>Trade</th><th>Borough</th>
+            <th>Lead Count</th><th>Enriched Count</th><th>Proposals Sent</th><th>Replies</th><th>Interested</th>
+        </tr>
+        {% for campaign in campaigns %}
+        <tr onclick="showStats({{ campaign.id }}, '{{ campaign.name }}', {{ campaign.lead_count }}, {{ campaign.enriched_count }}, {{ campaign.proposals_sent }}, {{ campaign.replies }}, {{ campaign.interested }})" style="cursor: pointer;">
+            <td>{{ campaign.name }}</td>
+            <td>{{ campaign.angle }}</td>
+            <td>{{ campaign.trade }}</td>
+            <td>{{ campaign.borough }}</td>
             <td>{{ campaign.lead_count }}</td>
             <td>{{ campaign.enriched_count }}</td>
             <td>{{ campaign.proposals_sent }}</td>
             <td>{{ campaign.replies }}</td>
-            <td class="{% if campaign.interested > 0 %}text-success{% endif %}">{{ campaign.interested }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+            <td>{{ campaign.interested }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div id="statsPanel" class="stats">
+        <h3 id="statsTitle">Campaign Statistics</h3>
+        <p>Total Leads: <span id="statLeads">0</span></p>
+        <p>Enriched: <span id="statEnriched">0</span></p>
+        <p>Proposals: <span id="statProposals">0</span></p>
+        <p>Replies: <span id="statReplies">0</span></p>
+        <p>Interested: <span id="statInterested">0</span></p>
     </div>
 
-    <!-- Expandable Stats Panel -->
-    <div id="campaign-stats" class="stats-panel hidden">
-      <div class="stats-header">
-        <h3 id="stats-title">Campaign Statistics</h3>
-        <button class="btn-close" onclick="hideCampaignStats()">&times;</button>
-      </div>
-      
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="stat-value" id="conversion-rate">-</div>
-          <div class="stat-label">Conversion Rate</div>
-        </div>
+    <script>
+        function toggleForm() {
+            const form = document.getElementById('newForm');
+            form.style.display = form.style.display === 'block' ? 'none' : 'block';
+        }
         
-        <div class="stat-item">
-          <div class="stat-value" id="response-rate">-</div>
-          <div class="stat-label">Response Rate</div>
-        </div>
+        function createCampaign() {
+            alert('Campaign creation would be implemented here');
+            toggleForm();
+        }
         
-        <div class="stat-item">
-          <div class="stat-value" id="enrichment-rate">-</div>
-          <div class="stat-label">Enrichment Rate</div>
-        </div>
-        
-        <div class="stat-item">
-          <div class="stat-value" id="proposal-rate">-</div>
-          <div class="stat-label">Proposal Rate</div>
-        </div>
-        
-        <div class="stat-item">
-          <div class="stat-value" id="cost-per-lead">-</div>
-          <div class="stat-label">Cost per Lead</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="{{ url_for('static', filename='campaigns.js') }}"></script>
+        function showStats(id, name, leads, enriched, proposals, replies, interested) {
+            document.getElementById('statsTitle').textContent = name + ' - Statistics';
+            document.getElementById('statLeads').textContent = leads;
+            document.getElementById('statEnriched').textContent = enriched;
+            document.getElementById('statProposals').textContent = proposals;
+            document.getElementById('statReplies').textContent = replies;
+            document.getElementById('statInterested').textContent = interested;
+            document.getElementById('statsPanel').style.display = 'block';
+        }
+    </script>
 </body>
 </html>

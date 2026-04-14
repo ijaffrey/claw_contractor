@@ -744,8 +744,6 @@ def create_campaign():
     except Exception as e:
         logger.error(f'Error creating campaign: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
-            FROM campaigns
-            ORDER BY name
         """)
         
         result = db_session.execute(query)
@@ -800,3 +798,52 @@ def campaigns_leads():
         }
     ]
     return render_template('leads.html', leads=leads_data)
+
+@app.route('/campaigns')
+def campaigns():
+    """Campaigns page with mock data"""
+    try:
+        # Mock campaign data with all 9 required columns
+        mock_campaigns = [
+            {
+                'id': 1,
+                'name': 'Manhattan Plumbing Outreach',
+                'angle': 'Emergency repairs',
+                'trade': 'Plumbing',
+                'borough': 'Manhattan',
+                'lead_count': 145,
+                'enriched_count': 132,
+                'proposals_sent': 87,
+                'replies': 23,
+                'interested': 8
+            },
+            {
+                'id': 2,
+                'name': 'Brooklyn HVAC Campaign',
+                'angle': 'Winter maintenance',
+                'trade': 'HVAC',
+                'borough': 'Brooklyn',
+                'lead_count': 203,
+                'enriched_count': 189,
+                'proposals_sent': 156,
+                'replies': 41,
+                'interested': 15
+            },
+            {
+                'id': 3,
+                'name': 'Queens Electrical Safety',
+                'angle': 'Code compliance',
+                'trade': 'Electrical',
+                'borough': 'Queens',
+                'lead_count': 98,
+                'enriched_count': 85,
+                'proposals_sent': 62,
+                'replies': 18,
+                'interested': 6
+            }
+        ]
+        
+        return render_template('campaigns.html', campaigns=mock_campaigns)
+    except Exception as e:
+        logging.error(f"Error in campaigns route: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
