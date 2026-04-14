@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Leads - Contractor AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='campaigns.css') }}">
+</head>
+<body>
+    <nav>
+        <div class="nav-brand">Contractor AI</div>
+        <div class="nav-links">
+            <a href="/campaigns">Dashboard</a>
+            <a href="/campaigns/leads" class="active">Leads</a>
+            <a href="/campaigns/proposals">Proposals</a>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-header">
+            <h1>Campaign Leads</h1>
+            <div class="header-actions">
+                <button class="btn-secondary" onclick="exportCSV()">Export CSV</button>
+                <button class="btn-primary" onclick="enrichSelected()">Enrich Selected</button>
+            </div>
+        </div>
