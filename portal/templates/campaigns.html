@@ -83,7 +83,7 @@
             <th>Interested</th>
           </tr>
         </thead>
-        <tbody id="campaigns-tbody">
+        <tbody id="campaigns-tbody">{% for campaign in campaigns %}<tr class="campaign-row" onclick="showStats(this, {{ loop.index0 }})"><td>{{ campaign.name }}</td><td>{{ campaign.angle }}</td><td>{{ campaign.trade }}</td><td>{{ campaign.borough }}</td><td>{{ campaign.lead_count }}</td><td>{{ campaign.enriched_count }}</td><td>{{ campaign.proposals_sent }}</td><td>{{ campaign.replies }}</td><td>{{ campaign.interested }}</td></tr>{% endfor %}
           <!-- Campaigns will be loaded here -->
         </tbody>
       </table>
