@@ -60,7 +60,12 @@ def parse_lead(email_data):
         'source': source,
         'urgency': extracted_data.get('urgency', 'normal'),
         'raw_subject': subject,
-        'raw_body': body
+        'raw_body': body,
+        # Enrichment fields
+        'job_type_classification': extracted_data.get('job_type_classification'),
+        'value_tier': extracted_data.get('value_tier'),
+        'urgency_score': extracted_data.get('urgency_score'),
+        'one_line_summary': extracted_data.get('one_line_summary'),
     }
 
     return lead_data
@@ -100,7 +105,7 @@ def extract_with_claude(subject, body, display_name):
     """
     client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
 
-    prompt = f"""You are a lead data extraction assistant for a plumbing business. Extract structured information from this customer inquiry email.
+    prompt = f"""You are a lead data extraction assistant for a contractor business. Extract structured information from this customer inquiry email.
 
 EMAIL SUBJECT: {subject}
 
@@ -116,7 +121,11 @@ Extract the following information and return ONLY a valid JSON object with these
     "job_type": "brief categorization (e.g., 'leak repair', 'drain cleaning', 'installation', 'general inquiry')",
     "description": "1-2 sentence summary of what the customer needs",
     "location": "address or location if mentioned, otherwise null",
-    "urgency": "emergency|urgent|soon|planning" (emergency=immediate, urgent=same day, soon=this week, planning=future)
+    "urgency": "emergency|urgent|soon|planning" (emergency=immediate, urgent=same day, soon=this week, planning=future),
+    "job_type_classification": "structured trade/category label, e.g. 'plumbing/leak-repair', 'hvac/installation', 'electrical/panel-upgrade', 'roofing/replacement', 'general/remodel'",
+    "value_tier": "small|medium|large" (small=under $1k typical job, medium=$1k-$10k, large=over $10k),
+    "urgency_score": integer 1-5 (1=planning/no rush, 2=within a month, 3=this week, 4=urgent/same-day, 5=emergency),
+    "one_line_summary": "one plain-English sentence describing exactly what the contractor is being asked to do"
 }}
 
 IMPORTANT: Return ONLY the JSON object, no other text."""
@@ -178,7 +187,11 @@ def parse_fallback(subject, body):
         'job_type': job_type,
         'description': body[:200],
         'location': None,
-        'urgency': urgency
+        'urgency': urgency,
+        'job_type_classification': None,
+        'value_tier': None,
+        'urgency_score': None,
+        'one_line_summary': None,
     }
 
 

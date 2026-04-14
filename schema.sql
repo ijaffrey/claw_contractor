@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS leads (
     raw_body TEXT,
     email_thread_id VARCHAR(255),
     email_id VARCHAR(255),
+    -- C4 enrichment fields (populated by lead_parser.extract_with_claude)
+    job_type_classification VARCHAR(100),
+    value_tier VARCHAR(10),
+    urgency_score SMALLINT,
+    one_line_summary TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

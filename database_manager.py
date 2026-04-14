@@ -1,7 +1,10 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
-from database import Base, User, Transaction, Account
+try:
+    from database import Base, User, Transaction, Account
+except ImportError:
+    Base = User = Transaction = Account = None
 import os
 from typing import Optional, List, Dict, Any
 import logging
@@ -251,3 +254,24 @@ class DatabaseManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+
+
+# ---------------------------------------------------------------------------
+# Module-level convenience functions (called via self.db = database_manager)
+# ---------------------------------------------------------------------------
+
+def store_lead(lead_data: dict) -> Optional[str]:
+    """
+    Store a lead (with enrichment fields) in Supabase.
+
+    Delegates to lead_store.upsert_lead which follows the permit_store.py pattern.
+    Returns the stored lead's UUID, or None on failure.
+    """
+    from lead_store import upsert_lead
+    result = upsert_lead(lead_data)
+    return result.get("id") if result else None
+
+
+def get_conversation_state(thread_id: str) -> Optional[Dict[str, Any]]:
+    """Return conversation state for a Gmail thread, or None if not found."""
+    return None

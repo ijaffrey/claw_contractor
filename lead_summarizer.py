@@ -73,6 +73,16 @@ class LeadSummarizer:
         return "\n\n".join(formatted)
     def _build_summary_prompt(self, lead_info: Dict, conversation: str) -> str:
         """Build prompt for Claude summary generation"""
+        # Include enrichment fields if already populated
+        enrichment_block = ""
+        if any(lead_info.get(k) for k in ("job_type_classification", "value_tier", "urgency_score", "one_line_summary")):
+            enrichment_block = f"""
+**Job Classification:** {lead_info.get('job_type_classification', 'N/A')}
+**Value Tier:** {lead_info.get('value_tier', 'N/A')}
+**Urgency Score:** {lead_info.get('urgency_score', 'N/A')} / 5
+**Summary:** {lead_info.get('one_line_summary', 'N/A')}
+"""
+
         return f"""Analyze this contractor lead conversation and create a structured summary.
 
 Lead Information:
@@ -92,7 +102,7 @@ Provide a summary in this exact format:
 **Timeline:** [when they need work done]
 **Budget:** [budget mentioned or "Not specified"]
 **Urgency:** [how urgent this seems]
-
+{enrichment_block}
 ## Key Details
 - [bullet point of important details]
 - [another important detail]
