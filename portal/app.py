@@ -1,3 +1,4 @@
+# Contractor AI - Campaign Intelligence Platform
 import os
 import sys
 import json
