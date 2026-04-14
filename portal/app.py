@@ -744,3 +744,35 @@ def create_campaign():
     except Exception as e:
         logger.error(f'Error creating campaign: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+@app.route('/campaigns')
+def campaigns():
+    """Display campaigns page with table, form, and stats panel"""
+    try:
+        db_session, engine = _get_db()
+        
+        # Query campaigns with all required columns
+        from sqlalchemy import text
+        query = text("""
+            SELECT 
+                name,
+                angle,
+                trade,
+                borough,
+                COALESCE(lead_count, 0) as lead_count,
+                COALESCE(enriched_count, 0) as enriched_count,
+                COALESCE(proposals_sent, 0) as proposals_sent,
+                COALESCE(replies, 0) as replies,
+                COALESCE(interested, 0) as interested
+            FROM campaigns
+            ORDER BY name
+        """)
+        
+        result = db_session.execute(query)
+        campaigns_data = [dict(row._mapping) for row in result.fetchall()]
+        db_session.close()
+        
+        return render_template('campaigns.html', campaigns=campaigns_data)
+    
+    except Exception as e:
+        logger.error(f"Error loading campaigns: {e}")
+        return render_template('campaigns.html', campaigns=[], error=str(e))
