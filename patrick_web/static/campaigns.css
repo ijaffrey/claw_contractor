@@ -1,0 +1,208 @@
+/* Campaigns page specific styles */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-md, 20px);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg, 30px);
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    padding-bottom: var(--spacing-md, 20px);
+}
+
+.page-header h1 {
+    color: var(--primary-color, #2563eb);
+    margin: 0;
+}
+
+/* Filter Panel */
+.filter-panel {
+    display: flex;
+    gap: var(--spacing-md, 20px);
+    margin-bottom: var(--spacing-md, 20px);
+    padding: var(--spacing-md, 20px);
+    background: var(--background-light, #f8f9fa);
+    border-radius: var(--border-radius, 8px);
+    border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs, 8px);
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: var(--text-primary, #1f2937);
+    font-size: 14px;
+}
+
+.filter-select, .filter-range {
+    padding: var(--spacing-xs, 8px);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: var(--border-radius, 8px);
+    background: white;
+}
+
+#score-display {
+    font-size: 12px;
+    color: var(--text-secondary, #6b7280);
+}
+
+/* Bulk Operations Bar */
+.bulk-operations-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md, 20px);
+    background: var(--primary-color, #2563eb);
+    color: white;
+    border-radius: var(--border-radius, 8px);
+    margin-bottom: var(--spacing-md, 20px);
+}
+
+.selected-count {
+    font-weight: 600;
+}
+
+.bulk-actions {
+    display: flex;
+    gap: var(--spacing-sm, 12px);
+}
+
+/* Leads Table */
+.leads-table-container {
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: var(--border-radius, 8px);
+    overflow: hidden;
+}
+
+.leads-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.leads-table th {
+    background: var(--background-light, #f8f9fa);
+    padding: var(--spacing-md, 20px) var(--spacing-sm, 12px);
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary, #1f2937);
+    border-bottom: 2px solid var(--border-color, #e0e0e0);
+}
+
+.leads-table td {
+    padding: var(--spacing-md, 20px) var(--spacing-sm, 12px);
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    vertical-align: top;
+}
+
+.lead-row:hover {
+    background: var(--background-light, #f8f9fa);
+}
+
+.lead-name {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs, 8px);
+    font-weight: 600;
+}
+
+.expand-toggle {
+    cursor: pointer;
+    color: var(--primary-color, #2563eb);
+    transition: transform 0.2s ease;
+    user-select: none;
+}
+
+.expand-toggle.expanded {
+    transform: rotate(90deg);
+}
+
+/* Score Badges */
+.score-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    min-width: 30px;
+    text-align: center;
+}
+
+.score-badge.score-high {
+    background: var(--success-color, #059669); /* Green for 75-100 */
+}
+
+.score-badge.score-medium {
+    background: var(--warning-color, #d97706); /* Amber for 25-74 */
+}
+
+.score-badge.score-low {
+    background: var(--error-color, #dc2626); /* Red for 0-24 */
+}
+
+/* Lead Details */
+.lead-details {
+    background: var(--background-light, #f8f9fa);
+}
+
+.details-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-lg, 30px);
+    padding: var(--spacing-lg, 30px);
+}
+
+.details-section h4 {
+    margin: 0 0 var(--spacing-sm, 12px) 0;
+    color: var(--primary-color, #2563eb);
+    font-size: 16px;
+}
+
+.details-section p {
+    margin: var(--spacing-xs, 8px) 0;
+    color: var(--text-primary, #1f2937);
+}
+
+/* Buttons */
+.btn {
+    padding: var(--spacing-xs, 8px) var(--spacing-md, 20px);
+    border: none;
+    border-radius: var(--border-radius, 8px);
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: var(--primary-color, #2563eb);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark, #1d4ed8);
+}
+
+.btn-secondary {
+    background: var(--secondary-color, #6b7280);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: var(--secondary-dark, #4b5563);
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+}
