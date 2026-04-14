@@ -488,6 +488,32 @@ def api_bucket_leads(trade):
         return jsonify({"leads": [], "total": 0, "error": str(e)}), 200
 
 
+@app.route("/api/leads/<int:lead_id>", methods=["GET"])
+def api_get_lead_bucket(lead_id):
+    """Return a single lead with all enrichment contact fields for the expand panel."""
+    try:
+        from sqlalchemy import text
+        db, _ = _get_db()
+        row = db.execute(text("""
+            SELECT id, name, email, phone, company, source, status, notes, score,
+                   enriched_email, enriched_phone, website,
+                   email_source, phone_source,
+                   enrichment_status, enrichment_score, enriched_at,
+                   campaign_tags, outreach_status, last_contacted_at,
+                   created_at, updated_at
+            FROM leads WHERE id = :id
+        """), {"id": lead_id}).fetchone()
+        if not row:
+            return jsonify({"error": "Lead not found"}), 404
+        cols = list(row.keys())
+        lead = dict(zip(cols, row))
+        db.close()
+        return jsonify({"lead": lead})
+    except Exception as e:
+        logger.exception("api_get_lead_bucket failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/leads/<int:lead_id>/enrich", methods=["POST"])
 def api_enrich_lead_bucket(lead_id):
     """Alias for enriching a single lead — used by /bucket/<trade> UI."""
