@@ -575,8 +575,44 @@ def api_update_lead_bucket(lead_id):
 
 @app.route("/api/leads/<int:lead_id>/proposal", methods=["POST"])
 def api_proposal_bucket(lead_id):
-    """Alias for proposal generation — used by /bucket/<trade> UI."""
-    return api_generate_proposal(lead_id)
+    """Enrichment-aware proposal generation for /bucket/<trade> UI.
+
+    If the lead has enrichment data (enriched_email or enriched_phone),
+    the contact name and deal-size hook are injected into the proposal.
+    Falls back to generic proposal if no enrichment data exists.
+    """
+    data = request.get_json() or {}
+    brand = data.get("brand", "skipp")
+
+    try:
+        from sqlalchemy import text
+        from drafted.proposal_generator import generate_proposal
+
+        db, _ = _get_db()
+        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
+        if not row:
+            return jsonify({"error": "Lead not found"}), 404
+
+        lead_dict = dict(zip(row.keys(), row))
+        db.close()
+
+        # If enrichment data exists, promote enriched contact info into name/email
+        # so the proposal generator picks up the real contact details
+        has_enrichment = bool(lead_dict.get("enriched_email") or lead_dict.get("enriched_phone"))
+        if has_enrichment:
+            # Use enriched email as primary email so proposal can address the right contact
+            if lead_dict.get("enriched_email") and not lead_dict.get("email"):
+                lead_dict["email"] = lead_dict["enriched_email"]
+            # Inject estimated_job_costs from score for the permit hook
+            if not lead_dict.get("estimated_job_costs") and lead_dict.get("score"):
+                lead_dict["estimated_job_costs"] = int(lead_dict["score"]) * 10000
+
+        result = generate_proposal(lead_dict, brand=brand)
+        result["enrichment_used"] = has_enrichment
+        return jsonify({"ok": True, "lead_id": lead_id, **result})
+    except Exception as e:
+        logger.exception("api_proposal_bucket failed")
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
