@@ -41,12 +41,12 @@ def health():
 
 @app.route("/campaigns")
 def campaigns_page():
-    return render_template("campaign_dashboard.html")
+    return render_template("campaigns.html")
 
 
 @app.route("/campaigns/leads")
 def campaign_leads_page():
-    return render_template("campaign_dashboard.html")
+    return render_template("campaigns.html")
 
 
 # ── API: Leads with enrichment data ────────────────────────────────────────
