@@ -38,3 +38,53 @@ if static_path.exists():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+from fastapi.templating import Jinja2Templates
+from fastapi import Request
+
+# Setup template rendering
+templates = Jinja2Templates(directory="patrick_web/templates")
+
+@app.get("/campaigns/leads")
+async def campaigns_leads(request: Request):
+    """Campaign leads management page"""
+    # Mock data for leads table
+    leads_data = [
+        {
+            "id": 1,
+            "name": "John Smith Construction",
+            "trade": "General Contractor",
+            "borough": "Manhattan",
+            "enrichment_score": 85,
+            "outreach_status": "Not Contacted",
+            "phone": "(555) 123-4567",
+            "email": "john@smithconstruction.com",
+            "permit_count": 12
+        },
+        {
+            "id": 2,
+            "name": "Brooklyn Builders LLC",
+            "trade": "Electrical",
+            "borough": "Brooklyn",
+            "enrichment_score": 45,
+            "outreach_status": "Contacted",
+            "phone": "(555) 987-6543",
+            "email": "info@brooklynbuilders.com",
+            "permit_count": 8
+        },
+        {
+            "id": 3,
+            "name": "Queens Plumbing Co",
+            "trade": "Plumbing",
+            "borough": "Queens",
+            "enrichment_score": 15,
+            "outreach_status": "Proposal Sent",
+            "phone": "(555) 456-7890",
+            "email": "contact@queensplumbing.com",
+            "permit_count": 3
+        }
+    ]
+    return templates.TemplateResponse("campaigns/leads.html", {
+        "request": request,
+        "leads": leads_data,
+        "title": "Campaign Leads"
+    })
