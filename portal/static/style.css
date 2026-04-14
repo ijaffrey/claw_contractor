@@ -291,3 +291,109 @@ body {
     padding: var(--spacing-xs);
   }
 }
+/* Score badges */
+.score-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  min-width: 40px;
+}
+
+.score-high {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.score-medium {
+  background-color: var(--warning-color);
+  color: white;
+}
+
+.score-low {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+/* Bulk operations bar */
+.bulk-operations {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: var(--spacing-md);
+  display: none;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.bulk-operations.show {
+  display: flex;
+}
+
+/* Table styles */
+.leads-table-container {
+  background: var(--surface);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.leads-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leads-table th,
+.leads-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.leads-table th {
+  background-color: var(--background);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.lead-row:hover {
+  background-color: var(--background);
+}
+
+.lead-details {
+  background-color: var(--background);
+}
+
+.details-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md);
+}
+
+.details-section h4 {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: var(--font-xs);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.btn-outline:hover {
+  background: var(--background);
+}

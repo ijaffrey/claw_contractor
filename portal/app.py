@@ -847,3 +847,67 @@ def campaigns():
     except Exception as e:
         logging.error(f"Error in campaigns route: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/campaigns/leads')
+def leads():
+    """Display leads page with mock data"""
+    mock_leads = [
+        {
+            'id': 1,
+            'company_name': 'Brooklyn Construction LLC',
+            'contact_name': 'John Smith',
+            'email': 'john@brooklynconstruction.com',
+            'phone': '(718) 555-0123',
+            'trade': 'General Contractor',
+            'borough': 'Brooklyn',
+            'score': 87,
+            'outreach_status': 'Not Contacted',
+            'permit_count': 12,
+            'last_permit': '2024-01-15',
+            'proposal_drafts': 2
+        },
+        {
+            'id': 2,
+            'company_name': 'Manhattan Plumbing Co',
+            'contact_name': 'Sarah Johnson',
+            'email': 'sarah@manhattanplumbing.com',
+            'phone': '(212) 555-0456',
+            'trade': 'Plumber',
+            'borough': 'Manhattan',
+            'score': 45,
+            'outreach_status': 'Email Sent',
+            'permit_count': 8,
+            'last_permit': '2024-02-03',
+            'proposal_drafts': 1
+        },
+        {
+            'id': 3,
+            'company_name': 'Queens Electric Services',
+            'contact_name': 'Mike Rodriguez',
+            'email': 'mike@queenselectric.com',
+            'phone': '(718) 555-0789',
+            'trade': 'Electrician',
+            'borough': 'Queens',
+            'score': 15,
+            'outreach_status': 'Follow-up Required',
+            'permit_count': 3,
+            'last_permit': '2023-12-20',
+            'proposal_drafts': 0
+        },
+        {
+            'id': 4,
+            'company_name': 'Bronx Roofing Solutions',
+            'contact_name': 'Lisa Chen',
+            'email': 'lisa@bronxroofing.com',
+            'phone': '(718) 555-0321',
+            'trade': 'Roofer',
+            'borough': 'Bronx',
+            'score': 92,
+            'outreach_status': 'Meeting Scheduled',
+            'permit_count': 18,
+            'last_permit': '2024-02-10',
+            'proposal_drafts': 3
+        }
+    ]
+    
+    return render_template('leads.html', leads=mock_leads)
