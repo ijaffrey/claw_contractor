@@ -850,13 +850,25 @@
   }
 
   // ── Bulk enrich ───────────────────────────────────────────────────────────
-  function confirmBulkEnrich() {
+  async function confirmBulkEnrich() {
     const n = selectedIds.size;
     if (!n) return;
-    const credits = n * 3;
-    document.getElementById('credit-msg').textContent =
-      `Enrich ${n} selected leads · estimated ${credits} API credits`;
+    // Fetch server-side credit estimate
+    let msg = `Enrich ${n} selected leads · estimating credits…`;
+    document.getElementById('credit-msg').textContent = msg;
     document.getElementById('credit-modal').classList.add('open');
+    try {
+      const r = await fetch('/api/leads/credit-estimate', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ lead_ids: [...selectedIds] }),
+      });
+      const d = await r.json();
+      if (d.total_credits !== undefined) {
+        document.getElementById('credit-msg').textContent =
+          `Enrich ${d.net_leads} leads (${d.already_enriched} already done) · ${d.total_credits} API credits`;
+      }
+    } catch (_) { /* keep default message */ }
   }
 
   function closeCreditModal() {

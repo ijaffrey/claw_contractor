@@ -526,6 +526,47 @@ def api_bulk_enrich_bucket():
     return api_bulk_enrich()
 
 
+@app.route("/api/leads/credit-estimate", methods=["POST"])
+def api_credit_estimate():
+    """Return estimated API credit cost before running bulk enrichment.
+
+    Body: {"lead_ids": [...]}
+    Returns: {"lead_count": N, "credits_per_lead": 3, "total_credits": N*3,
+              "already_enriched": M, "net_leads": N-M}
+    """
+    data = request.get_json() or {}
+    lead_ids = data.get("lead_ids", [])
+    if not lead_ids:
+        return jsonify({"error": "lead_ids required"}), 400
+
+    try:
+        from sqlalchemy import text
+        db, _ = _get_db()
+        placeholders = ",".join(str(int(i)) for i in lead_ids if str(i).lstrip("-").isdigit())
+        if not placeholders:
+            return jsonify({"error": "invalid lead_ids"}), 400
+
+        rows = db.execute(text(f"""
+            SELECT id, enrichment_status FROM leads
+            WHERE id IN ({placeholders})
+        """)).fetchall()
+        db.close()
+
+        already = sum(1 for r in rows if r[1] == "complete")
+        net = len(rows) - already
+        credits_per_lead = 3
+        return jsonify({
+            "lead_count":      len(rows),
+            "already_enriched": already,
+            "net_leads":       net,
+            "credits_per_lead": credits_per_lead,
+            "total_credits":   net * credits_per_lead,
+        })
+    except Exception as e:
+        logger.exception("api_credit_estimate failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/leads/<int:lead_id>", methods=["PATCH"])
 def api_update_lead_bucket(lead_id):
     """Alias for lead patch — used by /bucket/<trade> UI."""
