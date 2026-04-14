@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Campaigns — Contractor AI</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='campaigns.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <nav>
@@ -23,53 +23,61 @@
     </div>
 
     <!-- Inline New Campaign Form -->
-    <div id="new-campaign-form" class="form-container" style="display: none;">
+    <div id="new-campaign-form" class="form-container hidden">
       <div class="form-header">
         <h3>Create New Campaign</h3>
         <button class="btn-close" onclick="toggleNewCampaignForm()">&times;</button>
       </div>
-      <form id="campaign-form" onsubmit="submitCampaign(event)">
+      
+      <form method="POST" action="/api/campaigns">
         <div class="form-row">
           <div class="form-group">
             <label for="name">Campaign Name</label>
             <input type="text" id="name" name="name" required>
           </div>
           <div class="form-group">
-            <label for="target_trade">Target Trade</label>
-            <select id="target_trade" name="target_trade">
-              <option value="plumbing">Plumbing</option>
-              <option value="electrical">Electrical</option>
-              <option value="hvac">HVAC</option>
-              <option value="general">General Contracting</option>
+            <label for="trade">Trade</label>
+            <select id="trade" name="trade" required>
+              <option value="">Select Trade</option>
+              <option value="Roofing">Roofing</option>
+              <option value="Kitchen">Kitchen</option>
+              <option value="HVAC">HVAC</option>
+              <option value="Electrical">Electrical</option>
+              <option value="Plumbing">Plumbing</option>
+              <option value="Flooring">Flooring</option>
+              <option value="Bathroom">Bathroom</option>
             </select>
           </div>
         </div>
+        
         <div class="form-row">
           <div class="form-group">
-            <label for="target_borough">Target Borough</label>
-            <select id="target_borough" name="target_borough">
-              <option value="manhattan">Manhattan</option>
-              <option value="brooklyn">Brooklyn</option>
-              <option value="queens">Queens</option>
-              <option value="bronx">Bronx</option>
-              <option value="staten-island">Staten Island</option>
-            </select>
+            <label for="angle">Campaign Angle</label>
+            <input type="text" id="angle" name="angle" placeholder="e.g., Storm damage repairs">
           </div>
           <div class="form-group">
-            <label for="brand">Brand</label>
-            <input type="text" id="brand" name="brand" placeholder="e.g., NYC Pro Contractors">
+            <label for="borough">Borough</label>
+            <select id="borough" name="borough">
+              <option value="">All Boroughs</option>
+              <option value="Manhattan">Manhattan</option>
+              <option value="Brooklyn">Brooklyn</option>
+              <option value="Queens">Queens</option>
+              <option value="Bronx">Bronx</option>
+              <option value="Staten Island">Staten Island</option>
+            </select>
           </div>
         </div>
+        
         <div class="form-actions">
-          <button type="button" class="btn-secondary" onclick="toggleNewCampaignForm()">Cancel</button>
           <button type="submit" class="btn-primary">Create Campaign</button>
+          <button type="button" class="btn-secondary" onclick="toggleNewCampaignForm()">Cancel</button>
         </div>
       </form>
     </div>
 
     <!-- Campaigns Table -->
     <div class="table-container">
-      <table id="campaigns-table">
+      <table class="campaigns-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -77,46 +85,61 @@
             <th>Trade</th>
             <th>Borough</th>
             <th>Lead Count</th>
-            <th>Enriched Count</th>
-            <th>Proposals Sent</th>
+            <th>Enriched</th>
+            <th>Proposals</th>
             <th>Replies</th>
             <th>Interested</th>
           </tr>
         </thead>
-        <tbody id="campaigns-tbody">{% for campaign in campaigns %}<tr class="campaign-row" onclick="showStats(this, {{ loop.index0 }})"><td>{{ campaign.name }}</td><td>{{ campaign.angle }}</td><td>{{ campaign.trade }}</td><td>{{ campaign.borough }}</td><td>{{ campaign.lead_count }}</td><td>{{ campaign.enriched_count }}</td><td>{{ campaign.proposals_sent }}</td><td>{{ campaign.replies }}</td><td>{{ campaign.interested }}</td></tr>{% endfor %}
-          <!-- Campaigns will be loaded here -->
+        <tbody>
+          {% for campaign in campaigns %}
+          <tr onclick="showCampaignStats({{ campaign.id }}, '{{ campaign.name }}')">
+            <td><strong>{{ campaign.name }}</strong></td>
+            <td>{{ campaign.angle or '-' }}</td>
+            <td>{{ campaign.trade or '-' }}</td>
+            <td>{{ campaign.borough or 'All' }}</td>
+            <td>{{ campaign.lead_count }}</td>
+            <td>{{ campaign.enriched_count }}</td>
+            <td>{{ campaign.proposals_sent }}</td>
+            <td>{{ campaign.replies }}</td>
+            <td class="{% if campaign.interested > 0 %}text-success{% endif %}">{{ campaign.interested }}</td>
+          </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
 
     <!-- Expandable Stats Panel -->
-    <div id="stats-panel" class="stats-panel" style="display: none;">
+    <div id="campaign-stats" class="stats-panel hidden">
       <div class="stats-header">
         <h3 id="stats-title">Campaign Statistics</h3>
-        <button class="btn-close" onclick="closeStatsPanel()">&times;</button>
+        <button class="btn-close" onclick="hideCampaignStats()">&times;</button>
       </div>
-      <div class="stats-content">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-value" id="conversion-rate">--</div>
-            <div class="stat-label">Conversion Rate</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="avg-response-time">--</div>
-            <div class="stat-label">Avg Response Time</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="cost-per-lead">--</div>
-            <div class="stat-label">Cost per Lead</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="roi">--</div>
-            <div class="stat-label">ROI</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="quality-score">--</div>
-            <div class="stat-label">Quality Score</div>
-          </div>
+      
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="conversion-rate">-</div>
+          <div class="stat-label">Conversion Rate</div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-value" id="response-rate">-</div>
+          <div class="stat-label">Response Rate</div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-value" id="enrichment-rate">-</div>
+          <div class="stat-label">Enrichment Rate</div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-value" id="proposal-rate">-</div>
+          <div class="stat-label">Proposal Rate</div>
+        </div>
+        
+        <div class="stat-item">
+          <div class="stat-value" id="cost-per-lead">-</div>
+          <div class="stat-label">Cost per Lead</div>
         </div>
       </div>
     </div>
