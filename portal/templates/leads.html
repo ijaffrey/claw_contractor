@@ -3,222 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campaign Leads - Contractor AI</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='campaigns.css') }}">
+    <title>Campaign Leads</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <nav>
-        <div class="nav-brand">Contractor AI</div>
-        <div class="nav-links">
-            <a href="/campaigns">Dashboard</a>
-            <a href="/campaigns/leads" class="active">Leads</a>
-            <a href="/campaigns/proposals">Proposals</a>
-        </div>
-    </nav>
-
-    <div class="page-container">
-        <div class="page-header">
+    <div class="container">
+        <header class="page-header">
             <h1>Campaign Leads</h1>
             <div class="header-actions">
-                <button class="btn-secondary" onclick="exportCSV()">Export CSV</button>
-                <button class="btn-primary" onclick="enrichSelected()">Enrich Selected</button>
+                <button class="btn btn-primary">Import Leads</button>
             </div>
-        </div>
+        </header>
+
         <!-- Filter Panel -->
         <div class="filter-panel">
             <div class="filter-group">
-                <label for="trade-filter">Trade:</label>
-                <select id="trade-filter" onchange="applyFilters()">
+                <label>Trade:</label>
+                <select id="trade-filter">
                     <option value="">All Trades</option>
-                    <option value="plumbing">Plumbing</option>
-                    <option value="electrical">Electrical</option>
-                    <option value="hvac">HVAC</option>
-                    <option value="general">General Contractor</option>
+                    <option value="General Contractor">General Contractor</option>
+                    <option value="Plumber">Plumber</option>
+                    <option value="Electrician">Electrician</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="borough-filter">Borough:</label>
-                <select id="borough-filter" onchange="applyFilters()">
+                <label>Borough:</label>
+                <select id="borough-filter">
                     <option value="">All Boroughs</option>
-                    <option value="manhattan">Manhattan</option>
-                    <option value="brooklyn">Brooklyn</option>
-                    <option value="queens">Queens</option>
-                    <option value="bronx">Bronx</option>
-                    <option value="staten-island">Staten Island</option>
+                    <option value="Manhattan">Manhattan</option>
+                    <option value="Brooklyn">Brooklyn</option>
+                    <option value="Queens">Queens</option>
+                    <option value="Bronx">Bronx</option>
+                    <option value="Staten Island">Staten Island</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="score-range">Score Range:</label>
-                <select id="score-range" onchange="applyFilters()">
-                    <option value="">All Scores</option>
-                    <option value="75-100">High (75-100)</option>
-                    <option value="25-74">Medium (25-74)</option>
-                    <option value="0-24">Low (0-24)</option>
-                </select>
+                <label>Score Range:</label>
+                <input type="range" id="score-min" min="0" max="100" value="0">
+                <span id="score-range">0 - 100</span>
+                <input type="range" id="score-max" min="0" max="100" value="100">
             </div>
             <div class="filter-group">
-                <label for="outreach-status">Outreach Status:</label>
-                <select id="outreach-status" onchange="applyFilters()">
-                    <option value="">All Statuses</option>
-                    <option value="not-contacted">Not Contacted</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="responded">Responded</option>
-                    <option value="qualified">Qualified</option>
+                <label>Outreach Status:</label>
+                <select id="status-filter">
+                    <option value="">All Status</option>
+                    <option value="Not Contacted">Not Contacted</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Responded">Responded</option>
                 </select>
             </div>
         </div>
 
-        <!-- Bulk Operations Bar (hidden by default) -->
-        <div class="bulk-operations" id="bulk-operations" style="display: none;">
-            <div class="bulk-selection-info">
+        <!-- Bulk Operations Bar -->
+        <div id="bulk-operations" class="bulk-operations" style="display: none;">
+            <div class="bulk-info">
                 <span id="selected-count">0</span> leads selected
             </div>
             <div class="bulk-actions">
-                <button class="btn-secondary" onclick="bulkEnrich()">Enrich</button>
-                <button class="btn-secondary" onclick="bulkGenerateProposals()">Generate Proposals</button>
-                <button class="btn-secondary" onclick="bulkExportCSV()">Export CSV</button>
-                <button class="btn-secondary" onclick="bulkTagCampaign()">Tag Campaign</button>
+                <button class="btn btn-secondary" id="bulk-enrich">Enrich</button>
+                <button class="btn btn-secondary" id="bulk-proposals">Generate Proposals</button>
+                <button class="btn btn-secondary" id="bulk-export">Export CSV</button>
+                <button class="btn btn-secondary" id="bulk-tag">Tag Campaign</button>
             </div>
         </div>
-
-        <!-- Leads Table -->
-        <div class="leads-table-container">
-            <table class="leads-table">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
-                        <th>Name</th>
-                        <th>Company</th>
-                        <th>Trade</th>
-                        <th>Borough</th>
-                        <th>Score</th>
-                        <th>Status</th>
-                        <th>Last Contact</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="leads-tbody">
-                    <tr class="lead-row" data-lead-id="1">
-                        <td><input type="checkbox" class="lead-checkbox" onchange="updateBulkOperations()"></td>
-                        <td>
-                            <div class="lead-name">John Smith</div>
-                            <div class="lead-email">john@smithplumbing.com</div>
-                        </td>
-                        <td>Smith Plumbing Co.</td>
-                        <td>Plumbing</td>
-                        <td>Manhattan</td>
-                        <td><span class="score-badge score-high">85</span></td>
-                        <td><span class="status-badge status-contacted">Contacted</span></td>
-                        <td>2 days ago</td>
-                        <td><button class="btn-expand" onclick="toggleRowExpansion(1)">↓</button></td>
-                    </tr>
-                    <tr class="lead-details" id="details-1" style="display: none;">
-                        <td colspan="9">
-                            <div class="lead-details-content">
-                                <div class="details-section">
-                                    <h4>Contact Details</h4>
-                                    <p><strong>Phone:</strong> (555) 123-4567</p>
-                                    <p><strong>Address:</strong> 123 Main St, New York, NY 10001</p>
-                                    <p><strong>Website:</strong> www.smithplumbing.com</p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Permit History</h4>
-                                    <ul>
-                                        <li>PLB-2024-001 - Kitchen renovation permit (Approved)</li>
-                                        <li>PLB-2023-015 - Bathroom remodel permit (Completed)</li>
-                                    </ul>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Proposal Drafts</h4>
-                                    <ul>
-                                        <li>Kitchen Plumbing Upgrade - Draft created 3 days ago</li>
-                                        <li>Bathroom Renovation - Draft in review</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    
-                    <tr class="lead-row" data-lead-id="2">
-                        <td><input type="checkbox" class="lead-checkbox" onchange="updateBulkOperations()"></td>
-                        <td>
-                            <div class="lead-name">Maria Rodriguez</div>
-                            <div class="lead-email">maria@voltelectrical.com</div>
-                        </td>
-                        <td>Volt Electrical Services</td>
-                        <td>Electrical</td>
-                        <td>Brooklyn</td>
-                        <td><span class="score-badge score-medium">62</span></td>
-                        <td><span class="status-badge status-not-contacted">Not Contacted</span></td>
-                        <td>Never</td>
-                        <td><button class="btn-expand" onclick="toggleRowExpansion(2)">↓</button></td>
-                    </tr>                    <tr class="lead-details" id="details-2" style="display: none;">
-                        <td colspan="9">
-                            <div class="lead-details-content">
-                                <div class="details-section">
-                                    <h4>Contact Details</h4>
-                                    <p><strong>Phone:</strong> (718) 555-9876</p>
-                                    <p><strong>Address:</strong> 456 Oak Ave, Brooklyn, NY 11201</p>
-                                    <p><strong>Website:</strong> www.voltelectrical.com</p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Permit History</h4>
-                                    <ul>
-                                        <li>ELC-2024-005 - Office rewiring permit (In Progress)</li>
-                                    </ul>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Proposal Drafts</h4>
-                                    <p>No proposals yet</p>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    
-                    <tr class="lead-row" data-lead-id="3">
-                        <td><input type="checkbox" class="lead-checkbox" onchange="updateBulkOperations()"></td>
-                        <td>
-                            <div class="lead-name">David Chen</div>
-                            <div class="lead-email">david@chenhvac.com</div>
-                        </td>
-                        <td>Chen HVAC Solutions</td>
-                        <td>HVAC</td>
-                        <td>Queens</td>
-                        <td><span class="score-badge score-low">18</span></td>
-                        <td><span class="status-badge status-responded">Responded</span></td>
-                        <td>1 week ago</td>
-                        <td><button class="btn-expand" onclick="toggleRowExpansion(3)">↓</button></td>
-                    </tr>
-                    <tr class="lead-details" id="details-3" style="display: none;">
-                        <td colspan="9">
-                            <div class="lead-details-content">
-                                <div class="details-section">
-                                    <h4>Contact Details</h4>
-                                    <p><strong>Phone:</strong> (347) 555-2468</p>
-                                    <p><strong>Address:</strong> 789 Pine St, Flushing, NY 11354</p>
-                                    <p><strong>Website:</strong> www.chenhvac.com</p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Permit History</h4>
-                                    <ul>
-                                        <li>HVC-2023-012 - Restaurant HVAC installation (Completed)</li>
-                                        <li>HVC-2023-008 - Residential AC permit (Approved)</li>
-                                    </ul>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Proposal Drafts</h4>
-                                    <ul>
-                                        <li>Commercial HVAC Upgrade - Draft pending review</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script src="{{ url_for('static', filename='campaigns.js') }}"></script>
-</body>
-</html>
