@@ -80,3 +80,76 @@
                 <button class="btn-secondary" onclick="bulkTagCampaign()">Tag Campaign</button>
             </div>
         </div>
+
+        <!-- Leads Table -->
+        <div class="leads-table-container">
+            <table class="leads-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Trade</th>
+                        <th>Borough</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Last Contact</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leads-tbody">
+                    <tr class="lead-row" data-lead-id="1">
+                        <td><input type="checkbox" class="lead-checkbox" onchange="updateBulkOperations()"></td>
+                        <td>
+                            <div class="lead-name">John Smith</div>
+                            <div class="lead-email">john@smithplumbing.com</div>
+                        </td>
+                        <td>Smith Plumbing Co.</td>
+                        <td>Plumbing</td>
+                        <td>Manhattan</td>
+                        <td><span class="score-badge score-high">85</span></td>
+                        <td><span class="status-badge status-contacted">Contacted</span></td>
+                        <td>2 days ago</td>
+                        <td><button class="btn-expand" onclick="toggleRowExpansion(1)">↓</button></td>
+                    </tr>
+                    <tr class="lead-details" id="details-1" style="display: none;">
+                        <td colspan="9">
+                            <div class="lead-details-content">
+                                <div class="details-section">
+                                    <h4>Contact Details</h4>
+                                    <p><strong>Phone:</strong> (555) 123-4567</p>
+                                    <p><strong>Address:</strong> 123 Main St, New York, NY 10001</p>
+                                    <p><strong>Website:</strong> www.smithplumbing.com</p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Permit History</h4>
+                                    <ul>
+                                        <li>PLB-2024-001 - Kitchen renovation permit (Approved)</li>
+                                        <li>PLB-2023-015 - Bathroom remodel permit (Completed)</li>
+                                    </ul>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Proposal Drafts</h4>
+                                    <ul>
+                                        <li>Kitchen Plumbing Upgrade - Draft created 3 days ago</li>
+                                        <li>Bathroom Renovation - Draft in review</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <tr class="lead-row" data-lead-id="2">
+                        <td><input type="checkbox" class="lead-checkbox" onchange="updateBulkOperations()"></td>
+                        <td>
+                            <div class="lead-name">Maria Rodriguez</div>
+                            <div class="lead-email">maria@voltelectrical.com</div>
+                        </td>
+                        <td>Volt Electrical Services</td>
+                        <td>Electrical</td>
+                        <td>Brooklyn</td>
+                        <td><span class="score-badge score-medium">62</span></td>
+                        <td><span class="status-badge status-not-contacted">Not Contacted</span></td>
+                        <td>Never</td>
+                        <td><button class="btn-expand" onclick="toggleRowExpansion(2)">↓</button></td>
+                    </tr>
