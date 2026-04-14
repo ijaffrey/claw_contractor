@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ trade }} Permits — Contractor AI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      background: #1a1f2e;
+      border-bottom: 1px solid #2d3748;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    nav .logo { font-weight: 700; font-size: 1.1rem; color: #63b3ed; letter-spacing: -0.5px; }
+    nav a { color: #a0aec0; text-decoration: none; font-size: 0.875rem; }
+    nav a:hover { color: #e2e8f0; }
+    nav .trade-label {
+      margin-left: auto;
+      font-size: 0.8rem;
+      color: #718096;
+      background: #2d3748;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    /* ── Main ── */
+    .main { padding: 24px; }
+
+    /* ── Page header ── */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .page-header h1 { font-size: 1.25rem; font-weight: 600; }
+    .page-header .subtitle { font-size: 0.8rem; color: #718096; margin-top: 3px; }
+
+    /* ── Stats bar ── */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .stat-card {
+      flex: 1;
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; color: #63b3ed; }
+    .stat-card .label { font-size: 0.75rem; color: #718096; margin-top: 2px; }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #a0aec0;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-pill:hover { border-color: #718096; color: #e2e8f0; }
+    .filter-pill.active { background: #2b6cb0; border-color: #63b3ed; color: #bee3f8; }
+    .filter-spacer { flex: 1; }
+    .bulk-enrich-btn {
+      background: #276749;
+      border: 1px solid #38a169;
+      color: #9ae6b4;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: none;
+    }
+    .bulk-enrich-btn:hover { background: #2f855a; }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #2d3748; }
+    th {
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #718096;
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 12px;
+      font-size: 0.825rem;
+      border-top: 1px solid #2d3748;
+      vertical-align: middle;
+    }
+    tr.data-row:hover td { background: #1e2533; cursor: pointer; }
+    tr.data-row.selected td { background: #1e3a5f; }
+
+    /* ── Enrich button ── */
+    .btn-enrich {
+      border: none;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-enrich.green  { background: #276749; color: #9ae6b4; }
+    .btn-enrich.orange { background: #7b341e; color: #fbd38d; }
+    .btn-enrich.grey   { background: #2d3748; color: #718096; border: 1px solid #4a5568; }
+    .btn-enrich.loading { opacity: 0.6; cursor: not-allowed; }
+
+    /* ── Generate button ── */
+    .btn-generate {
+      background: #2c5282;
+      border: 1px solid #4299e1;
+      color: #bee3f8;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-generate:hover { background: #2b6cb0; }
+
+    /* ── Action buttons in row ── */
+    .row-actions { display: flex; gap: 6px; align-items: center; }
+
+    /* ── Confidence badge ── */
+    .conf-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .conf-high { background: #276749; color: #9ae6b4; }
+    .conf-med  { background: #7b341e; color: #fbd38d; }
+    .conf-low  { background: #4a1942; color: #f9a8d4; }
+    .conf-none { background: #2d3748; color: #718096; }
+
+    /* ── Status pill ── */
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.72rem;
+    }
+    .st-none      { background: #2d3748; color: #718096; }
+    .st-not_started { background: #2d3748; color: #a0aec0; }
+    .st-proposal_ready { background: #553c9a; color: #d6bcfa; }
+    .st-sent      { background: #2c5282; color: #90cdf4; }
+    .st-replied   { background: #276749; color: #9ae6b4; }
+    .st-interested { background: #744210; color: #f6e05e; }
+
+    /* ── Expand row ── */
+    .expand-row td {
+      padding: 0;
+      background: #12151f;
+      border-top: 1px solid #2d3748;
+    }
+    .expand-content {
+      padding: 16px 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      font-size: 0.8rem;
+    }
+    .expand-field label {
+      display: block;
+      color: #718096;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 3px;
+    }
+    .expand-field .val { color: #e2e8f0; }
+    .expand-field a { color: #63b3ed; text-decoration: none; }
+    .expand-field a:hover { text-decoration: underline; }
+    .source-badge {
+      display: inline-block;
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.68rem;
+      color: #a0aec0;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .expand-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      align-items: center;
+    }
+    .action-btn {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .action-btn.primary { background: #2c5282; border-color: #4299e1; color: #bee3f8; }
+    .action-btn:hover { background: #4a5568; }
+    .action-btn.primary:hover { background: #2b6cb0; }
+
+    /* ── Status dropdown in expand ── */
+    .status-select {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #e2e8f0;
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .status-select:focus { outline: none; border-color: #63b3ed; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 0.825rem;
+      color: #a0aec0;
+    }
+    .page-btn {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #276749;
+      color: #9ae6b4;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.875rem;
+      display: none;
+      z-index: 1000;
+      max-width: 340px;
+    }
+
+    /* ── Credit estimate modal ── */
+    #credit-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+    #credit-modal.open { display: flex; }
+    .modal-box {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 28px 32px;
+      min-width: 320px;
+    }
+    .modal-box h3 { font-size: 1rem; margin-bottom: 10px; }
+    .modal-box p { font-size: 0.85rem; color: #a0aec0; margin-bottom: 18px; }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-actions button { flex: 1; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+    .btn-confirm { background: #276749; border: none; color: #9ae6b4; }
+    .btn-cancel  { background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; }
+
+    /* ── Proposal modal ── */
+    #proposal-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+    #proposal-modal.open { display: flex; }
+    .proposal-box {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 28px 32px;
+      min-width: 520px;
+      max-width: 680px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .proposal-box h3 { font-size: 1rem; margin-bottom: 6px; }
+    .proposal-subject { color: #63b3ed; font-size: 0.875rem; margin-bottom: 14px; }
+    .proposal-body {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 14px;
+      font-size: 0.825rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+    .proposal-brand-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .brand-btn {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #a0aec0;
+      border-radius: 5px;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .brand-btn.active { background: #2c5282; border-color: #63b3ed; color: #bee3f8; }
+    .proposal-close {
+      margin-top: 14px;
+      width: 100%;
+      padding: 8px;
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">Contractor AI</span>
+  <a href="/health">Status</a>
+  <a href="/campaigns">Campaigns</a>
+  <span class="trade-label" id="nav-trade">{{ trade }}</span>
+</nav>
+
+<div class="main">
+
+  <div class="page-header">
+    <div>
+      <h1 id="page-title">{{ trade }} Permits</h1>
+      <div class="subtitle" id="page-subtitle">Loading permit leads…</div>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="value" id="stat-total">—</div><div class="label">Total Permits</div></div>
+    <div class="stat-card"><div class="value" id="stat-pipeline">—</div><div class="label">Est. Pipeline</div></div>
+    <div class="stat-card"><div class="value" id="stat-proposals">—</div><div class="label">Proposals Ready</div></div>
+    <div class="stat-card"><div class="value" id="stat-avg-deal">—</div><div class="label">Avg Deal Size</div></div>
+    <div class="stat-card"><div class="value" id="stat-enriched">—</div><div class="label">Enriched</div></div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <button class="filter-pill active" data-filter="all" onclick="setFilter(this,'all')">All</button>
+    <button class="filter-pill" data-filter="not_started" onclick="setFilter(this,'not_started')">Not started</button>
+    <button class="filter-pill" data-filter="proposal_ready" onclick="setFilter(this,'proposal_ready')">Proposal ready</button>
+    <button class="filter-pill" data-filter="sent" onclick="setFilter(this,'sent')">Sent</button>
+    <button class="filter-pill" data-filter="big" onclick="setFilter(this,'big')">$500K+</button>
+    <button class="filter-pill" data-filter="manhattan" onclick="setFilter(this,'manhattan')">Manhattan</button>
+    <span class="filter-spacer"></span>
+    <button class="bulk-enrich-btn" id="bulk-enrich-btn" onclick="confirmBulkEnrich()">
+      Enrich Selected (<span id="sel-count">0</span>)
+    </button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:32px;"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"></th>
+          <th>Address</th>
+          <th>Year</th>
+          <th>Neighborhood</th>
+          <th>Job Type</th>
+          <th>Est. Deal Size</th>
+          <th>Date Filed</th>
+          <th>Confidence</th>
+          <th>Status</th>
+          <th style="width:180px;"></th>
+        </tr>
+      </thead>
+      <tbody id="leads-tbody">
+        <tr><td colspan="10"><div class="empty-state">Loading…</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination">
+    <button class="page-btn" id="btn-prev" onclick="changePage(-1)" disabled>← Prev</button>
+    <span id="page-info">Page 1</span>
+    <button class="page-btn" id="btn-next" onclick="changePage(1)" disabled>Next →</button>
+  </div>
+
+</div>
+
+<!-- Credit estimate modal -->
+<div id="credit-modal">
+  <div class="modal-box">
+    <h3>Confirm Bulk Enrichment</h3>
+    <p id="credit-msg"></p>
+    <div class="modal-actions">
+      <button class="btn-confirm" onclick="runBulkEnrich()">Run Enrichment</button>
+      <button class="btn-cancel" onclick="closeCreditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Proposal modal -->
+<div id="proposal-modal">
+  <div class="proposal-box">
+    <h3>Generated Proposal</h3>
+    <div class="proposal-brand-row">
+      <button class="brand-btn active" id="brand-skipp" onclick="switchBrand('skipp')">Skipp</button>
+      <button class="brand-btn" id="brand-drafted" onclick="switchBrand('drafted')">Drafted</button>
+    </div>
+    <div class="proposal-subject" id="proposal-subject"></div>
+    <div class="proposal-body" id="proposal-body"></div>
+    <button class="proposal-close" onclick="closeProposalModal()">Close</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  const TRADE = '{{ trade }}';
+  let allLeads   = [];
+  let filtered   = [];
+  let page       = 1;
+  const PAGE_SIZE = 25;
+  let selectedIds = new Set();
+  let expandedId  = null;
+  let activeFilter = 'all';
+  let proposalLeadId = null;
+  let proposalCache  = {};   // brand → {subject, body}
+  let activeBrand    = 'skipp';
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', fetchLeads);
+
+  async function fetchLeads() {
+    try {
+      const r = await fetch(`/api/bucket/${TRADE}/leads`);
+      const d = await r.json();
+      allLeads = d.leads || [];
+      applyCurrentFilter();
+      updateStats();
+    } catch (e) {
+      showToast('Failed to load leads: ' + e.message, true);
+    }
+  }
+
+  // ── Permit field helpers ──────────────────────────────────────────────────
+  function permitAddress(l) {
+    // Try permit-specific fields first, fall back to company name
+    if (l.site_address)      return l.site_address;
+    if (l.house_no && l.street_name) return `${l.house_no} ${l.street_name}`;
+    return l.company || l.name || '—';
+  }
+
+  function permitYear(l) {
+    const d = l.date_filed || l.created_at;
+    return d ? new Date(d).getFullYear() : '—';
+  }
+
+  function permitNeighborhood(l) {
+    if (l.borough) return l.borough;
+    const tags = (l.campaign_tags || '').split(',').map(t => t.trim()).filter(Boolean);
+    const boroughs = ['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+    for (const b of boroughs) if (tags.some(t => t.toLowerCase().includes(b.toLowerCase()))) return b;
+    return l.source || '—';
+  }
+
+  function permitJobType(l) {
+    return l.job_type || l.work_type || l.source || '—';
+  }
+
+  function permitDealSize(l) {
+    if (l.estimated_job_costs && l.estimated_job_costs > 0) {
+      return fmtDollar(l.estimated_job_costs);
+    }
+    if (l.score && l.score > 0) {
+      return fmtDollar(l.score * 10000);
+    }
+    return '—';
+  }
+
+  function permitDealSizeRaw(l) {
+    if (l.estimated_job_costs && l.estimated_job_costs > 0) return l.estimated_job_costs;
+    if (l.score && l.score > 0) return l.score * 10000;
+    return 0;
+  }
+
+  function permitDateFiled(l) {
+    const d = l.date_filed || l.created_at;
+    return d ? new Date(d).toLocaleDateString() : '—';
+  }
+
+  function permitConfidence(l) {
+    return parseInt(l.score || 0);
+  }
+
+  function fmtDollar(v) {
+    v = parseInt(v);
+    if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+    if (v >= 1000)    return '$' + (v/1000).toFixed(0) + 'K';
+    return '$' + v;
+  }
+
+  // ── Filter ────────────────────────────────────────────────────────────────
+  function setFilter(el, f) {
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    activeFilter = f;
+    page = 1;
+    selectedIds.clear();
+    applyCurrentFilter();
+    updateStats();
+  }
+
+  function applyCurrentFilter() {
+    switch (activeFilter) {
+      case 'not_started':
+        filtered = allLeads.filter(l => !l.outreach_status || l.outreach_status === 'none' || l.outreach_status === 'not_started');
+        break;
+      case 'proposal_ready':
+        filtered = allLeads.filter(l => l.outreach_status === 'proposal_ready');
+        break;
+      case 'sent':
+        filtered = allLeads.filter(l => l.outreach_status === 'sent' || l.outreach_status === 'replied');
+        break;
+      case 'big':
+        filtered = allLeads.filter(l => permitDealSizeRaw(l) >= 500000);
+        break;
+      case 'manhattan':
+        filtered = allLeads.filter(l => (permitNeighborhood(l) || '').toLowerCase().includes('manhattan'));
+        break;
+      default:
+        filtered = allLeads;
+    }
+    renderPage();
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  function updateStats() {
+    document.getElementById('stat-total').textContent = filtered.length;
+
+    const pipeline = filtered.reduce((s, l) => s + permitDealSizeRaw(l), 0);
+    document.getElementById('stat-pipeline').textContent = fmtDollar(pipeline) === '$0' ? '—' : fmtDollar(pipeline);
+
+    const proposals = filtered.filter(l => l.outreach_status === 'proposal_ready').length;
+    document.getElementById('stat-proposals').textContent = proposals;
+
+    const sizes = filtered.map(l => permitDealSizeRaw(l)).filter(v => v > 0);
+    const avg = sizes.length ? fmtDollar(sizes.reduce((a,b)=>a+b,0)/sizes.length) : '—';
+    document.getElementById('stat-avg-deal').textContent = avg;
+
+    const enriched = filtered.filter(l => l.enrichment_status === 'complete').length;
+    document.getElementById('stat-enriched').textContent = enriched;
+
+    document.getElementById('page-subtitle').textContent =
+      `${filtered.length} permit leads · ${enriched} enriched`;
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function renderPage() {
+    const start = (page - 1) * PAGE_SIZE;
+    const pageLeads = filtered.slice(start, start + PAGE_SIZE);
+    const tbody = document.getElementById('leads-tbody');
+
+    if (!pageLeads.length) {
+      tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">No leads match this filter</div></td></tr>`;
+      document.getElementById('page-info').textContent = 'Page 0';
+      document.getElementById('btn-prev').disabled = true;
+      document.getElementById('btn-next').disabled = true;
+      return;
+    }
+
+    tbody.innerHTML = pageLeads.flatMap(l => [buildRow(l), buildExpandRow(l)]).join('');
+
+    const total = Math.ceil(filtered.length / PAGE_SIZE);
+    document.getElementById('page-info').textContent = `Page ${page} / ${total}`;
+    document.getElementById('btn-prev').disabled = page <= 1;
+    document.getElementById('btn-next').disabled = page >= total;
+
+    updateBulkBtn();
+  }
+
+  function buildRow(l) {
+    const checked = selectedIds.has(l.id) ? 'checked' : '';
+    const selClass = selectedIds.has(l.id) ? 'selected' : '';
+    return `
+      <tr class="data-row ${selClass}" data-id="${l.id}">
+        <td><input type="checkbox" ${checked}
+            onchange="toggleSelect(${l.id},this)"
+            onclick="event.stopPropagation()"></td>
+        <td onclick="toggleExpand(${l.id})">${esc(permitAddress(l))}</td>
+        <td onclick="toggleExpand(${l.id})">${permitYear(l)}</td>
+        <td onclick="toggleExpand(${l.id})">${esc(permitNeighborhood(l))}</td>
+        <td onclick="toggleExpand(${l.id})">${esc(permitJobType(l))}</td>
+        <td onclick="toggleExpand(${l.id})">${permitDealSize(l)}</td>
+        <td onclick="toggleExpand(${l.id})">${permitDateFiled(l)}</td>
+        <td onclick="toggleExpand(${l.id})">${confBadge(permitConfidence(l))}</td>
+        <td onclick="toggleExpand(${l.id})">${statusPill(l.outreach_status)}</td>
+        <td>
+          <div class="row-actions">
+            ${enrichBtn(l)}
+            <button class="btn-generate" onclick="event.stopPropagation();openProposal(${l.id})">Generate</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function buildExpandRow(l) {
+    return `
+      <tr class="expand-row" id="expand-${l.id}" style="display:none;">
+        <td colspan="10">${buildExpandContent(l)}</td>
+      </tr>
+    `;
+  }
+
+  function buildExpandContent(l) {
+    const email   = l.enriched_email || l.email || '';
+    const phone   = l.enriched_phone || l.phone || '';
+    const website = l.website || '';
+    const eSrc    = l.email_source  || '';
+    const pSrc    = l.phone_source  || '';
+
+    const sourceBadge = src => src ? `<span class="source-badge">${esc(formatSource(src))}</span>` : '';
+
+    const statusOpts = [
+      ['not_started','Not started'],
+      ['proposal_ready','Proposal ready'],
+      ['sent','Sent'],
+      ['replied','Replied'],
+      ['interested','Interested'],
+    ].map(([v,lbl]) => `<option value="${v}" ${l.outreach_status===v?'selected':''}>${lbl}</option>`).join('');
+
+    return `
+      <div class="expand-content">
+        <div class="expand-field">
+          <label>Email</label>
+          <div class="val">
+            ${email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : '<span style="color:#718096">Not found</span>'}
+            ${sourceBadge(eSrc)}
+          </div>
+        </div>
+        <div class="expand-field">
+          <label>Phone</label>
+          <div class="val">
+            ${phone ? esc(phone) : '<span style="color:#718096">Not found</span>'}
+            ${sourceBadge(pSrc)}
+          </div>
+        </div>
+        <div class="expand-field">
+          <label>Website</label>
+          <div class="val">
+            ${website
+              ? `<a href="${esc(website)}" target="_blank">${esc(website)}</a>`
+              : '<span style="color:#718096">Not found</span>'}
+          </div>
+        </div>
+        <div class="expand-field">
+          <label>Enriched</label>
+          <div class="val">${l.enriched_at ? new Date(l.enriched_at).toLocaleDateString() : '—'}</div>
+        </div>
+        <div class="expand-field">
+          <label>Enrichment Score</label>
+          <div class="val">${l.enrichment_score ? parseFloat(l.enrichment_score).toFixed(3) : '—'}</div>
+        </div>
+        <div class="expand-field">
+          <label>Outreach Status</label>
+          <div class="val">
+            <select class="status-select" onchange="updateStatus(${l.id}, this.value)">
+              ${statusOpts}
+            </select>
+          </div>
+        </div>
+        <div class="expand-actions">
+          <button class="action-btn primary" onclick="openProposal(${l.id})">Generate Proposal</button>
+          <button class="action-btn" onclick="enrichSingle(${l.id})">Re-enrich</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function formatSource(src) {
+    const map = {
+      google_maps: 'Google Maps',
+      website_scraper: 'Website',
+      hunter: 'Hunter',
+      apollo: 'Apollo',
+      houzz: 'Houzz',
+      permit_data: 'Permit',
+    };
+    return map[src] || src;
+  }
+
+  // ── Expand toggle ─────────────────────────────────────────────────────────
+  function toggleExpand(id) {
+    if (expandedId && expandedId !== id) {
+      const prev = document.getElementById(`expand-${expandedId}`);
+      if (prev) prev.style.display = 'none';
+    }
+    const row = document.getElementById(`expand-${id}`);
+    if (!row) return;
+    const showing = row.style.display !== 'none';
+    row.style.display = showing ? 'none' : '';
+    expandedId = showing ? null : id;
+  }
+
+  // ── Selection ─────────────────────────────────────────────────────────────
+  function toggleSelect(id, el) {
+    if (el.checked) selectedIds.add(id); else selectedIds.delete(id);
+    const tr = el.closest('tr');
+    if (tr) tr.className = `data-row${el.checked ? ' selected' : ''}`;
+    updateBulkBtn();
+  }
+
+  function toggleSelectAll(el) {
+    document.querySelectorAll('#leads-tbody input[type=checkbox]').forEach(c => {
+      c.checked = el.checked;
+      const id = parseInt(c.closest('tr').dataset.id);
+      if (id) { if (el.checked) selectedIds.add(id); else selectedIds.delete(id); }
+      const tr = c.closest('tr');
+      if (tr && tr.dataset.id) tr.className = `data-row${el.checked ? ' selected' : ''}`;
+    });
+    updateBulkBtn();
+  }
+
+  function updateBulkBtn() {
+    const n = selectedIds.size;
+    document.getElementById('sel-count').textContent = n;
+    const btn = document.getElementById('bulk-enrich-btn');
+    btn.style.display = n > 0 ? '' : 'none';
+  }
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  function changePage(dir) {
+    page += dir;
+    selectedIds.clear();
+    renderPage();
+    window.scrollTo(0, 0);
+  }
+
+  // ── Enrich button ─────────────────────────────────────────────────────────
+  function enrichBtn(l) {
+    const score = parseFloat(l.enrichment_score || 0);
+    const hasScore = score > 0;
+    if (hasScore && score >= 0.75) {
+      return `<button class="btn-enrich green" onclick="event.stopPropagation();enrichSingle(${l.id})">✓ Enriched</button>`;
+    } else if (hasScore && score >= 0.25) {
+      return `<button class="btn-enrich orange" onclick="event.stopPropagation();enrichSingle(${l.id})">~ Enrich</button>`;
+    } else {
+      return `<button class="btn-enrich grey" onclick="event.stopPropagation();enrichSingle(${l.id})">Enrich</button>`;
+    }
+  }
+
+  async function enrichSingle(id) {
+    // Update button to loading state
+    const btns = document.querySelectorAll(`[onclick*="enrichSingle(${id})"]`);
+    btns.forEach(b => { b.textContent = '…'; b.classList.add('loading'); b.disabled = true; });
+    showToast('Enriching lead…');
+    try {
+      const r = await fetch(`/api/leads/${id}/enrich`, { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        // Update lead in memory
+        const lead = allLeads.find(l => l.id === id);
+        if (lead && d.result) Object.assign(lead, {
+          enriched_email: d.result.email,
+          enriched_phone: d.result.phone,
+          website: d.result.website,
+          email_source: d.result.email_source,
+          phone_source: d.result.phone_source,
+          enrichment_status: d.result.enrichment_status,
+          enrichment_score: d.result.enrichment_score,
+          enriched_at: d.result.enriched_at,
+        });
+        showToast('Enrichment complete');
+        applyCurrentFilter();
+        updateStats();
+      } else {
+        showToast('Enrich failed: ' + (d.error || 'unknown'), true);
+      }
+    } catch (e) {
+      showToast('Enrich failed: ' + e.message, true);
+    }
+  }
+
+  // ── Bulk enrich ───────────────────────────────────────────────────────────
+  function confirmBulkEnrich() {
+    const n = selectedIds.size;
+    if (!n) return;
+    const credits = n * 3;
+    document.getElementById('credit-msg').textContent =
+      `Enrich ${n} selected leads · estimated ${credits} API credits`;
+    document.getElementById('credit-modal').classList.add('open');
+  }
+
+  function closeCreditModal() {
+    document.getElementById('credit-modal').classList.remove('open');
+  }
+
+  async function runBulkEnrich() {
+    closeCreditModal();
+    const ids = [...selectedIds];
+    showToast(`Enriching ${ids.length} leads…`);
+    try {
+      const r = await fetch('/api/leads/bulk-enrich', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ lead_ids: ids }),
+      });
+      const d = await r.json();
+      showToast(`Enriched ${d.enriched || ids.length} leads`);
+      selectedIds.clear();
+      await fetchLeads();
+    } catch (e) {
+      showToast('Bulk enrich failed: ' + e.message, true);
+    }
+  }
+
+  // ── Generate proposal ─────────────────────────────────────────────────────
+  async function openProposal(id) {
+    proposalLeadId = id;
+    proposalCache  = {};
+    activeBrand    = 'skipp';
+    document.getElementById('brand-skipp').classList.add('active');
+    document.getElementById('brand-drafted').classList.remove('active');
+    document.getElementById('proposal-subject').textContent = 'Generating…';
+    document.getElementById('proposal-body').textContent = '';
+    document.getElementById('proposal-modal').classList.add('open');
+    await loadProposal('skipp');
+  }
+
+  async function loadProposal(brand) {
+    if (proposalCache[brand]) {
+      showProposal(proposalCache[brand]);
+      return;
+    }
+    try {
+      const lead = allLeads.find(l => l.id === proposalLeadId);
+      const r = await fetch(`/api/leads/${proposalLeadId}/proposal`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ brand }),
+      });
+      const d = await r.json();
+      if (d.subject) {
+        proposalCache[brand] = d;
+        showProposal(d);
+        // If enrichment data existed, update status to proposal_ready
+        if (lead && (lead.enriched_email || lead.enriched_phone)) {
+          await updateStatus(proposalLeadId, 'proposal_ready', true);
+        }
+      } else {
+        document.getElementById('proposal-subject').textContent = 'Error: ' + (d.error || 'generation failed');
+      }
+    } catch (e) {
+      document.getElementById('proposal-subject').textContent = 'Error: ' + e.message;
+    }
+  }
+
+  function showProposal(d) {
+    document.getElementById('proposal-subject').textContent = d.subject || '';
+    document.getElementById('proposal-body').textContent = d.body || '';
+  }
+
+  function switchBrand(brand) {
+    activeBrand = brand;
+    document.getElementById('brand-skipp').classList.toggle('active', brand === 'skipp');
+    document.getElementById('brand-drafted').classList.toggle('active', brand === 'drafted');
+    loadProposal(brand);
+  }
+
+  function closeProposalModal() {
+    document.getElementById('proposal-modal').classList.remove('open');
+    proposalLeadId = null;
+  }
+
+  // ── Status update ─────────────────────────────────────────────────────────
+  async function updateStatus(id, status, silent=false) {
+    const lead = allLeads.find(l => l.id === id);
+    if (lead) lead.outreach_status = status;
+    try {
+      await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ outreach_status: status }),
+      });
+      if (!silent) {
+        showToast('Status updated');
+        applyCurrentFilter();
+        updateStats();
+      }
+    } catch (e) {
+      if (!silent) showToast('Status update failed: ' + e.message, true);
+    }
+  }
+
+  // ── Badges / pills ────────────────────────────────────────────────────────
+  function confBadge(score) {
+    if (!score) return `<span class="conf-badge conf-none">—</span>`;
+    if (score >= 75) return `<span class="conf-badge conf-high">${score}</span>`;
+    if (score >= 50) return `<span class="conf-badge conf-med">${score}</span>`;
+    return `<span class="conf-badge conf-low">${score}</span>`;
+  }
+
+  function statusPill(st) {
+    const labels = {
+      not_started: 'Not started',
+      proposal_ready: 'Proposal ready',
+      sent: 'Sent',
+      replied: 'Replied',
+      interested: 'Interested',
+    };
+    st = st || 'not_started';
+    return `<span class="status-pill st-${st}">${labels[st] || st}</span>`;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function esc(str) {
+    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(msg, isErr=false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isErr ? '#742a2a' : '#276749';
+    t.style.color = isErr ? '#fc8181' : '#9ae6b4';
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 3000);
+  }
+</script>
+</body>
+</html>

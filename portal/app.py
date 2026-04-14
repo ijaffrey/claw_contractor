@@ -446,5 +446,71 @@ def api_campaign_stats(campaign_id):
         return jsonify({"error": str(e)}), 500
 
 
+# ── Bucket (permit list per trade) ────────────────────────────────────────
+
+@app.route("/bucket/<trade>")
+def bucket_page(trade):
+    return render_template("bucket.html", trade=trade)
+
+
+@app.route("/api/bucket/<trade>/leads", methods=["GET"])
+def api_bucket_leads(trade):
+    """Return permit leads for a given trade, with all enrichment columns."""
+    try:
+        from sqlalchemy import text
+        db, _ = _get_db()
+        all_trades = trade.lower() == "all"
+        trade_filter = f"%{trade.lower()}%"
+        result = db.execute(text("""
+            SELECT id, name, email, phone, company, source, status, notes, score,
+                   enriched_email, enriched_phone, website,
+                   email_source, phone_source,
+                   enrichment_status, enrichment_score, enriched_at,
+                   campaign_tags, outreach_status, last_contacted_at,
+                   created_at, updated_at
+            FROM leads
+            WHERE is_active = 1
+              AND (
+                :all_trades = 1
+                OR LOWER(COALESCE(campaign_tags,'')) LIKE :trade
+                OR LOWER(COALESCE(source,'')) LIKE :trade
+              )
+            ORDER BY created_at DESC
+            LIMIT 500
+        """), {"trade": trade_filter, "all_trades": 1 if all_trades else 0})
+        cols = list(result.keys())
+        rows = result.fetchall()
+        leads = [dict(zip(cols, row)) for row in rows]
+        db.close()
+        return jsonify({"leads": leads, "total": len(leads), "trade": trade})
+    except Exception as e:
+        logger.exception("api_bucket_leads failed")
+        return jsonify({"leads": [], "total": 0, "error": str(e)}), 200
+
+
+@app.route("/api/leads/<int:lead_id>/enrich", methods=["POST"])
+def api_enrich_lead_bucket(lead_id):
+    """Alias for enriching a single lead — used by /bucket/<trade> UI."""
+    return api_enrich_lead(lead_id)
+
+
+@app.route("/api/leads/bulk-enrich", methods=["POST"])
+def api_bulk_enrich_bucket():
+    """Alias for bulk enrichment — used by /bucket/<trade> UI."""
+    return api_bulk_enrich()
+
+
+@app.route("/api/leads/<int:lead_id>", methods=["PATCH"])
+def api_update_lead_bucket(lead_id):
+    """Alias for lead patch — used by /bucket/<trade> UI."""
+    return api_update_lead(lead_id)
+
+
+@app.route("/api/leads/<int:lead_id>/proposal", methods=["POST"])
+def api_proposal_bucket(lead_id):
+    """Alias for proposal generation — used by /bucket/<trade> UI."""
+    return api_generate_proposal(lead_id)
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
