@@ -66,3 +66,72 @@
                 <button class="btn btn-secondary" id="bulk-tag">Tag Campaign</button>
             </div>
         </div>
+        <!-- Leads Table -->
+        <div class="leads-table-container">
+            <table class="leads-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all"></th>
+                        <th>Company</th>
+                        <th>Contact</th>
+                        <th>Trade</th>
+                        <th>Borough</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lead in leads %}
+                    <tr class="lead-row" data-lead-id="{{ lead.id }}">
+                        <td><input type="checkbox" class="lead-checkbox" value="{{ lead.id }}"></td>
+                        <td>{{ lead.company_name }}</td>
+                        <td>{{ lead.contact_name }}</td>
+                        <td>{{ lead.trade }}</td>
+                        <td>{{ lead.borough }}</td>
+                        <td>
+                            <span class="score-badge score-{{ 'high' if lead.enrichment_score >= 75 else 'medium' if lead.enrichment_score >= 25 else 'low' }}">
+                                {{ lead.enrichment_score }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ lead.outreach_status.lower().replace(' ', '-') }}">
+                                {{ lead.outreach_status }}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-small btn-outline expand-btn" data-lead-id="{{ lead.id }}">
+                                <span class="expand-icon">▼</span> Details
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="lead-details" id="details-{{ lead.id }}" style="display: none;">
+                        <td colspan="8">
+                            <div class="details-content">
+                                <div class="details-section">
+                                    <h4>Contact Information</h4>
+                                    <p><strong>Phone:</strong> {{ lead.phone }}</p>
+                                    <p><strong>Email:</strong> {{ lead.email }}</p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Permit History</h4>
+                                    <p><strong>Total Permits:</strong> {{ lead.permit_count }}</p>
+                                    <p><em>Recent permits data would be loaded here...</em></p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Proposal Drafts</h4>
+                                    <p><em>No proposals generated yet</em></p>
+                                    <button class="btn btn-primary btn-small">Generate Proposal</button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='leads.js') }}"></script>
+</body>
+</html>
