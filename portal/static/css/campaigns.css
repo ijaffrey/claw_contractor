@@ -103,3 +103,153 @@ nav {
     display: flex;
     gap: 8px;
 }
+
+/* Leads Table */
+.leads-table-container {
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.leads-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.leads-table th {
+    background: #f9fafb;
+    padding: 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.leads-table td {
+    padding: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.lead-row:hover {
+    background: #f9fafb;
+}
+
+.lead-name {
+    font-weight: 600;
+    color: #111827;
+}
+
+.lead-email {
+    font-size: 14px;
+    color: #6b7280;
+}
+
+/* Score Badges */
+.score-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.score-high {
+    background: #10b981;
+    color: white;
+}
+
+.score-medium {
+    background: #f59e0b;
+    color: white;
+}
+
+.score-low {
+    background: #ef4444;
+    color: white;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.status-not-contacted {
+    background: #f9fafb;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+}
+
+.status-contacted {
+    background: #3b82f6;
+    color: white;
+}
+
+.status-responded {
+    background: #10b981;
+    color: white;
+}
+
+/* Buttons */
+.btn-primary {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.btn-secondary {
+    background: #f9fafb;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.btn-expand {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: #6b7280;
+    padding: 4px;
+}
+
+/* Lead Details */
+.lead-details {
+    background: #f9fafb;
+}
+
+.lead-details-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    padding: 24px;
+}
+
+.details-section h4 {
+    margin: 0 0 8px 0;
+    color: #111827;
+}
+
+.details-section p {
+    margin: 4px 0;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.details-section ul {
+    margin: 4px 0;
+    padding-left: 16px;
+    font-size: 14px;
+    color: #6b7280;
+}
