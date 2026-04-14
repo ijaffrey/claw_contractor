@@ -152,4 +152,73 @@
                         <td><span class="status-badge status-not-contacted">Not Contacted</span></td>
                         <td>Never</td>
                         <td><button class="btn-expand" onclick="toggleRowExpansion(2)">↓</button></td>
+                    </tr>                    <tr class="lead-details" id="details-2" style="display: none;">
+                        <td colspan="9">
+                            <div class="lead-details-content">
+                                <div class="details-section">
+                                    <h4>Contact Details</h4>
+                                    <p><strong>Phone:</strong> (718) 555-9876</p>
+                                    <p><strong>Address:</strong> 456 Oak Ave, Brooklyn, NY 11201</p>
+                                    <p><strong>Website:</strong> www.voltelectrical.com</p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Permit History</h4>
+                                    <ul>
+                                        <li>ELC-2024-005 - Office rewiring permit (In Progress)</li>
+                                    </ul>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Proposal Drafts</h4>
+                                    <p>No proposals yet</p>
+                                </div>
+                            </div>
+                        </td>
                     </tr>
+                    
+                    <tr class="lead-row" data-lead-id="3">
+                        <td><input type="checkbox" class="lead-checkbox" onchange="updateBulkOperations()"></td>
+                        <td>
+                            <div class="lead-name">David Chen</div>
+                            <div class="lead-email">david@chenhvac.com</div>
+                        </td>
+                        <td>Chen HVAC Solutions</td>
+                        <td>HVAC</td>
+                        <td>Queens</td>
+                        <td><span class="score-badge score-low">18</span></td>
+                        <td><span class="status-badge status-responded">Responded</span></td>
+                        <td>1 week ago</td>
+                        <td><button class="btn-expand" onclick="toggleRowExpansion(3)">↓</button></td>
+                    </tr>
+                    <tr class="lead-details" id="details-3" style="display: none;">
+                        <td colspan="9">
+                            <div class="lead-details-content">
+                                <div class="details-section">
+                                    <h4>Contact Details</h4>
+                                    <p><strong>Phone:</strong> (347) 555-2468</p>
+                                    <p><strong>Address:</strong> 789 Pine St, Flushing, NY 11354</p>
+                                    <p><strong>Website:</strong> www.chenhvac.com</p>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Permit History</h4>
+                                    <ul>
+                                        <li>HVC-2023-012 - Restaurant HVAC installation (Completed)</li>
+                                        <li>HVC-2023-008 - Residential AC permit (Approved)</li>
+                                    </ul>
+                                </div>
+                                <div class="details-section">
+                                    <h4>Proposal Drafts</h4>
+                                    <ul>
+                                        <li>Commercial HVAC Upgrade - Draft pending review</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='campaigns.js') }}"></script>
+</body>
+</html>
