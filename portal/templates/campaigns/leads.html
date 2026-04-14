@@ -24,3 +24,59 @@
                 <button class="btn-primary" onclick="enrichSelected()">Enrich Selected</button>
             </div>
         </div>
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <div class="filter-group">
+                <label for="trade-filter">Trade:</label>
+                <select id="trade-filter" onchange="applyFilters()">
+                    <option value="">All Trades</option>
+                    <option value="plumbing">Plumbing</option>
+                    <option value="electrical">Electrical</option>
+                    <option value="hvac">HVAC</option>
+                    <option value="general">General Contractor</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="borough-filter">Borough:</label>
+                <select id="borough-filter" onchange="applyFilters()">
+                    <option value="">All Boroughs</option>
+                    <option value="manhattan">Manhattan</option>
+                    <option value="brooklyn">Brooklyn</option>
+                    <option value="queens">Queens</option>
+                    <option value="bronx">Bronx</option>
+                    <option value="staten-island">Staten Island</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="score-range">Score Range:</label>
+                <select id="score-range" onchange="applyFilters()">
+                    <option value="">All Scores</option>
+                    <option value="75-100">High (75-100)</option>
+                    <option value="25-74">Medium (25-74)</option>
+                    <option value="0-24">Low (0-24)</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="outreach-status">Outreach Status:</label>
+                <select id="outreach-status" onchange="applyFilters()">
+                    <option value="">All Statuses</option>
+                    <option value="not-contacted">Not Contacted</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="responded">Responded</option>
+                    <option value="qualified">Qualified</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Bulk Operations Bar (hidden by default) -->
+        <div class="bulk-operations" id="bulk-operations" style="display: none;">
+            <div class="bulk-selection-info">
+                <span id="selected-count">0</span> leads selected
+            </div>
+            <div class="bulk-actions">
+                <button class="btn-secondary" onclick="bulkEnrich()">Enrich</button>
+                <button class="btn-secondary" onclick="bulkGenerateProposals()">Generate Proposals</button>
+                <button class="btn-secondary" onclick="bulkExportCSV()">Export CSV</button>
+                <button class="btn-secondary" onclick="bulkTagCampaign()">Tag Campaign</button>
+            </div>
+        </div>
