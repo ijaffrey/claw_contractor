@@ -488,6 +488,55 @@ def api_bucket_leads(trade):
         return jsonify({"leads": [], "total": 0, "error": str(e)}), 200
 
 
+@app.route("/api/bucket/<trade>/stats", methods=["GET"])
+def api_bucket_stats(trade):
+    """Return aggregate stats for the bucket stats bar.
+
+    Returns: total_permits, enriched_count, pipeline_value, proposals_ready,
+             avg_deal_size, avg_confidence, sent_count
+    """
+    try:
+        from sqlalchemy import text
+        db, _ = _get_db()
+        all_trades = trade.lower() == "all"
+        trade_filter = f"%{trade.lower()}%"
+        row = db.execute(text("""
+            SELECT
+                COUNT(*)                                               AS total_permits,
+                SUM(CASE WHEN enrichment_status = 'complete' THEN 1 ELSE 0 END) AS enriched_count,
+                SUM(CASE WHEN score > 0 THEN score * 10000 ELSE 0 END) AS pipeline_value,
+                SUM(CASE WHEN outreach_status = 'proposal_ready' THEN 1 ELSE 0 END) AS proposals_ready,
+                AVG(CASE WHEN score > 0 THEN score * 10000 END)       AS avg_deal_size,
+                AVG(CASE WHEN score > 0 THEN score END)               AS avg_confidence,
+                SUM(CASE WHEN outreach_status IN ('sent','replied','interested') THEN 1 ELSE 0 END) AS sent_count
+            FROM leads
+            WHERE is_active = 1
+              AND (
+                :all_trades = 1
+                OR LOWER(COALESCE(campaign_tags,'')) LIKE :trade
+                OR LOWER(COALESCE(source,'')) LIKE :trade
+              )
+        """), {"trade": trade_filter, "all_trades": 1 if all_trades else 0}).fetchone()
+        db.close()
+
+        def _int(v): return int(v) if v else 0
+        def _flt(v): return round(float(v), 1) if v else 0.0
+
+        return jsonify({
+            "trade":          trade,
+            "total_permits":  _int(row[0]),
+            "enriched_count": _int(row[1]),
+            "pipeline_value": _int(row[2]),
+            "proposals_ready": _int(row[3]),
+            "avg_deal_size":  _int(row[4]),
+            "avg_confidence": _flt(row[5]),
+            "sent_count":     _int(row[6]),
+        })
+    except Exception as e:
+        logger.exception("api_bucket_stats failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/leads/<int:lead_id>", methods=["GET"])
 def api_get_lead_bucket(lead_id):
     """Return a single lead with all enrichment contact fields for the expand panel."""

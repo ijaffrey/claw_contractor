@@ -496,7 +496,10 @@
   let activeBrand    = 'skipp';
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', fetchLeads);
+  document.addEventListener('DOMContentLoaded', () => {
+    fetchLeads();
+    fetchStats();
+  });
 
   async function fetchLeads() {
     try {
@@ -508,6 +511,20 @@
     } catch (e) {
       showToast('Failed to load leads: ' + e.message, true);
     }
+  }
+
+  async function fetchStats() {
+    // Populate stats bar from server-side aggregate for accuracy
+    try {
+      const r = await fetch(`/api/bucket/${TRADE}/stats`);
+      const d = await r.json();
+      if (d.error) return;
+      document.getElementById('stat-total').textContent    = d.total_permits;
+      document.getElementById('stat-pipeline').textContent = fmtDollar(d.pipeline_value) === '$0' ? '—' : fmtDollar(d.pipeline_value);
+      document.getElementById('stat-proposals').textContent = d.proposals_ready;
+      document.getElementById('stat-avg-deal').textContent  = d.avg_deal_size ? fmtDollar(d.avg_deal_size) : '—';
+      document.getElementById('stat-enriched').textContent  = d.enriched_count;
+    } catch (_) { /* leave client-side values */ }
   }
 
   // ── Permit field helpers ──────────────────────────────────────────────────
