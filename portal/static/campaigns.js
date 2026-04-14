@@ -153,3 +153,37 @@ document.addEventListener('click', function(event) {
         closeStatsPanel();
     }
 });
+
+// Updated form toggle to use CSS classes
+function toggleNewCampaignForm() {
+    const form = document.getElementById('new-campaign-form');
+    if (form.classList.contains('hidden')) {
+        form.classList.remove('hidden');
+        const nameInput = document.getElementById('name');
+        if (nameInput) nameInput.focus();
+    } else {
+        form.classList.add('hidden');
+    }
+}
+
+// Show campaign stats function to match template
+function showCampaignStats(campaignId, campaignName) {
+    const panel = document.getElementById('campaign-stats');
+    const title = document.getElementById('stats-title');
+    
+    title.textContent = `${campaignName} Statistics`;
+    
+    // Mock statistics
+    document.getElementById('conversion-rate').textContent = (Math.random() * 15 + 5).toFixed(1) + '%';
+    document.getElementById('response-rate').textContent = (Math.random() * 40 + 30).toFixed(1) + '%';
+    document.getElementById('enrichment-rate').textContent = (Math.random() * 20 + 70).toFixed(1) + '%';
+    document.getElementById('proposal-rate').textContent = (Math.random() * 20 + 40).toFixed(1) + '%';
+    document.getElementById('cost-per-lead').textContent = '$' + (Math.random() * 30 + 20).toFixed(2);
+    
+    panel.classList.remove('hidden');
+}
+
+// Hide campaign stats
+function hideCampaignStats() {
+    document.getElementById('campaign-stats').classList.add('hidden');
+}
