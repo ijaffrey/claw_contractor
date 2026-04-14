@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }} - CLAW</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/campaigns.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Campaign Leads</h1>
+        
+        <div class="filter-panel">
+            <select id="trade-filter">
+                <option value="">All Trades</option>
+                <option value="General Contractor">General Contractor</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Plumbing">Plumbing</option>
+            </select>
+            <select id="borough-filter">
+                <option value="">All Boroughs</option>
+                <option value="Manhattan">Manhattan</option>
+                <option value="Brooklyn">Brooklyn</option>
+                <option value="Queens">Queens</option>
+            </select>
+            <input type="range" id="score-range" min="0" max="100" value="0">
+            <span id="score-display">0+</span>
+            <select id="outreach-filter">
+                <option value="">All Statuses</option>
+                <option value="Not Contacted">Not Contacted</option>
+                <option value="Contacted">Contacted</option>
+                <option value="Proposal Sent">Proposal Sent</option>
+            </select>
+        </div>
+
+        <div class="bulk-operations-bar" id="bulk-ops-bar" style="display: none;">
+            <span class="selected-count">0 selected</span>
+            <button id="bulk-enrich">Enrich</button>
+            <button id="bulk-proposals">Generate Proposals</button>
+            <button id="bulk-export">Export CSV</button>
+            <button id="bulk-tag">Tag Campaign</button>
+        </div>
+
+        <table class="leads-table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all"></th>
+                    <th>Name</th>
+                    <th>Trade</th>
+                    <th>Borough</th>
+                    <th>Score</th>
+                    <th>Outreach Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr class="lead-row" data-lead-id="{{ lead.id }}">
+                    <td><input type="checkbox" class="lead-select" value="{{ lead.id }}"></td>
+                    <td class="lead-name">
+                        <span class="expand-toggle" data-target="details-{{ lead.id }}">▶</span>
+                        {{ lead.name }}
+                    </td>
+                    <td>{{ lead.trade }}</td>
+                    <td>{{ lead.borough }}</td>
+                    <td>
+                        <span class="score-badge score-{% if lead.enrichment_score >= 75 %}high{% elif lead.enrichment_score >= 25 %}medium{% else %}low{% endif %}">
+                            {{ lead.enrichment_score }}
+                        </span>
+                    </td>
+                    <td>{{ lead.outreach_status }}</td>
+                    <td>
+                        <button class="btn btn-sm">View</button>
+                        <button class="btn btn-sm">Contact</button>
+                    </td>
+                </tr>
+                <tr class="lead-details" id="details-{{ lead.id }}" style="display: none;">
+                    <td colspan="7">
+                        <div class="details-content">
+                            <div><h4>Contact</h4>
+                            <p>Phone: {{ lead.phone }}</p>
+                            <p>Email: {{ lead.email }}</p></div>
+                            <div><h4>Permits</h4>
+                            <p>Total: {{ lead.permit_count }}</p></div>
+                            <div><h4>Proposals</h4>
+                            <p>None yet</p></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script src="/static/campaigns.js"></script>
+</body>
+</html>
