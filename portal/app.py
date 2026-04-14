@@ -44,7 +44,7 @@ def campaigns_page():
     return render_template("campaigns.html")
 
 
-@app.route("/campaigns/leads")
+    return render_template("leads.html")
 def campaign_leads_page():
     return render_template("campaigns.html")
 
@@ -757,3 +757,46 @@ def create_campaign():
     except Exception as e:
         logger.error(f"Error loading campaigns: {e}")
         return render_template('campaigns.html', campaigns=[], error=str(e))
+
+@app.route('/campaigns/leads')
+def campaigns_leads():
+    # Mock data for leads table - replace with actual database query
+    leads_data = [
+        {
+            'id': 1,
+            'company_name': 'Brooklyn Construction Co',
+            'contact_name': 'John Smith',
+            'trade': 'General Contractor',
+            'borough': 'Brooklyn',
+            'enrichment_score': 85,
+            'outreach_status': 'Not Contacted',
+            'phone': '(718) 555-0123',
+            'email': 'john@brooklynconstruction.com',
+            'permit_count': 12
+        },
+        {
+            'id': 2,
+            'company_name': 'Manhattan Plumbing LLC',
+            'contact_name': 'Sarah Johnson',
+            'trade': 'Plumber',
+            'borough': 'Manhattan',
+            'enrichment_score': 45,
+            'outreach_status': 'Contacted',
+            'phone': '(212) 555-0456',
+            'email': 'sarah@manhattanplumbing.com',
+            'permit_count': 8
+        },
+        {
+            'id': 3,
+            'company_name': 'Queens Electric Works',
+            'contact_name': 'Mike Chen',
+            'trade': 'Electrician',
+            'borough': 'Queens',
+            'enrichment_score': 15,
+            'outreach_status': 'Not Contacted',
+            'phone': '(718) 555-0789',
+            'email': 'mike@queenselectric.com',
+            'permit_count': 3
+        }
+    ]
+    return render_template('leads.html', leads=leads_data)
