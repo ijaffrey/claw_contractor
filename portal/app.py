@@ -573,6 +573,45 @@ def api_update_lead_bucket(lead_id):
     return api_update_lead(lead_id)
 
 
+# Valid outreach status values and allowed transitions
+_OUTREACH_STATUSES = {"not_started", "proposal_ready", "sent", "replied", "interested", "none"}
+
+
+@app.route("/api/leads/<int:lead_id>/status", methods=["POST"])
+def api_update_outreach_status(lead_id):
+    """Set outreach_status for a lead (campaign tag in the Status column).
+
+    Body: {"status": "sent"}
+    Valid values: not_started | proposal_ready | sent | replied | interested
+    Also stamps last_contacted_at when transitioning to sent/replied/interested.
+    """
+    data = request.get_json() or {}
+    status = data.get("status", "").strip()
+    if status not in _OUTREACH_STATUSES:
+        return jsonify({"error": f"Invalid status '{status}'. Valid: {sorted(_OUTREACH_STATUSES)}"}), 400
+
+    try:
+        from sqlalchemy import text
+        db, _ = _get_db()
+        now = datetime.utcnow().isoformat()
+        contact_statuses = {"sent", "replied", "interested"}
+        if status in contact_statuses:
+            db.execute(text("""
+                UPDATE leads SET outreach_status = :status, last_contacted_at = :now
+                WHERE id = :id
+            """), {"status": status, "now": now, "id": lead_id})
+        else:
+            db.execute(text("""
+                UPDATE leads SET outreach_status = :status WHERE id = :id
+            """), {"status": status, "id": lead_id})
+        db.commit()
+        db.close()
+        return jsonify({"ok": True, "lead_id": lead_id, "outreach_status": status})
+    except Exception as e:
+        logger.exception("api_update_outreach_status failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/leads/<int:lead_id>/proposal", methods=["POST"])
 def api_proposal_bucket(lead_id):
     """Enrichment-aware proposal generation for /bucket/<trade> UI.

@@ -957,10 +957,11 @@
     const lead = allLeads.find(l => l.id === id);
     if (lead) lead.outreach_status = status;
     try {
-      await fetch(`/api/leads/${id}`, {
-        method: 'PATCH',
+      // Use dedicated status endpoint — stamps last_contacted_at on sent/replied/interested
+      await fetch(`/api/leads/${id}/status`, {
+        method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ outreach_status: status }),
+        body: JSON.stringify({ status }),
       });
       if (!silent) {
         showToast('Status updated');
