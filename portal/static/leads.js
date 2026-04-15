@@ -1,113 +1,211 @@
+/**
+ * Leads Table Filtering JavaScript
+ * Provides dynamic filtering for the leads table by trade and borough
+ */
+
+// Global variables
+let allLeads = [];
+let currentFilters = {
+    trade: '',
+    borough: ''
+};
+
+// DOM elements
+const tradeFilter = document.getElementById('tradeFilter');
+const boroughFilter = document.getElementById('boroughFilter');
+const clearFiltersBtn = document.getElementById('clearFilters');
+const leadsTable = document.getElementById('leadsTable');
+const tableBody = leadsTable.querySelector('tbody');
+
+// Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    // Elements
-    const selectAllCheckbox = document.getElementById('select-all');
-    const leadCheckboxes = document.querySelectorAll('.lead-checkbox');
-    const bulkOperationsBar = document.getElementById('bulk-operations');
-    const selectedCountSpan = document.getElementById('selected-count');
-    const expandButtons = document.querySelectorAll('.expand-btn');
-    const tradeFilter = document.getElementById('trade-filter');
-    const boroughFilter = document.getElementById('borough-filter');
-    const scoreMinFilter = document.getElementById('score-min');
-    const scoreMaxFilter = document.getElementById('score-max');
-    const scoreRangeSpan = document.getElementById('score-range');
-    const statusFilter = document.getElementById('status-filter');
-
-    // Bulk selection
-    function updateBulkOperations() {
-        const checkedBoxes = document.querySelectorAll('.lead-checkbox:checked');
-        const count = checkedBoxes.length;
-        if (selectedCountSpan) selectedCountSpan.textContent = count;
-        if (bulkOperationsBar) bulkOperationsBar.style.display = count > 0 ? 'flex' : 'none';
-        
-        if (selectAllCheckbox) {
-            if (count === 0) {
-                selectAllCheckbox.indeterminate = false;
-                selectAllCheckbox.checked = false;
-            } else if (count === leadCheckboxes.length) {
-                selectAllCheckbox.indeterminate = false;
-                selectAllCheckbox.checked = true;
-            } else {
-                selectAllCheckbox.indeterminate = true;
-            }
-        }
-    }
-
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            leadCheckboxes.forEach(cb => cb.checked = this.checked);
-            updateBulkOperations();
-        });
-    }
-
-    leadCheckboxes.forEach(cb => cb.addEventListener('change', updateBulkOperations));
-
-    // Row expansion
-    expandButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const leadId = this.getAttribute('data-lead-id');
-            const detailsRow = document.getElementById(`details-${leadId}`);
-            if (detailsRow) {
-                const isHidden = detailsRow.style.display === 'none';
-                detailsRow.style.display = isHidden ? 'table-row' : 'none';
-                this.innerHTML = isHidden ? 
-                    '<span class="expand-icon expanded">▼</span> Hide' :
-                    '<span class="expand-icon">▼</span> Details';
-            }
-        });
-    });
-
-    // Filters
-    function updateScoreRange() {
-        if (scoreMinFilter && scoreMaxFilter && scoreRangeSpan) {
-            scoreRangeSpan.textContent = `${scoreMinFilter.value} - ${scoreMaxFilter.value}`;
-            applyFilters();
-        }
-    }
-
-    function applyFilters() {
-        const trade = tradeFilter ? tradeFilter.value.toLowerCase() : '';
-        const borough = boroughFilter ? boroughFilter.value.toLowerCase() : '';
-        const scoreMin = scoreMinFilter ? parseInt(scoreMinFilter.value) : 0;
-        const scoreMax = scoreMaxFilter ? parseInt(scoreMaxFilter.value) : 100;
-        const status = statusFilter ? statusFilter.value.toLowerCase() : '';
-
-        document.querySelectorAll('.lead-row').forEach(row => {
-            const rowTrade = row.children[3]?.textContent.toLowerCase() || '';
-            const rowBorough = row.children[4]?.textContent.toLowerCase() || '';
-            const scoreEl = row.children[5]?.querySelector('.score-badge');
-            const rowScore = scoreEl ? parseInt(scoreEl.textContent) || 0 : 0;
-            const rowStatus = row.children[6]?.textContent.toLowerCase() || '';
-            
-            const matches = (!trade || rowTrade.includes(trade)) &&
-                          (!borough || rowBorough.includes(borough)) &&
-                          (rowScore >= scoreMin && rowScore <= scoreMax) &&
-                          (!status || rowStatus.includes(status));
-            
-            row.style.display = matches ? 'table-row' : 'none';
-        });
-    }
-
-    if (scoreMinFilter) scoreMinFilter.addEventListener('input', updateScoreRange);
-    if (scoreMaxFilter) scoreMaxFilter.addEventListener('input', updateScoreRange);
-    if (tradeFilter) tradeFilter.addEventListener('change', applyFilters);
-    if (boroughFilter) boroughFilter.addEventListener('change', applyFilters);
-    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
-
-    // Bulk operations
-    ['bulk-enrich', 'bulk-proposals', 'bulk-export', 'bulk-tag'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) {
-            btn.addEventListener('click', function() {
-                const selected = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
-                if (id === 'bulk-tag') {
-                    const name = prompt('Campaign name:');
-                    if (name) alert(`Tagged ${selected.length} leads with "${name}"`);
-                } else {
-                    alert(`${id.replace('bulk-', '')} for ${selected.length} leads`);
-                }
-            });
-        }
-    });
-
-    updateScoreRange();
+    loadLeadsData();
+    setupEventListeners();
 });
+
+/**
+ * Load leads data from API and populate table
+ */
+async function loadLeadsData() {
+    try {
+        const response = await fetch('/api/leads');
+        if (!response.ok) {
+            throw new Error('Failed to fetch leads data');
+        }
+        
+        allLeads = await response.json();
+        populateTradeFilter();
+        renderTable(allLeads);
+    } catch (error) {
+        console.error('Error loading leads data:', error);
+        showError('Failed to load leads data');
+    }
+}
+
+/**
+ * Populate trade filter dropdown with unique trades from data
+ */
+function populateTradeFilter() {
+    const trades = [...new Set(allLeads.map(lead => lead.trade))].sort();
+    
+    // Clear existing options (except "All Trades")
+    while (tradeFilter.children.length > 1) {
+        tradeFilter.removeChild(tradeFilter.lastChild);
+    }
+    
+    // Add trade options
+    trades.forEach(trade => {
+        const option = document.createElement('option');
+        option.value = trade;
+        option.textContent = trade;
+        tradeFilter.appendChild(option);
+    });
+}
+
+/**
+ * Setup event listeners for filters
+ */
+function setupEventListeners() {
+    tradeFilter.addEventListener('change', handleFilterChange);
+    boroughFilter.addEventListener('change', handleFilterChange);
+    clearFiltersBtn.addEventListener('click', clearFilters);
+}
+
+/**
+ * Handle filter change events
+ */
+function handleFilterChange() {
+    currentFilters.trade = tradeFilter.value;
+    currentFilters.borough = boroughFilter.value;
+    
+    const filteredLeads = filterLeads(allLeads);
+    renderTable(filteredLeads);
+}
+
+/**
+ * Filter leads based on current filter selections
+ */
+function filterLeads(leads) {
+    return leads.filter(lead => {
+        const matchesTrade = !currentFilters.trade || lead.trade === currentFilters.trade;
+        const matchesBorough = !currentFilters.borough || lead.borough === currentFilters.borough;
+        
+        return matchesTrade && matchesBorough;
+    });
+}
+
+/**
+ * Clear all filters and show all leads
+ */
+function clearFilters() {
+    tradeFilter.value = '';
+    boroughFilter.value = '';
+    currentFilters.trade = '';
+    currentFilters.borough = '';
+    
+    renderTable(allLeads);
+}
+
+/**
+ * Render the leads table with given data
+ */
+function renderTable(leads) {
+    // Clear existing rows
+    tableBody.innerHTML = '';
+    
+    if (leads.length === 0) {
+        showNoResults();
+        return;
+    }
+    
+    // Add rows for each lead
+    leads.forEach(lead => {
+        const row = createTableRow(lead);
+        tableBody.appendChild(row);
+    });
+}
+
+/**
+ * Create a table row for a lead
+ */
+function createTableRow(lead) {
+    const row = document.createElement('tr');
+    row.setAttribute('data-trade', lead.trade);
+    row.setAttribute('data-borough', lead.borough);
+    
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+    
+    row.innerHTML = `
+        <td>${escapeHtml(lead.name)}</td>
+        <td>${escapeHtml(lead.trade)}</td>
+        <td>${escapeHtml(lead.borough)}</td>
+        <td><span class="score-badge score-${getScoreClass(lead.enrichment_score)}">${lead.enrichment_score}</span></td>
+        <td>${formatDate(lead.date_created)}</td>
+    `;
+    
+    return row;
+}
+
+/**
+ * Get CSS class for enrichment score styling
+ */
+function getScoreClass(score) {
+    if (score >= 80) return 'high';
+    if (score >= 60) return 'medium';
+    return 'low';
+}
+
+/**
+ * Show no results message
+ */
+function showNoResults() {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td colspan="5" class="no-results">
+            No leads match your current filters.
+            <button onclick="clearFilters()" class="btn btn-link">Clear filters</button>
+        </td>
+    `;
+    tableBody.appendChild(row);
+}
+
+/**
+ * Show error message
+ */
+function showError(message) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td colspan="5" class="error-message">
+            ${escapeHtml(message)}
+            <button onclick="loadLeadsData()" class="btn btn-link">Retry</button>
+        </td>
+    `;
+    tableBody.appendChild(row);
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Get current filter status for debugging
+ */
+function getFilterStatus() {
+    return {
+        totalLeads: allLeads.length,
+        filteredLeads: filterLeads(allLeads).length,
+        currentFilters: { ...currentFilters }
+    };
+}
