@@ -4,114 +4,82 @@ from flask import jsonify
 import logging
 
 # NYC Boroughs
-NYC_BOROUGHS = [
-    'Manhattan',
-    'Brooklyn', 
-    'Queens',
-    'Bronx',
-    'Staten Island'
+BOROUGHS = [
+    'Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'
 ]
 
-# Realistic contractor trades
-CONTRACTOR_TRADES = [
-    'General Contractor',
-    'Plumbing',
-    'Electrical',
-    'HVAC',
-    'Roofing',
-    'Flooring',
-    'Kitchen Renovation',
-    'Bathroom Renovation',
-    'Painting',
-    'Carpentry',
-    'Masonry',
-    'Waterproofing',
-    'Insulation',
-    'Windows & Doors',
-    'Concrete Work'
+# Contractor trades
+TRADES = [
+    'Plumbing', 'Electrical', 'HVAC', 'General Contractor', 'Roofing',
+    'Flooring', 'Painting', 'Carpentry', 'Masonry', 'Landscaping',
+    'Kitchen Renovation', 'Bathroom Renovation', 'Windows & Doors'
 ]
 
-# Sample lead names
-LEAD_NAMES = [
-    'Michael Chen',
-    'Sarah Rodriguez',
-    'David Johnson',
-    'Maria Gonzalez',
-    'James Wilson',
-    'Jennifer Kim',
-    'Robert Taylor',
-    'Lisa Anderson',
-    'Anthony Martinez',
-    'Michelle Thompson',
-    'Christopher Lee',
-    'Amanda White',
-    'Daniel Brown',
-    'Jessica Davis',
-    'Matthew Garcia'
+# Sample contractor names
+CONTRACTOR_NAMES = [
+    'Mike Johnson', 'Sarah Chen', 'David Rodriguez', 'Lisa Thompson',
+    'James Wilson', 'Maria Garcia', 'Robert Kim', 'Jennifer Lee',
+    'Michael Brown', 'Amanda Davis', 'Carlos Martinez', 'Nicole White',
+    'Kevin Murphy', 'Rachel Green', 'Tony Ricci', 'Samantha Jones'
 ]
 
 def generate_realistic_enrichment_score():
     """Generate enrichment scores with realistic distribution (30-95 range)"""
-    # Weight distribution: more scores in 60-85 range, fewer at extremes
-    ranges = [
-        (30, 50, 10),  # Low scores: 10% chance
-        (50, 70, 40),  # Medium scores: 40% chance  
-        (70, 85, 35),  # Good scores: 35% chance
-        (85, 95, 15)   # Excellent scores: 15% chance
-    ]
+    # Weight distribution: higher scores are less common
+    weights = [0.05, 0.15, 0.25, 0.30, 0.20, 0.05]  # 30-39, 40-49, 50-59, 60-69, 70-79, 80-95
+    ranges = [(30, 39), (40, 49), (50, 59), (60, 69), (70, 79), (80, 95)]
     
-    rand = random.randint(1, 100)
-    cumulative = 0
-    
-    for min_score, max_score, weight in ranges:
-        cumulative += weight
-        if rand <= cumulative:
-            return random.randint(min_score, max_score)
-    
-    return random.randint(70, 85)  # Default fallback
+    selected_range = random.choices(ranges, weights=weights)[0]
+    return random.randint(selected_range[0], selected_range[1])
 
-def generate_mock_leads(count=25):
-    """Generate realistic mock lead data"""
+def get_leads_data():
+    """Generate mock lead data with all required fields"""
     leads = []
     
-    for i in range(count):
-        # Create date within last 30 days
+    # Generate 15-20 leads for variety
+    num_leads = random.randint(15, 20)
+    
+    for i in range(num_leads):
+        # Random date within last 30 days
         days_ago = random.randint(0, 30)
-        date_created = datetime.now() - timedelta(days=days_ago)
+        created_date = datetime.now() - timedelta(days=days_ago)
         
         lead = {
             'id': i + 1,
-            'name': random.choice(LEAD_NAMES),
-            'trade': random.choice(CONTRACTOR_TRADES),
-            'borough': random.choice(NYC_BOROUGHS),
+            'name': random.choice(CONTRACTOR_NAMES),
+            'trade': random.choice(TRADES),
+            'borough': random.choice(BOROUGHS),
             'enrichment_score': generate_realistic_enrichment_score(),
-            'date_created': date_created.strftime('%Y-%m-%d %H:%M:%S')
+            'date_created': created_date.strftime('%Y-%m-%d %H:%M:%S'),
+            # Additional useful fields for dashboard
+            'email': f"{random.choice(CONTRACTOR_NAMES).lower().replace(' ', '.')}@example.com",
+            'phone': f"+1-{random.randint(212, 999)}-{random.randint(100, 999)}-{random.randint(1000, 9999)}",
+            'status': random.choice(['new', 'contacted', 'qualified', 'proposal_sent'])
         }
         
         leads.append(lead)
     
-    # Sort by date created (most recent first)
+    # Sort by date_created (newest first)
     leads.sort(key=lambda x: x['date_created'], reverse=True)
     
+    logging.info(f"Generated {len(leads)} mock leads")
     return leads
 
-def get_leads_data():
-    """Return leads data for the /api/leads endpoint"""
+# For Flask endpoint usage
+def leads_endpoint():
+    """Flask endpoint wrapper"""
     try:
-        leads = generate_mock_leads()
-        
-        return {
+        data = get_leads_data()
+        return jsonify({
             'success': True,
-            'total_count': len(leads),
-            'leads': leads,
-            'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-    
+            'data': data,
+            'count': len(data),
+            'timestamp': datetime.now().isoformat()
+        })
     except Exception as e:
         logging.error(f"Error generating leads data: {str(e)}")
-        return {
+        return jsonify({
             'success': False,
-            'error': str(e),
-            'leads': [],
-            'total_count': 0
-        }
+            'error': 'Failed to generate leads data',
+            'timestamp': datetime.now().isoformat()
+        }), 500
