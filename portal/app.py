@@ -27,8 +27,17 @@ def api_leads():
             'message': str(e)
         }), 500
 
-# Additional routes for contractor portal functionality
 @app.route('/leads')
+def leads():
+    """Leads management page with data table"""
+    try:
+        leads_data = get_leads_data()
+        return render_template('leads.html', leads=leads_data)
+    except Exception as e:
+        return render_template('leads.html', leads=[], error=str(e))
+
+# Additional routes for contractor portal functionality
+@app.route('/leads_dashboard')
 def leads_dashboard():
     """Dashboard view for leads management"""
     return render_template('leads_dashboard.html')
