@@ -59,3 +59,94 @@
     <script src="{{ url_for('static', filename='leads.js') }}"></script>
 </body>
 </html>
+    <!-- Lead Detail Panel -->
+    <div id="leadDetailPanel" class="detail-panel">
+        <div class="detail-panel-overlay"></div>
+        <div class="detail-panel-content">
+            <div class="detail-panel-header">
+                <h2 id="detailLeadName">Lead Details</h2>
+                <button id="closeDetailPanel" class="close-btn">&times;</button>
+            </div>
+            
+            <div class="detail-panel-body">
+                <!-- Contact Information -->
+                <div class="detail-section">
+                    <h3>Contact Information</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>Name:</label>
+                            <span id="detailName">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Email:</label>
+                            <span id="detailEmail">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Phone:</label>
+                            <span id="detailPhone">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Address:</label>
+                            <span id="detailAddress">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Project Details -->
+                <div class="detail-section">
+                    <h3>Project Information</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>Trade:</label>
+                            <span id="detailTrade">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Borough:</label>
+                            <span id="detailBorough">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Project Type:</label>
+                            <span id="detailProjectType">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Budget Range:</label>
+                            <span id="detailBudget">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enrichment Details -->
+                <div class="detail-section">
+                    <h3>Lead Enrichment</h3>
+                    <div class="enrichment-score">
+                        <div class="score-display">
+                            <span class="score-label">Enrichment Score:</span>
+                            <span id="detailEnrichmentScore" class="score-value">-</span>
+                        </div>
+                        <div class="score-breakdown">
+                            <div class="breakdown-item">
+                                <span>Contact Verification:</span>
+                                <span id="detailContactScore" class="breakdown-score">-</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Project Viability:</span>
+                                <span id="detailProjectScore" class="breakdown-score">-</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>Budget Qualification:</span>
+                                <span id="detailBudgetScore" class="breakdown-score">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interaction History -->
+                <div class="detail-section">
+                    <h3>Interaction History</h3>
+                    <div id="detailInteractionHistory" class="interaction-timeline">
+                        <!-- Mock interaction history will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
