@@ -85,3 +85,16 @@ def leads():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+@app.route('/leads')
+def leads():
+    """Leads dashboard page"""
+    try:
+        leads_data = get_leads_data()
+        return render_template('leads.html', leads=leads_data)
+    except Exception as e:
+        logging.error(f'Error loading leads page: {str(e)}')
+        return render_template('leads.html', leads=[], error='Failed to load leads data')
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
