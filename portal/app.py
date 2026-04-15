@@ -1,4 +1,4 @@
-from portal.leads_endpoint import get_leads_data
+from leads_endpoint import get_leads_data
 import os
 import sys
 import json
@@ -67,38 +67,12 @@ def api_leads():
 @app.route("/api/leads-mock", methods=["GET"])
 def api_leads_mock():
     """Get leads data with enrichment scores"""
-    return get_leads_data()
+    return get_
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
-@app.route('/leads')
-def leads():
-    """Leads management page"""
-    # Mock leads data for table display
-    leads_data = [
-        {'id': 1, 'name': 'John Smith', 'email': 'john@email.com', 'phone': '555-0123', 'status': 'New', 'source': 'Website', 'trade': 'Plumber', 'borough': 'Manhattan'},
-        {'id': 2, 'name': 'Jane Doe', 'email': 'jane@email.com', 'phone': '555-0124', 'status': 'Contacted', 'source': 'Referral', 'trade': 'Electrician', 'borough': 'Brooklyn'},
-        {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@email.com', 'phone': '555-0125', 'status': 'Qualified', 'source': 'Social Media', 'trade': 'General Contractor', 'borough': 'Queens'}
-    ]
-    return render_template('leads_management.html', leads=leads_data)
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
-@app.route('/leads')
-def leads():
-    """Leads dashboard page"""
-    try:
-        leads_data = get_leads_data()
-        return render_template('leads.html', leads=leads_data)
-    except Exception as e:
-        logging.error(f'Error loading leads page: {str(e)}')
-        return render_template('leads.html', leads=[], error='Failed to load leads data')
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
 @app.route('/leads')
 def leads():
     """Leads management page"""
     return render_template('leads.html')
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
