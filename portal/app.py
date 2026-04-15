@@ -1,3 +1,4 @@
+from portal.leads_endpoint import get_leads_data
 # Contractor AI - Campaign Intelligence Platform
 import os
 import sys
@@ -908,6 +909,11 @@ def get_leads():
         
     except Exception as e:
         import logging
+@app.route("/api/leads-mock", methods=["GET"])
+def api_leads_mock():
+    """Get leads data with enrichment scores"""
+    return get_leads_data()
+
         logging.error(f'Error fetching leads: {str(e)}')
         return jsonify({
             'success': False,
