@@ -98,3 +98,7 @@ def leads():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+@app.route('/leads')
+def leads():
+    """Leads management page"""
+    return render_template('leads.html')
