@@ -120,7 +120,7 @@ function renderTable(leads) {
     
     // Add rows for each lead
     leads.forEach(lead => {
-        const row = createTableRow(lead);
+        const row = createTableRowWithDetail(lead);
         tableBody.appendChild(row);
     });
 }
@@ -361,3 +361,189 @@ document.addEventListener('DOMContentLoaded', function() {
     loadLeadsData();
     setupEventListenersEnhanced();
 });
+
+// Detail Panel Functionality
+function initDetailPanel() {
+    const panel = document.getElementById('detailPanel');
+    if (!panel) return;
+    
+    const overlay = panel.querySelector('.detail-panel-overlay');
+    const closeBtn = panel.querySelector('.close-btn');
+    
+    if (overlay) overlay.addEventListener('click', closeDetailPanel);
+    if (closeBtn) closeBtn.addEventListener('click', closeDetailPanel);
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && panel.style.display === 'block') {
+            closeDetailPanel();
+        }
+    });
+}
+
+// Open detail panel
+function openDetailPanel(lead) {
+    const panel = document.getElementById('detailPanel');
+    if (!panel) return;
+    
+    populateDetailPanel(lead);
+    panel.style.display = 'block';
+}
+
+// Close detail panel
+function closeDetailPanel() {
+    const panel = document.getElementById('detailPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+// Populate detail panel with lead data
+function populateDetailPanel(lead) {
+    // Contact Information
+    setElement('detailName', lead.name);
+    setElement('detailEmail', lead.email);
+    setElement('detailPhone', lead.phone);
+    setElement('detailAddress', lead.address);
+    
+    // Project Details
+    setElement('detailTrade', lead.trade);
+    setElement('detailBorough', lead.borough);
+    setElement('detailProjectType', lead.project_type || 'General');
+    setElement('detailBudget', lead.budget_range || '$5,000 - $25,000');
+    
+    // Enrichment Details
+    setElement('detailEnrichmentScore', lead.enrichment_score);
+    setElement('detailLeadSource', 'Permit Database');
+    setElement('detailQualityRating', getQualityRating(lead.enrichment_score));
+    setElement('detailVerificationStatus', getVerificationStatus(lead.enrichment_score));
+    
+    // Timeline
+    setElement('detailDateCreated', formatDate(lead.date_created));
+    setElement('detailLastContact', 'Never');
+    setElement('detailFollowupDate', 'Not Set');
+    setElement('detailStatus', 'New');
+    
+    // Generate interaction history
+    populateInteractionHistory(lead);
+}
+
+// Helper function to set element text
+function setElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value || '-';
+}
+
+// Get quality rating based on score
+function getQualityRating(score) {
+    if (!score) return 'Unknown';
+    if (score >= 80) return 'High Quality';
+    if (score >= 60) return 'Medium Quality';
+    return 'Low Quality';
+}
+
+// Get verification status based on score
+function getVerificationStatus(score) {
+    if (!score) return 'Unverified';
+    if (score >= 70) return 'Verified';
+    if (score >= 50) return 'Partially Verified';
+    return 'Unverified';
+}
+
+// Populate interaction history
+function populateInteractionHistory(lead) {
+    const container = document.getElementById('interactionHistory');
+    if (!container) return;
+    
+    const interactions = generateMockInteractions(lead);
+    container.innerHTML = '';
+    
+    if (interactions.length === 0) {
+        container.innerHTML = '<p class="no-interactions">No interactions yet</p>';
+        return;
+    }
+    
+    interactions.forEach(interaction => {
+        const item = document.createElement('div');
+        item.className = 'interaction-item';
+        item.innerHTML = `
+            <div class="interaction-date">${formatDate(interaction.date)}</div>
+            <div class="interaction-type">${interaction.type}</div>
+            <div class="interaction-details">${interaction.details}</div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+// Generate mock interactions based on lead
+function generateMockInteractions(lead) {
+    const interactions = [];
+    const score = lead.enrichment_score || 0;
+    const baseDate = new Date(lead.date_created || Date.now());
+    
+    interactions.push({
+        date: baseDate.toISOString(),
+        type: 'Lead Created',
+        details: 'Lead generated from permit database'
+    });
+    
+    if (score > 50) {
+        const emailDate = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000);
+        interactions.push({
+            date: emailDate.toISOString(),
+            type: 'Email Sent',
+            details: 'Initial contact email sent'
+        });
+    }
+    
+    if (score > 70) {
+        const followDate = new Date(baseDate.getTime() + 3 * 24 * 60 * 60 * 1000);
+        interactions.push({
+            date: followDate.toISOString(),
+            type: 'Follow-up',
+            details: 'Follow-up email with project details'
+        });
+    }
+    
+    return interactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+// Initialize detail panel on load
+document.addEventListener('DOMContentLoaded', function() {
+    initDetailPanel();
+});
+
+// Create table row with detail panel click handler
+function createTableRowWithDetail(lead) {
+    const row = document.createElement('tr');
+    row.style.cursor = 'pointer';
+    row.className = 'clickable-row';
+    
+    // Add click handler for detail panel
+    row.addEventListener('click', () => openDetailPanel(lead));
+    
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+    
+    row.innerHTML = `
+        <td>${escapeHtml(lead.name || 'Unknown')}</td>
+        <td>${escapeHtml(lead.trade || 'Unknown')}</td>
+        <td>${escapeHtml(lead.borough || 'Unknown')}</td>
+        <td><span class="score-badge">${lead.enrichment_score || 0}</span></td>
+        <td>${formatDate(lead.date_created)}</td>
+    `;
+    
+    return row;
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
