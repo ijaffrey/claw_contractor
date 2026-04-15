@@ -10,19 +10,12 @@ def test_leads_endpoint():
     """Test the leads endpoint functionality"""
     try:
         result = get_leads_data()
-        response, status_code = result
         
-        if status_code != 200:
-            print(f"✗ Endpoint failed with status code: {status_code}")
-            return False
-            
-        data = response.json
-        
-        if not data.get('success'):
+        if not result.get('success'):
             print("✗ Endpoint returned success=False")
             return False
             
-        leads = data.get('data', [])
+        leads = result.get('leads', [])
         if len(leads) == 0:
             print("✗ No leads data returned")
             return False
@@ -59,13 +52,13 @@ def test_leads_endpoint():
                 print(f"✗ Missing required fields: {missing_fields}")
                 return False
             else:
-                print("✓ All required fields present")
+                print(f"✓ All required fields present: {required_fields}")
                 return True
         else:
             return False
             
     except Exception as e:
-        print(f"✗ Test failed with error: {str(e)}")
+        print(f"✗ Test failed with error: {e}")
         return False
 
 if __name__ == '__main__':
