@@ -85,25 +85,33 @@ def generate_mock_leads(count=25):
             'trade': random.choice(CONTRACTOR_TRADES),
             'borough': random.choice(NYC_BOROUGHS),
             'enrichment_score': generate_realistic_enrichment_score(),
-            'date_created': date_created.isoformat()
+            'date_created': date_created.strftime('%Y-%m-%d %H:%M:%S')
         }
         
         leads.append(lead)
     
-    # Sort by date created (newest first)
+    # Sort by date created (most recent first)
     leads.sort(key=lambda x: x['date_created'], reverse=True)
     
     return leads
 
 def get_leads_data():
-    """Main function to get leads data with enrichment scores"""
+    """Return leads data for the /api/leads endpoint"""
     try:
         leads = generate_mock_leads()
         
-        logging.info(f'Generated {len(leads)} mock leads with enrichment scores')
-        
-        return leads
-        
+        return {
+            'success': True,
+            'total_count': len(leads),
+            'leads': leads,
+            'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+    
     except Exception as e:
-        logging.error(f'Error generating leads data: {str(e)}')
-        return []
+        logging.error(f"Error generating leads data: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e),
+            'leads': [],
+            'total_count': 0
+        }
