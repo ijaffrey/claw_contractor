@@ -16,32 +16,46 @@
             </div>
         </header>
 
+        <!-- Filter Controls -->
+        <div class="filter-container">
+            <div class="filter-group">
+                <label for="tradeFilter">Filter by Trade:</label>
+                <select id="tradeFilter">
+                    <option value="">All Trades</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="boroughFilter">Filter by Borough:</label>
+                <select id="boroughFilter">
+                    <option value="">All Boroughs</option>
+                    <option value="Manhattan">Manhattan</option>
+                    <option value="Brooklyn">Brooklyn</option>
+                    <option value="Queens">Queens</option>
+                    <option value="Bronx">Bronx</option>
+                    <option value="Staten Island">Staten Island</option>
+                </select>
+            </div>
+            <button id="clearFilters" class="btn btn-secondary">Clear Filters</button>
+        </div>
+
         <div class="table-container">
-            <table class="portal-table">
+            <table class="portal-table" id="leadsTable">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Service</th>
-                        <th>Status</th>
-                        <th>Date</th>
+                        <th>Trade</th>
+                        <th>Borough</th>
+                        <th>Enrichment Score</th>
+                        <th>Date Created</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for lead in leads %}
-                    <tr>
-                        <td>{{ lead.name }}</td>
-                        <td>{{ lead.email }}</td>
-                        <td>{{ lead.phone }}</td>
-                        <td>{{ lead.service }}</td>
-                        <td><span class="status-badge status-{{ lead.status.lower() }}">{{ lead.status }}</span></td>
-                        <td>{{ lead.date }}</td>
-                    </tr>
-                    {% endfor %}
+                    <!-- Table rows will be populated by JavaScript -->
                 </tbody>
             </table>
         </div>
     </div>
+
+    <script src="{{ url_for('static', filename='leads.js') }}"></script>
 </body>
 </html>
