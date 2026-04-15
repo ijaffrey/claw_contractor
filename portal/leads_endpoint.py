@@ -51,37 +51,39 @@ def get_leads_data():
         score_ranges = [
             (30, 39, 0.1),   # 10% chance for low scores
             (40, 59, 0.3),   # 30% chance for medium-low scores
-            (60, 79, 0.4),   # 40% chance for medium-high scores
-            (80, 95, 0.2)    # 20% chance for high scores
+            (60, 80, 0.4),   # 40% chance for medium-high scores
+            (81, 95, 0.2)    # 20% chance for high scores
         ]
         
-        rand = random.random()
-        cumulative = 0
-        enrichment_score = 50  # default
+        # Select score range based on probabilities
+        rand_val = random.random()
+        cumulative_prob = 0
+        selected_range = None
         
-        for min_score, max_score, probability in score_ranges:
-            cumulative += probability
-            if rand <= cumulative:
-                enrichment_score = random.randint(min_score, max_score)
+        for min_score, max_score, prob in score_ranges:
+            cumulative_prob += prob
+            if rand_val <= cumulative_prob:
+                selected_range = (min_score, max_score)
                 break
         
-        # Generate date within last 30 days
+        if not selected_range:
+            selected_range = (60, 80)  # Default to medium-high
+        
+        enrichment_score = random.randint(selected_range[0], selected_range[1])
+        
+        # Generate realistic date (last 30 days)
         days_ago = random.randint(0, 30)
-        date_created = (datetime.now() - timedelta(days=days_ago)).isoformat()
+        date_created = datetime.now() - timedelta(days=days_ago)
         
         lead = {
             'name': f"{random.choice(first_names)} {random.choice(last_names)}",
             'trade': random.choice(trades),
             'borough': random.choice(boroughs),
             'enrichment_score': enrichment_score,
-            'date_created': date_created
+            'date_created': date_created.isoformat()
         }
         
         leads.append(lead)
     
-    # Sort by enrichment score descending for better display
-    leads.sort(key=lambda x: x['enrichment_score'], reverse=True)
-    
     logger.info(f"Generated {len(leads)} mock leads with enrichment scores 30-95")
-    
     return leads
