@@ -85,15 +85,12 @@ def generate_mock_leads(count=25):
             'trade': random.choice(CONTRACTOR_TRADES),
             'borough': random.choice(NYC_BOROUGHS),
             'enrichment_score': generate_realistic_enrichment_score(),
-            'date_created': date_created.strftime('%Y-%m-%d %H:%M:%S'),
-            'email': f'{random.choice(LEAD_NAMES).lower().replace(" ", ".")}{random.randint(10,99)}@example.com',
-            'phone': f'({random.randint(212,917)}) {random.randint(100,999)}-{random.randint(1000,9999)}',
-            'project_value': random.choice(['$5K-$15K', '$15K-$35K', '$35K-$75K', '$75K+'])
+            'date_created': date_created.isoformat()
         }
         
         leads.append(lead)
     
-    # Sort by date (newest first)
+    # Sort by date created (newest first)
     leads.sort(key=lambda x: x['date_created'], reverse=True)
     
     return leads
@@ -105,22 +102,8 @@ def get_leads_data():
         
         logging.info(f'Generated {len(leads)} mock leads with enrichment scores')
         
-        return jsonify({
-            'success': True,
-            'data': leads,
-            'total': len(leads),
-            'timestamp': datetime.now().isoformat(),
-            'enrichment_stats': {
-                'min_score': min(lead['enrichment_score'] for lead in leads),
-                'max_score': max(lead['enrichment_score'] for lead in leads),
-                'avg_score': round(sum(lead['enrichment_score'] for lead in leads) / len(leads), 1)
-            }
-        })
+        return leads
         
     except Exception as e:
         logging.error(f'Error generating leads data: {str(e)}')
-        return jsonify({
-            'success': False,
-            'error': 'Failed to generate leads data',
-            'timestamp': datetime.now().isoformat()
-        }), 500
+        return []
