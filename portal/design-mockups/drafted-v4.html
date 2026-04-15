@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --accent:#E8621A;--al:rgba(232,98,26,0.09);
+  --sw:210px;--sidebar:#141414;
+  --bg:#EEEEE8;--surface:#fff;
+  --bd:0.5px solid rgba(0,0,0,0.07);
+  --t:#141414;--t2:#6B6B6B;--t3:#A8A8A0;
+  --green:#1A7A4A;--gbg:#EAF3DE;
+  --amber:#854F0B;--abg:#FAEEDA;
+  --red:#A32D2D;--rbg:#FCEBEB;
+  --blue:#185FA5;--bbg:#E6F1FB;
+  --gray:#F1EFE8;--gt:#5F5E5A;
+  --r:10px;--rsm:6px;
+  --mono:'DM Mono',monospace;
+  --sans:'DM Sans',-apple-system,sans-serif;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:var(--sans);background:#111;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.app{width:98vw;height:96vh;display:flex;border-radius:14px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.06);}
+
+/* ── Sidebar ── */
+.sb{width:var(--sw);background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0;}
+.sb-brand{padding:18px 16px 14px;display:flex;align-items:center;gap:9px;border-bottom:0.5px solid rgba(255,255,255,0.05);margin-bottom:6px;}
+.sb-logo{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;}
+.sb-name{font-size:13px;font-weight:600;color:#fff;letter-spacing:-0.01em;}
+.sb-sub{font-size:10px;color:rgba(255,255,255,0.28);}
+.sb-sect{padding:0 10px;margin-bottom:2px;}
+.sb-lbl{font-size:9px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:rgba(255,255,255,0.22);padding:8px 8px 3px;}
+.sb-a{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;color:rgba(255,255,255,0.48);font-size:12.5px;font-weight:500;cursor:pointer;margin-bottom:1px;transition:all 0.1s;}
+.sb-a:hover{background:rgba(255,255,255,0.05);color:#fff;}
+.sb-a.on{background:var(--al);color:var(--accent);font-weight:600;}
+.sb-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.15);flex-shrink:0;}
+.sb-a.on .sb-dot{background:var(--accent);}
+.sb-n{margin-left:auto;font-size:10px;font-family:var(--mono);background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:20px;color:rgba(255,255,255,0.3);}
+.sb-a.on .sb-n{background:var(--al);color:var(--accent);}
+.sb-space{flex:1;}
+.sb-streak{margin:0 10px 10px;background:rgba(232,98,26,0.1);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:8px;}
+.sb-streak-val{font-size:12px;font-weight:700;color:var(--accent);}
+.sb-streak-lbl{font-size:10px;color:rgba(255,255,255,0.35);}
+.sb-foot{padding:11px 16px;border-top:0.5px solid rgba(255,255,255,0.05);font-size:10px;color:rgba(255,255,255,0.15);font-family:var(--mono);}
+
+/* ── Main ── */
+.main{flex:1;display:flex;flex-direction:column;background:var(--bg);overflow:hidden;}
+
+/* ── Topbar ── */
+.topbar{height:48px;background:var(--surface);border-bottom:var(--bd);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;}
+.tb-l{display:flex;align-items:center;gap:8px;}
+.tb-title{font-size:14px;font-weight:600;letter-spacing:-0.02em;}
+.tb-sep{color:rgba(0,0,0,0.15);font-size:16px;}
+.tb-sub{font-size:12px;color:var(--t3);}
+.live-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 9px;border-radius:20px;background:var(--gbg);color:var(--green);font-weight:600;font-family:var(--mono);}
+.pulse{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;display:inline-block;flex-shrink:0;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
+.tb-r{display:flex;gap:6px;}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--rsm);font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid rgba(0,0,0,0.11);background:var(--surface);color:var(--t);font-family:var(--sans);transition:all 0.1s;white-space:nowrap;}
+.btn:hover{background:#f3f3f3;}
+.btn.accent{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn.accent:hover{background:#d45510;}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--t2);}
+.btn.ghost:hover{background:rgba(0,0,0,0.04);}
+.btn.sm{padding:4px 10px;font-size:11px;}
+.btn.approve{background:var(--green);color:#fff;border-color:var(--green);padding:8px 18px;font-size:13px;}
+.btn.approve:hover{background:#145c38;}
+
+/* ── Screens ── */
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.screen.on{display:flex;}
+
+/* ── Stats strip ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px 0;flex-shrink:0;}
+.stat{background:var(--surface);border:var(--bd);border-radius:var(--r);padding:13px 15px;}
+.stat-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--t3);margin-bottom:4px;}
+.stat-val{font-size:22px;font-weight:700;font-family:var(--mono);letter-spacing:-0.02em;line-height:1;}
+.stat-val.ora{color:var(--accent);}
+.stat-val.red{color:var(--red);}
+.stat-hint{font-size:10px;color:var(--t3);margin-top:3px;}
+
+/* ── Filter bar ── */
+.fbar{display:flex;align-items:center;gap:0;padding:12px 20px;flex-shrink:0;border-bottom:var(--bd);background:var(--surface);overflow-x:auto;}
+.fbar-group{display:flex;align-items:center;gap:4px;padding:0 12px;border-right:0.5px solid rgba(0,0,0,0.08);}
+.fbar-group:first-child{padding-left:0;}
+.fbar-group:last-child{border-right:none;padding-right:0;margin-left:auto;}
+.fbar-lbl{font-size:10.5px;color:var(--t3);font-weight:500;margin-right:4px;white-space:nowrap;}
+.chip{padding:4px 11px;border-radius:20px;font-size:11.5px;font-weight:500;border:0.5px solid transparent;color:var(--t2);cursor:pointer;transition:all 0.1s;white-space:nowrap;background:none;}
+.chip:hover{color:var(--t);background:var(--gray);}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.chip.on:hover{background:#d45510;}
+.sort-sel{font-size:11.5px;font-weight:500;border:0.5px solid rgba(0,0,0,0.1);border-radius:6px;padding:4px 8px;background:var(--surface);color:var(--t);font-family:var(--sans);cursor:pointer;}
+
+/* ── Feed ── */
+.feed{flex:1;overflow-y:auto;padding:14px 20px 24px;}
+.sec-head{display:flex;align-items:center;gap:6px;margin:0 0 8px;}
+.sec-lbl{font-size:11px;font-weight:600;color:var(--t2);}
+.sec-n{font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto;}
+
+/* ── Lead card ── */
+.lead{background:var(--surface);border:var(--bd);border-radius:var(--r);margin-bottom:5px;transition:box-shadow 0.1s;}
+.lead:hover{box-shadow:0 2px 12px rgba(0,0,0,0.06);}
+.lead.hot{border-left:3px solid var(--green);}
+.lead.warm{border-left:3px solid var(--amber);}
+
+.lrow{display:grid;grid-template-columns:1fr 72px 100px 130px 82px 100px 86px 160px;align-items:center;gap:10px;padding:11px 14px;}
+
+/* Address cell */
+.addr{font-weight:600;font-size:13px;letter-spacing:-0.01em;}
+.addr-meta{font-size:10.5px;color:var(--t3);margin-top:2px;}
+
+/* Freshness */
+.fresh{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-block;white-space:nowrap;}
+.fh{background:var(--gbg);color:var(--green);}
+.fw{background:var(--abg);color:var(--amber);}
+
+/* Pills */
+.pill{display:inline-flex;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;}
+.p-ab{background:var(--abg);color:var(--amber);}
+.p-dm{background:var(--rbg);color:var(--red);}
+.p-cn{background:var(--gbg);color:var(--green);}
+.bid{display:inline-flex;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:600;white-space:nowrap;margin-top:3px;}
+.bid-pc{background:var(--bbg);color:var(--blue);}
+.bid-pr{background:var(--gbg);color:var(--green);}
+.bid-pub{background:var(--gray);color:var(--gt);}
+
+/* Contact */
+.ct-name{font-size:12px;font-weight:500;}
+.ct-firm{font-size:10.5px;color:var(--t3);margin-top:1px;}
+.ct-ok{font-size:10px;color:var(--green);margin-top:2px;}
+.ct-no{font-size:10px;color:var(--t3);margin-top:2px;}
+
+/* Score bar */
+.sbar-bg{width:48px;height:3px;border-radius:2px;background:rgba(0,0,0,0.06);}
+.sbar{height:100%;border-radius:2px;}
+.sh{background:var(--green);}
+.sm{background:var(--amber);}
+.sl{background:var(--red);}
+.snum{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:2px;}
+
+/* Amount */
+.amt{font-family:var(--mono);font-weight:700;font-size:13px;}
+.amt-sub{font-size:10px;color:var(--t3);margin-top:1px;}
+
+/* Risk badge */
+.risk{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+.rh{background:var(--rbg);color:var(--red);}
+.rm{background:var(--abg);color:var(--amber);}
+.rl{background:var(--gbg);color:var(--green);}
+.ru{background:var(--gray);color:var(--gt);}
+.rdot{width:4px;height:4px;border-radius:50%;flex-shrink:0;}
+.rh .rdot{background:var(--red);}
+.rm .rdot{background:var(--amber);}
+.rl .rdot{background:var(--green);}
+.ru .rdot{background:var(--gt);}
+
+/* Actions */
+.la{display:flex;gap:4px;justify-content:flex-end;}
+
+/* Column headers row */
+.col-row{display:grid;grid-template-columns:1fr 72px 100px 130px 82px 100px 86px 160px;gap:10px;padding:6px 14px;background:#F7F7F3;border:var(--bd);border-radius:var(--r) var(--r) 0 0;border-bottom:0.5px solid rgba(0,0,0,0.06);}
+.col-row+.lead{border-radius:0;}
+.col-row+.lead+.lead{border-radius:0;}
+.ch{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--t3);}
+
+/* warm section spacer */
+.sec-spacer{margin-top:16px;}
+
+/* ── Overview screen ── */
+.ov-topbar{height:48px;background:var(--surface);border-bottom:var(--bd);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;}
+.ov-tl{display:flex;align-items:center;gap:8px;}
+.back{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);cursor:pointer;background:none;border:none;font-family:var(--sans);padding:4px 8px;border-radius:5px;}
+.back:hover{background:rgba(0,0,0,0.04);color:var(--t);}
+.bc-sep{color:rgba(0,0,0,0.18);}
+.ov-addr{font-size:14px;font-weight:600;letter-spacing:-0.02em;}
+.sp{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.sp-rev{background:var(--abg);color:var(--amber);}
+.sp-risk{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--rbg);color:var(--red);}
+.ov-tr{display:flex;gap:6px;}
+
+.ov-tabs{display:flex;border-bottom:var(--bd);background:var(--surface);padding:0 20px;flex-shrink:0;}
+.otab{padding:10px 16px;font-size:12.5px;font-weight:500;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.1s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans);}
+.otab:hover{color:var(--t);}
+.otab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+
+.ov-body{flex:1;overflow-y:auto;padding:20px;}
+
+/* Overview grid */
+.ov-grid{display:grid;grid-template-columns:1fr 320px;gap:16px;}
+.ov-left{display:flex;flex-direction:column;gap:12px;}
+.card{background:var(--surface);border:var(--bd);border-radius:var(--r);padding:16px 18px;}
+.card-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--t3);margin-bottom:12px;}
+.irow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid rgba(0,0,0,0.04);font-size:12.5px;}
+.irow:last-child{border-bottom:none;}
+.il{color:var(--t2);}
+.iv{font-weight:600;}
+.iv.green{color:var(--green);}
+.iv.blue{color:var(--blue);font-size:12px;}
+.src{font-size:9px;color:var(--t3);background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:4px;margin-left:3px;font-weight:400;}
+
+/* Right col */
+.ov-right{display:flex;flex-direction:column;gap:10px;}
+.trade-card{background:var(--surface);border:var(--bd);border-radius:var(--r);padding:13px 16px;display:flex;align-items:center;justify-content:space-between;}
+.trade-name{font-size:12.5px;font-weight:600;}
+.trade-conf{display:inline-block;margin-top:3px;}
+.trade-amt{font-family:var(--mono);font-weight:700;font-size:15px;}
+.total-card{background:var(--t);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;}
+.total-lbl{font-size:12px;color:rgba(255,255,255,0.45);}
+.total-note{font-size:10px;color:rgba(255,255,255,0.25);margin-top:2px;}
+.total-amt{font-family:var(--mono);font-weight:700;font-size:20px;color:#fff;}
+
+/* Alert bar */
+.alert{display:flex;align-items:flex-start;gap:8px;padding:9px 13px;border-radius:var(--rsm);font-size:12px;margin-bottom:12px;border:0.5px solid;line-height:1.5;}
+.a-info{background:var(--bbg);border-color:rgba(24,95,165,0.18);color:var(--blue);}
+.a-warn{background:var(--rbg);border-color:rgba(160,45,45,0.18);color:var(--red);}
+
+/* Risk flags inline */
+.flag-inline{display:flex;gap:8px;padding:8px 10px;border-radius:var(--rsm);border:0.5px solid;margin-bottom:6px;}
+.fi-red{background:var(--rbg);border-color:rgba(160,45,45,0.18);}
+.fi-ora{background:var(--abg);border-color:rgba(133,79,11,0.18);}
+.flag-icon{font-size:13px;flex-shrink:0;margin-top:1px;}
+.flag-title{font-size:12px;font-weight:600;color:var(--t);}
+.flag-desc{font-size:11px;color:var(--t2);margin-top:2px;line-height:1.5;}
+
+/* CTA buttons */
+.ov-cta{display:flex;gap:8px;margin-top:4px;}
+
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.1);border-radius:4px;}
+
+/* Toast */
+#tst{display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#141414;color:#fff;padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;z-index:999;transition:opacity 0.2s;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <nav class="sb">
+    <div class="sb-brand">
+      <div class="sb-logo">D</div>
+      <div><div class="sb-name">Drafted</div><div class="sb-sub">Sanz Construction</div></div>
+    </div>
+    <div class="sb-sect">
+      <div class="sb-lbl">Pipeline</div>
+      <div class="sb-a on" onclick="showFeed()"><div class="sb-dot"></div> Today's leads <span class="sb-n">12</span></div>
+      <div class="sb-a" onclick="showFeed()"><div class="sb-dot"></div> All leads <span class="sb-n">847</span></div>
+      <div class="sb-a" onclick="showFeed()"><div class="sb-dot"></div> Sent <span class="sb-n">14</span></div>
+      <div class="sb-a" onclick="showFeed()"><div class="sb-dot"></div> Won</div>
+    </div>
+    <div class="sb-sect">
+      <div class="sb-lbl">Trades</div>
+      <div class="sb-a" onclick="showFeed()"><div class="sb-dot"></div> Abatement <span class="sb-n">423</span></div>
+      <div class="sb-a" onclick="showFeed()"><div class="sb-dot"></div> Demo <span class="sb-n">218</span></div>
+      <div class="sb-a" onclick="showFeed()"><div class="sb-dot"></div> Concrete <span class="sb-n">206</span></div>
+    </div>
+    <div class="sb-space"></div>
+    <div class="sb-streak">
+      <div style="font-size:16px;">🔥</div>
+      <div><div class="sb-streak-val">8 day streak</div><div class="sb-streak-lbl">Keep it up</div></div>
+    </div>
+    <div class="sb-foot">Drafted · Sprint E3</div>
+  </nav>
+
+  <div class="main">
+
+    <!-- ══ SCREEN 1: FEED ══ -->
+    <div class="screen on" id="s-feed">
+
+      <div class="topbar">
+        <div class="tb-l">
+          <span class="tb-title">Today's leads</span>
+          <span class="tb-sep">·</span>
+          <span class="tb-sub">Tue Apr 14 · Manhattan</span>
+          <span class="live-badge"><span class="pulse"></span>12 new</span>
+        </div>
+        <div class="tb-r">
+          <button class="btn ghost sm">Export</button>
+          <button class="btn sm">+ Run address</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat"><div class="stat-lbl">Fresh today</div><div class="stat-val">12</div><div class="stat-hint">Filed last 48hrs</div></div>
+        <div class="stat"><div class="stat-lbl">Est. value</div><div class="stat-val ora">$8.4M</div><div class="stat-hint">Today's leads</div></div>
+        <div class="stat"><div class="stat-lbl">Contact resolved</div><div class="stat-val">9</div><div class="stat-hint">of 12 leads</div></div>
+        <div class="stat"><div class="stat-lbl">Risk flags</div><div class="stat-val red">3</div><div class="stat-hint">Leads with red flags</div></div>
+      </div>
+
+      <!-- Filter bar — clean and grouped -->
+      <div class="fbar">
+        <div class="fbar-group">
+          <span class="fbar-lbl">Trade</span>
+          <span class="chip on" onclick="toggleChip(this)">All</span>
+          <span class="chip" onclick="toggleChip(this)">Abatement</span>
+          <span class="chip" onclick="toggleChip(this)">Demo</span>
+          <span class="chip" onclick="toggleChip(this)">Concrete</span>
+        </div>
+        <div class="fbar-group">
+          <span class="fbar-lbl">Bid type</span>
+          <span class="chip on" onclick="toggleChip(this)">Private</span>
+          <span class="chip" onclick="toggleChip(this)">Public</span>
+        </div>
+        <div class="fbar-group">
+          <span class="fbar-lbl">Risk</span>
+          <span class="chip" onclick="toggleChip(this)">Any</span>
+          <span class="chip" onclick="toggleChip(this)">Low only</span>
+        </div>
+        <div class="fbar-group">
+          <select class="sort-sel">
+            <option>Newest first</option>
+            <option>Deal size ↓</option>
+            <option>Risk score ↑</option>
+            <option>Contact score ↓</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Feed -->
+      <div class="feed">
+
+        <!-- Column headers -->
+        <div class="col-row">
+          <div class="ch">Address</div>
+          <div class="ch">Filed</div>
+          <div class="ch">Trade · type</div>
+          <div class="ch">Contact</div>
+          <div class="ch">Score</div>
+          <div class="ch">Est. value</div>
+          <div class="ch">Risk</div>
+          <div class="ch"></div>
+        </div>
+
+        <!-- Hot leads -->
+        <div class="sec-head" style="margin-top:10px;">
+          <span style="font-size:12px;">🔥</span>
+          <span class="sec-lbl">Hot — filed last 48 hours</span>
+          <span class="sec-n">4 leads</span>
+        </div>
+
+        <div class="lead hot" id="l1">
+          <div class="lrow">
+            <div>
+              <div class="addr">325 Park Avenue, Manhattan</div>
+              <div class="addr-meta">1918 · A1 Alteration · 10,484 sqft · pre-1980</div>
+            </div>
+            <div><span class="fresh fh">Today</span></div>
+            <div>
+              <div><span class="pill p-ab">Abatement</span></div>
+              <div><span class="bid bid-pc">Priv. Commercial</span></div>
+            </div>
+            <div>
+              <div class="ct-name">R. Flores</div>
+              <div class="ct-firm">HPA Architecture</div>
+              <div class="ct-ok">✓ Email · ✓ Phone</div>
+            </div>
+            <div>
+              <div class="sbar-bg"><div class="sbar sh" style="width:82%"></div></div>
+              <div class="snum">82/100</div>
+            </div>
+            <div>
+              <div class="amt">$2,304,258</div>
+              <div class="amt-sub">Full estimate</div>
+            </div>
+            <div>
+              <span class="risk rh"><span class="rdot"></span>High</span>
+              <div style="font-size:9px;color:var(--t3);margin-top:3px;">2 red · 1 orange</div>
+            </div>
+            <div class="la">
+              <button class="btn ghost sm" onclick="skip('l1')">Skip</button>
+              <button class="btn ghost sm" onclick="toast('Saved')">Save</button>
+              <button class="btn accent sm" onclick="showOverview()">Review →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lead hot" id="l2">
+          <div class="lrow">
+            <div>
+              <div class="addr">245 Park Avenue, Manhattan</div>
+              <div class="addr-meta">1966 · A1 Alteration</div>
+            </div>
+            <div><span class="fresh fh">Yesterday</span></div>
+            <div>
+              <div><span class="pill p-ab">Abatement</span></div>
+              <div><span class="bid bid-pc">Priv. Commercial</span></div>
+            </div>
+            <div>
+              <div class="ct-name">SL Green Realty</div>
+              <div class="ct-firm">Owner direct</div>
+              <div class="ct-ok">✓ Email · ✓ Phone</div>
+            </div>
+            <div>
+              <div class="sbar-bg"><div class="sbar sh" style="width:91%"></div></div>
+              <div class="snum">91/100</div>
+            </div>
+            <div>
+              <div class="amt">$63,886,202</div>
+              <div class="amt-sub">Full estimate</div>
+            </div>
+            <div>
+              <span class="risk rm"><span class="rdot"></span>Medium</span>
+              <div style="font-size:9px;color:var(--t3);margin-top:3px;">0 red · 2 orange</div>
+            </div>
+            <div class="la">
+              <button class="btn ghost sm" onclick="skip('l2')">Skip</button>
+              <button class="btn ghost sm" onclick="toast('Saved')">Save</button>
+              <button class="btn accent sm" onclick="showOverview()">Review →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lead hot" id="l3">
+          <div class="lrow">
+            <div>
+              <div class="addr">1 Center Street, Manhattan</div>
+              <div class="addr-meta">1914 · A1 Alteration</div>
+            </div>
+            <div><span class="fresh fh">Yesterday</span></div>
+            <div>
+              <div><span class="pill p-dm">Demo</span></div>
+              <div><span class="bid bid-pub">Public</span></div>
+            </div>
+            <div>
+              <div class="ct-name">City of New York</div>
+              <div class="ct-firm">Dept. Citywide Svcs</div>
+              <div class="ct-no">✓ Email · ✗ Phone</div>
+            </div>
+            <div>
+              <div class="sbar-bg"><div class="sbar sm" style="width:64%"></div></div>
+              <div class="snum">64/100</div>
+            </div>
+            <div>
+              <div class="amt">$1,933,578</div>
+              <div class="amt-sub">Tier 1 est.</div>
+            </div>
+            <div>
+              <span class="risk rh"><span class="rdot"></span>High</span>
+              <div style="font-size:9px;color:var(--t3);margin-top:3px;">Public bid</div>
+            </div>
+            <div class="la">
+              <button class="btn ghost sm" onclick="skip('l3')">Skip</button>
+              <button class="btn ghost sm" onclick="toast('Saved')">Save</button>
+              <button class="btn sm" onclick="showOverview()">Review →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lead hot" id="l4">
+          <div class="lrow">
+            <div>
+              <div class="addr">3250 Broadway, Manhattan</div>
+              <div class="addr-meta">1959 · Alteration</div>
+            </div>
+            <div><span class="fresh fh">Yesterday</span></div>
+            <div>
+              <div><span class="pill p-cn">Concrete</span></div>
+              <div><span class="bid bid-pc">Priv. Commercial</span></div>
+            </div>
+            <div>
+              <div class="ct-no" style="margin-top:0;">Not resolved</div>
+              <div style="font-size:10px;color:var(--t3);margin-top:1px;">Needs enrichment</div>
+            </div>
+            <div>
+              <div class="sbar-bg"><div class="sbar sl" style="width:18%"></div></div>
+              <div class="snum">18/100</div>
+            </div>
+            <div>
+              <div class="amt" style="color:var(--t3);">~$2,363,187</div>
+              <div class="amt-sub">Tier 1 est.</div>
+            </div>
+            <div>
+              <span class="risk ru"><span class="rdot"></span>Unanalyzed</span>
+            </div>
+            <div class="la">
+              <button class="btn ghost sm" onclick="skip('l4')">Skip</button>
+              <button class="btn ghost sm" onclick="toast('Saved')">Save</button>
+              <button class="btn sm" style="color:var(--amber);border-color:var(--amber);" onclick="toast('Enriching...')">Enrich</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Warm leads -->
+        <div class="sec-head sec-spacer">
+          <span style="font-size:12px;">⏳</span>
+          <span class="sec-lbl">Warm — filed 3–7 days ago</span>
+          <span class="sec-n">5 leads</span>
+        </div>
+
+        <div class="lead warm" id="l5">
+          <div class="lrow">
+            <div>
+              <div class="addr">550 Washington Street, Manhattan</div>
+              <div class="addr-meta">1934 · Alteration · pre-1980</div>
+            </div>
+            <div><span class="fresh fw">5 days ago</span></div>
+            <div>
+              <div><span class="pill p-dm">Demo</span></div>
+              <div><span class="bid bid-pc">Priv. Commercial</span></div>
+            </div>
+            <div>
+              <div class="ct-name">T. Washington</div>
+              <div class="ct-firm">Trinity RE Partners</div>
+              <div class="ct-ok">✓ Email · ✓ Phone</div>
+            </div>
+            <div>
+              <div class="sbar-bg"><div class="sbar sh" style="width:78%"></div></div>
+              <div class="snum">78/100</div>
+            </div>
+            <div>
+              <div class="amt">$15,192</div>
+              <div class="amt-sub">Full estimate</div>
+            </div>
+            <div>
+              <span class="risk rl"><span class="rdot"></span>Low</span>
+              <div style="font-size:9px;color:var(--t3);margin-top:3px;">No flags</div>
+            </div>
+            <div class="la">
+              <button class="btn ghost sm" onclick="skip('l5')">Skip</button>
+              <button class="btn ghost sm" onclick="toast('Saved')">Save</button>
+              <button class="btn accent sm" onclick="showOverview()">Review →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lead warm" id="l6">
+          <div class="lrow">
+            <div>
+              <div class="addr">425 Lexington Avenue, Manhattan</div>
+              <div class="addr-meta">1987 · A1 Alteration</div>
+            </div>
+            <div><span class="fresh fw">6 days ago</span></div>
+            <div>
+              <div><span class="pill p-ab">Abatement</span></div>
+              <div><span class="bid bid-pr">Priv. Residential</span></div>
+            </div>
+            <div>
+              <div class="ct-name">M. Goldstein</div>
+              <div class="ct-firm">Goldstein Family LLC</div>
+              <div class="ct-ok">✓ Email · ✓ Phone</div>
+            </div>
+            <div>
+              <div class="sbar-bg"><div class="sbar sh" style="width:88%"></div></div>
+              <div class="snum">88/100</div>
+            </div>
+            <div>
+              <div class="amt">$308,581</div>
+              <div class="amt-sub">Full estimate</div>
+            </div>
+            <div>
+              <span class="risk rl"><span class="rdot"></span>Low</span>
+              <div style="font-size:9px;color:var(--t3);margin-top:3px;">Simple scope</div>
+            </div>
+            <div class="la">
+              <button class="btn ghost sm" onclick="skip('l6')">Skip</button>
+              <button class="btn ghost sm" onclick="toast('Saved')">Save</button>
+              <button class="btn accent sm" onclick="showOverview()">Review →</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ SCREEN 2: OVERVIEW ══ -->
+    <div class="screen" id="s-overview">
+
+      <div class="ov-topbar">
+        <div class="ov-tl">
+          <button class="back" onclick="showFeed()">← Today's leads</button>
+          <span class="bc-sep">›</span>
+          <span class="ov-addr">325 Park Avenue, Manhattan</span>
+          <span class="sp sp-rev">Reviewing</span>
+          <span class="sp-risk">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--red);display:inline-block;"></span>
+            High risk · 2 red flags
+          </span>
+        </div>
+        <div class="ov-tr">
+          <button class="btn ghost sm">Download PDF</button>
+          <button class="btn ghost sm">View drawings</button>
+        </div>
+      </div>
+
+      <div class="ov-tabs">
+        <button class="otab on" onclick="switchTab(this,'t-ov')">Overview</button>
+        <button class="otab" onclick="switchTab(this,'t-pr')">Proposal & numbers</button>
+        <button class="otab" onclick="switchTab(this,'t-dc')">Documents</button>
+        <button class="otab" onclick="switchTab(this,'t-sn')">Review & send</button>
+      </div>
+
+      <div class="ov-body">
+
+        <!-- Overview tab -->
+        <div id="t-ov">
+          <div class="alert a-info">
+            <span>ℹ</span>
+            <span>Filed <strong>today</strong> — you're the first to see this lead. Contact has not been approached yet.</span>
+          </div>
+          <div class="alert a-warn" style="margin-bottom:16px;">
+            <span>🔴</span>
+            <div>
+              <strong>2 contract risk flags detected.</strong> Review before investing time in this proposal.
+              <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px;">
+                <div class="flag-inline fi-red"><span class="flag-icon">🔴</span><div><div class="flag-title">Pay-when-paid clause — p.12</div><div class="flag-desc">Payment conditional on GC receiving from owner. Negotiate unconditional terms.</div></div></div>
+                <div class="flag-inline fi-red"><span class="flag-icon">🔴</span><div><div class="flag-title">No damages for delay — p.15</div><div class="flag-desc">Only a schedule extension available if delayed by others. No financial recovery.</div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ov-grid">
+            <div class="ov-left">
+              <div class="card">
+                <div class="card-title">Building details</div>
+                <div class="irow"><span class="il">Address</span><span class="iv">325 Park Avenue, Manhattan</span></div>
+                <div class="irow"><span class="il">Year built</span><span class="iv">1918 <span style="color:var(--green);font-size:11px;font-weight:500;">pre-1980 ✓</span></span></div>
+                <div class="irow"><span class="il">Building area</span><span class="iv">10,484 sqft</span></div>
+                <div class="irow"><span class="il">Floors</span><span class="iv">5</span></div>
+                <div class="irow"><span class="il">Job type</span><span class="iv">A1 Alteration</span></div>
+                <div class="irow"><span class="il">Bid type</span><span class="iv">Private Commercial</span></div>
+                <div class="irow"><span class="il">Permit filed</span><span class="iv green">Apr 14, 2026 · today</span></div>
+                <div class="irow"><span class="il">Permit no.</span><span class="iv" style="font-family:var(--mono);font-weight:500;font-size:12px;">M26-123456</span></div>
+              </div>
+              <div class="card">
+                <div class="card-title">Contact</div>
+                <div class="irow"><span class="il">Name</span><span class="iv">Rafael Flores</span></div>
+                <div class="irow"><span class="il">Role</span><span class="iv">Architect <span class="src">DOB</span></span></div>
+                <div class="irow"><span class="il">Firm</span><span class="iv">HPA Architecture</span></div>
+                <div class="irow"><span class="il">Email</span><span class="iv blue">r.flores@hpa-arch.com <span class="src">Hunter</span></span></div>
+                <div class="irow"><span class="il">Phone</span><span class="iv">(212) 490-0740 <span class="src">Google</span></span></div>
+                <div class="irow"><span class="il">Outreach</span><span style="font-size:11px;background:var(--gray);color:var(--gt);padding:2px 8px;border-radius:20px;font-weight:600;">Not contacted</span></div>
+              </div>
+            </div>
+
+            <div class="ov-right">
+              <div class="trade-card">
+                <div><div class="trade-name">Abatement</div><span class="pill p-ab trade-conf" style="margin-top:3px;font-size:9.5px;">Low confidence</span></div>
+                <div class="trade-amt">$1,287,673</div>
+              </div>
+              <div class="trade-card">
+                <div><div class="trade-name">Demo</div><span class="bid bid-pc trade-conf" style="margin-top:3px;font-size:9.5px;">Medium confidence</span></div>
+                <div class="trade-amt">$889,578</div>
+              </div>
+              <div class="trade-card">
+                <div><div class="trade-name">Concrete</div></div>
+                <div class="trade-amt" style="color:var(--t3);">$0</div>
+              </div>
+              <div class="total-card">
+                <div>
+                  <div class="total-lbl">Total estimate</div>
+                  <div class="total-note">incl. 10% OH + 10% profit</div>
+                </div>
+                <div class="total-amt">$2,177,251</div>
+              </div>
+              <div class="ov-cta">
+                <button class="btn approve" style="flex:1;justify-content:center;" onclick="switchTab(document.querySelectorAll('.otab')[1],'t-pr')">Review & edit numbers →</button>
+              </div>
+              <button class="btn ghost sm" style="text-align:center;justify-content:center;" onclick="switchTab(document.querySelectorAll('.otab')[3],'t-sn')">Skip to send →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Proposal tab placeholder -->
+        <div id="t-pr" style="display:none;">
+          <div class="alert a-info" style="margin-bottom:16px;"><span>✎</span><span>For the full split-screen proposal editor with PDF viewer, see <strong>drafted-proposal-splitscreen.html</strong>. This tab connects there.</span></div>
+          <div class="card">
+            <div class="card-title">Proposal summary</div>
+            <div class="irow"><span class="il">Abatement subtotal</span><span class="iv">$1,013,916</span></div>
+            <div class="irow"><span class="il">Demo subtotal</span><span class="iv">$800,460</span></div>
+            <div class="irow"><span class="il">OH (10%) + Profit (10%)</span><span class="iv">+$362,875</span></div>
+            <div class="irow"><span class="il">Grand total</span><span class="iv" style="font-family:var(--mono);font-size:15px;">$2,177,251</span></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button class="btn approve" onclick="toast('Opening split screen proposal editor...')">Open proposal editor →</button>
+          </div>
+        </div>
+
+        <!-- Documents tab placeholder -->
+        <div id="t-dc" style="display:none;">
+          <div class="card">
+            <div class="card-title">Filed documents</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+              <div style="padding:8px 10px;background:var(--al);border-radius:6px;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;">M26-123456 Application.pdf</div>
+              <div style="padding:8px 10px;border-radius:6px;font-size:12px;color:var(--t2);cursor:pointer;border:var(--bd);">CO Certificate.pdf</div>
+              <div style="padding:8px 10px;border-radius:6px;font-size:12px;color:var(--t2);cursor:pointer;border:var(--bd);">Scope of Work.pdf</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Send tab placeholder -->
+        <div id="t-sn" style="display:none;">
+          <div class="alert a-info" style="margin-bottom:16px;"><span>✓</span><span>Review the numbers before sending. Nothing leaves until you approve.</span></div>
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-title">What gets sent</div>
+            <div class="irow"><span class="il">To</span><span class="iv blue">r.flores@hpa-arch.com</span></div>
+            <div class="irow"><span class="il">Subject</span><span class="iv">Contractors for 325 Park Avenue</span></div>
+            <div class="irow"><span class="il">Attachment</span><span class="iv">Proposal PDF · $2,177,251</span></div>
+            <div class="irow"><span class="il">Follow-ups</span><span class="iv">4 auto-scheduled</span></div>
+            <div class="irow"><span class="il">No mention of</span><span class="iv" style="color:var(--t3);">permits, DOB, or AI</span></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" style="color:var(--red);border-color:rgba(160,45,45,0.2);background:var(--rbg);" onclick="showFeed()">Cancel</button>
+            <button class="btn approve" onclick="handleSend()">Approve & send proposal</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="tst"></div>
+
+<script>
+function showFeed(){
+  document.getElementById('s-feed').classList.add('on');
+  document.getElementById('s-overview').classList.remove('on');
+  document.querySelectorAll('.sb-a').forEach(function(a){a.classList.remove('on');});
+  document.querySelector('.sb-a').classList.add('on');
+}
+function showOverview(){
+  document.getElementById('s-feed').classList.remove('on');
+  document.getElementById('s-overview').classList.add('on');
+  switchTab(document.querySelector('.otab'),'t-ov');
+}
+function switchTab(btn,id){
+  document.querySelectorAll('.otab').forEach(function(t){t.classList.remove('on');});
+  document.querySelectorAll('#s-overview .ov-body > div').forEach(function(p){p.style.display='none';});
+  if(btn)btn.classList.add('on');
+  var p=document.getElementById(id);
+  if(p)p.style.display='';
+}
+function skip(id){
+  var el=document.getElementById(id);
+  el.style.transition='all 0.22s';
+  el.style.opacity='0';
+  el.style.transform='translateX(-14px)';
+  setTimeout(function(){el.style.display='none';},220);
+  toast('Skipped');
+}
+function toggleChip(el){
+  el.classList.toggle('on');
+}
+function handleSend(){
+  toast('Proposal sent — drip sequence started');
+  setTimeout(showFeed,1400);
+}
+var tt;
+function toast(msg){
+  if(tt)clearTimeout(tt);
+  var el=document.getElementById('tst');
+  el.textContent=msg;
+  el.style.display='block';
+  el.style.opacity='1';
+  tt=setTimeout(function(){el.style.opacity='0';setTimeout(function(){el.style.display='none';},200);},2200);
+}
+</script>
+</body>
+</html>
