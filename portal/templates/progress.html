@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Generating — {{ address or slug }}{% endblock %}
+{% block topbar_title %}Generating{% endblock %}
+{% block topbar_subtitle %}{{ address or slug }}{% endblock %}
+
+{% block content %}
+<div class="progress-container">
+  <h1 style="font-size:20px;margin-bottom:4px;">Generating Proposal</h1>
+  <p style="color:var(--text-secondary);font-size:14px;">{{ address or slug }}</p>
+
+  <ul class="progress-steps" id="steps">
+    <li class="progress-step" data-step="dob_puller">
+      <div class="step-icon" id="icon-dob_puller"></div>
+      <span>Pulling permits from DOB...</span>
+    </li>
+    <li class="progress-step" data-step="document_download">
+      <div class="step-icon" id="icon-document_download"></div>
+      <span>Downloading documents...</span>
+    </li>
+    <li class="progress-step" data-step="takeoff">
+      <div class="step-icon" id="icon-takeoff"></div>
+      <span>Running Vision takeoff...</span>
+    </li>
+    <li class="progress-step" data-step="proposal">
+      <div class="step-icon" id="icon-proposal"></div>
+      <span>Generating proposal PDF...</span>
+    </li>
+    <li class="progress-step" data-step="outreach">
+      <div class="step-icon" id="icon-outreach"></div>
+      <span>Drafting outreach emails...</span>
+    </li>
+  </ul>
+
+  <div id="error-box" style="display:none;padding:16px;background:var(--red-bg);border:0.5px solid var(--red-border);border-radius:var(--radius);margin-top:16px;">
+    <p style="color:var(--red);font-weight:600;margin-bottom:8px;">Generation failed</p>
+    <p id="error-msg" style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;"></p>
+    <button class="btn btn-primary" id="retry-btn">Retry</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var slug = {{ slug|tojson }};
+  var address = {{ address|tojson }};
+  var steps = ['queued','dob_puller','document_download','takeoff','proposal','outreach','complete'];
+  var stepEls = document.querySelectorAll('.progress-step');
+
+  function updateSteps(currentStep, status) {
+    var idx = steps.indexOf(currentStep);
+    stepEls.forEach(function(el, i) {
+      var s = el.dataset.step;
+      var sIdx = steps.indexOf(s);
+      el.classList.remove('done','active','error');
+      if (status === 'error') {
+        if (sIdx < idx) el.classList.add('done');
+        else if (sIdx === idx) el.classList.add('error');
+      } else {
+        if (sIdx < idx) el.classList.add('done');
+        else if (sIdx === idx) el.classList.add('active');
+      }
+      // Icons
+      var icon = el.querySelector('.step-icon');
+      if (el.classList.contains('done')) icon.innerHTML = '\u2713';
+      else if (el.classList.contains('active')) icon.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:1.5px;"></span>';
+      else if (el.classList.contains('error')) icon.innerHTML = '\u2717';
+      else icon.innerHTML = '';
+    });
+  }
+
+  function poll() {
+    var url = '/generate/status/' + encodeURIComponent(slug) + '?address=' + encodeURIComponent(address);
+    fetch(url).then(function(r){return r.json();}).then(function(s){
+      var step = s.step || 'queued';
+      var status = s.status || 'unknown';
+      updateSteps(step, status);
+
+      if (status === 'generated') {
+        // All done
+        stepEls.forEach(function(el){ el.classList.add('done'); el.classList.remove('active'); el.querySelector('.step-icon').innerHTML = '\u2713'; });
+        setTimeout(function(){ window.location.href = '/proposal/' + encodeURIComponent(slug); }, 800);
+        return;
+      }
+      if (status === 'error') {
+        document.getElementById('error-box').style.display = 'block';
+        document.getElementById('error-msg').textContent = s.error || 'An error occurred during generation.';
+        return;
+      }
+      setTimeout(poll, 2000);
+    }).catch(function(){
+      setTimeout(poll, 3000);
+    });
+  }
+
+  // Initial state
+  updateSteps('queued', 'running');
+  poll();
+
+  // Retry
+  document.getElementById('retry-btn').addEventListener('click', function(){
+    document.getElementById('error-box').style.display = 'none';
+    var fd = new FormData();
+    fd.append('address', address);
+    fetch('{{ url_for("generate") }}', {method:'POST', body:fd})
+      .then(function(r){return r.json();})
+      .then(function(){
+        updateSteps('queued', 'running');
+        poll();
+      });
+  });
+})();
+</script>
+{% endblock %}

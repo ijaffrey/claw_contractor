@@ -1,707 +1,608 @@
-import os
-import sys
+"""ContractorAI portal — Flask web UI for Nauman's bid pipeline.
+
+Mobile-first. Reads pipeline artifacts directly from disk (scan_results/,
+dob_output/, proposals/) so it can run alongside the existing CLI pipeline.
+"""
+from __future__ import annotations
+
+import glob
 import json
-import logging
-from datetime import datetime
+import os
+import threading
+import time
+from pathlib import Path
+from typing import Any
 
-from flask import Flask, jsonify, request, render_template, abort
+from flask import (
+    Flask,
+    Response,
+    abort,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    stream_with_context,
+    url_for,
+)
 
-# Ensure repo root is on path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from .pipeline_state import (
+    STATE_PATH,
+    load_state,
+    save_state,
+    set_address_state,
+)
+from .tier1_estimator import load_cache as load_tier1_cache, refresh_cache as refresh_tier1
 
-app = Flask(__name__, template_folder="templates")
-logger = logging.getLogger(__name__)
-
-# ── DB helpers (lazy, tolerates missing Supabase creds) ──────────────────────
-
-def _get_db():
-    """Return SQLAlchemy session using DATABASE_URL or sqlite fallback."""
-    from sqlalchemy import create_engine, text
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
-
-    db_url = os.getenv("DATABASE_URL", "sqlite:///leads.db")
-    if db_url.startswith("sqlite"):
-        engine = create_engine(db_url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    else:
-        engine = create_engine(db_url)
-    Session = sessionmaker(bind=engine)
-    return Session(), engine
-
-
-# ── Health ─────────────────────────────────────────────────────────────────
-
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"})
+# Repo root = parent of portal/
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCAN_RESULTS_DIR = REPO_ROOT / "scan_results"
+DOB_OUTPUT_DIR = REPO_ROOT / "dob_output"
+PROPOSALS_DIR = REPO_ROOT / "proposals"
 
 
-# ── Campaign dashboard pages ───────────────────────────────────────────────
+def create_app() -> Flask:
+    app = Flask(
+        __name__,
+        template_folder=str(Path(__file__).parent / "templates"),
+        static_folder=str(Path(__file__).parent / "static"),
+    )
 
-@app.route("/campaigns")
-def campaigns_page():
-    return render_template("campaign_dashboard.html")
-
-
-@app.route("/campaigns/leads")
-def campaign_leads_page():
-    return render_template("campaign_dashboard.html")
-
-
-# ── API: Leads with enrichment data ────────────────────────────────────────
-
-@app.route("/api/campaigns/leads", methods=["GET"])
-def api_list_leads():
-    """Return leads with enrichment columns."""
-    try:
-        from sqlalchemy import text
-        db, engine = _get_db()
-        result = db.execute(text("""
-            SELECT id, name, email, phone, company, source, status,
-                   notes, score,
-                   enriched_email, enriched_phone, website,
-                   email_source, phone_source,
-                   enrichment_status, enrichment_score, enriched_at,
-                   campaign_tags, outreach_status, last_contacted_at,
-                   created_at, updated_at
-            FROM leads
-            WHERE is_active = 1
-            ORDER BY enrichment_score DESC, created_at DESC
-            LIMIT 500
-        """))
-        cols = result.keys()
-        leads = [dict(zip(cols, row)) for row in result.fetchall()]
-        db.close()
-        return jsonify({"leads": leads, "total": len(leads)})
-    except Exception as e:
-        logger.exception("api_list_leads failed")
-        return jsonify({"leads": [], "total": 0, "error": str(e)}), 200
-
-
-@app.route("/api/campaigns/leads/<int:lead_id>", methods=["PATCH"])
-def api_update_lead(lead_id):
-    """Patch enrichment / outreach fields on a lead."""
-    data = request.get_json() or {}
-    allowed = {
-        "outreach_status", "last_contacted_at", "campaign_tags",
-        "notes", "enriched_email", "enriched_phone", "website",
-        "email_source", "phone_source", "enrichment_status",
-        "enrichment_score", "enriched_at",
+    # ------------------------------------------------------------------
+    # sidebar context processor
+    # ------------------------------------------------------------------
+    BUCKET_LABELS = {
+        "Abatement": "Abatement",
+        "Concrete": "Concrete",
+        "Demo": "Demolition",
+        "GC_opportunity": "General Contractor",
+        "Kitchen": "Kitchen",
+        "Roofing": "Roofing",
+        "Sitework": "Sitework",
     }
-    updates = {k: v for k, v in data.items() if k in allowed}
-    if not updates:
-        return jsonify({"error": "No valid fields to update"}), 400
 
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        set_clause = ", ".join(f"{k} = :{k}" for k in updates)
-        updates["lead_id"] = lead_id
-        db.execute(text(f"UPDATE leads SET {set_clause} WHERE id = :lead_id"), updates)
-        db.commit()
-        db.close()
-        return jsonify({"ok": True, "lead_id": lead_id})
-    except Exception as e:
-        logger.exception("api_update_lead failed")
-        return jsonify({"error": str(e)}), 500
+    @app.context_processor
+    def inject_sidebar():
+        scan = _latest_scan()
+        buckets = []
+        for b in scan.get("buckets", []):
+            name = b.get("bucket", "")
+            raw = b.get("count_raw") or 0
+            buckets.append({
+                "name": name,
+                "label": BUCKET_LABELS.get(name, name),
+                "count": raw if raw else None,
+            })
+        return {"sidebar_buckets": buckets, "active_page": ""}
 
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+    def _latest_scan() -> dict[str, Any]:
+        """Load the most recent scan_analysis_v2_*.json."""
+        if not SCAN_RESULTS_DIR.exists():
+            return {}
+        candidates = sorted(
+            SCAN_RESULTS_DIR.glob("scan_analysis_v2_*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not candidates:
+            return {}
+        with open(candidates[0]) as f:
+            return json.load(f)
 
-@app.route("/api/campaigns/leads/<int:lead_id>/enrich", methods=["POST"])
-def api_enrich_lead(lead_id):
-    """Run enrichment waterfall on a single lead."""
-    try:
-        from sqlalchemy import text
-        from drafted.enrichment_engine import enrich_lead
+    def _slugify_address(address: str) -> str:
+        s = address.lower().strip()
+        for ch in [",", ".", "'", '"']:
+            s = s.replace(ch, "")
+        return "_".join(s.split())
 
-        db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
-        if not row:
-            return jsonify({"error": "Lead not found"}), 404
+    def _load_takeoff(slug: str) -> dict[str, Any] | None:
+        path = DOB_OUTPUT_DIR / slug / "takeoff.json"
+        if not path.exists():
+            return None
+        with open(path) as f:
+            return json.load(f)
 
-        lead_dict = dict(zip(row.keys(), row))
-        result = enrich_lead(lead_dict)
+    def _find_drip_schedule(slug: str) -> Path | None:
+        matches = list(PROPOSALS_DIR.glob(f"{slug}_*_drip_schedule.json"))
+        return matches[0] if matches else None
 
-        # Persist enrichment result
-        db.execute(text("""
-            UPDATE leads SET
-                enriched_email      = :email,
-                enriched_phone      = :phone,
-                website             = :website,
-                email_source        = :email_source,
-                phone_source        = :phone_source,
-                enrichment_status   = :enrichment_status,
-                enrichment_score    = :enrichment_score,
-                enriched_at         = :enriched_at
-            WHERE id = :lead_id
-        """), {**result, "lead_id": lead_id})
-        db.commit()
-        db.close()
-        return jsonify({"ok": True, "lead_id": lead_id, "result": result})
-    except Exception as e:
-        logger.exception("api_enrich_lead failed")
-        return jsonify({"error": str(e)}), 500
+    def _find_proposal_pdf(slug: str) -> Path | None:
+        matches = [
+            p
+            for p in PROPOSALS_DIR.glob(f"{slug}_*_proposal.pdf")
+        ]
+        return matches[0] if matches else None
 
+    # ------------------------------------------------------------------
+    # routes
+    # ------------------------------------------------------------------
+    @app.route("/")
+    def dashboard():
+        scan = _latest_scan()
+        buckets_raw = scan.get("buckets", [])
+        total_permits = scan.get("permits_fetched", 0)
+        state = load_state()
+        generated_count = sum(
+            1
+            for v in state.get("addresses", {}).values()
+            if v.get("status") == "generated"
+        )
+        sent_count = sum(
+            1
+            for v in state.get("addresses", {}).values()
+            if v.get("status") == "sent"
+        )
 
-@app.route("/api/campaigns/leads/bulk-enrich", methods=["POST"])
-def api_bulk_enrich():
-    """Bulk enrich a list of leads."""
-    data = request.get_json() or {}
-    lead_ids = data.get("lead_ids", [])
-    if not lead_ids:
-        return jsonify({"error": "lead_ids required"}), 400
+        # Tier 1 cache — refresh if missing, else use disk cache
+        tier1 = load_tier1_cache()
+        if not tier1.get("permits"):
+            tier1 = refresh_tier1()
+        tier1_permits = tier1.get("permits", {})
 
-    try:
-        from sqlalchemy import text
-        from drafted.enrichment_engine import enrich_lead
+        # Build Tier 1 totals per bucket
+        tier1_by_bucket: dict[str, dict] = {}
+        for entry in tier1_permits.values():
+            b = entry.get("bucket", "")
+            row = tier1_by_bucket.setdefault(b, {"count": 0, "total": 0.0})
+            row["count"] += 1
+            row["total"] += entry.get("tier1_estimate_usd", 0)
 
-        db, _ = _get_db()
-        enriched = 0
-        for lead_id in lead_ids:
-            row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
-            if not row:
-                continue
-            lead_dict = dict(zip(row.keys(), row))
-            result = enrich_lead(lead_dict)
-            db.execute(text("""
-                UPDATE leads SET
-                    enriched_email    = :email,
-                    enriched_phone    = :phone,
-                    website           = :website,
-                    email_source      = :email_source,
-                    phone_source      = :phone_source,
-                    enrichment_status = :enrichment_status,
-                    enrichment_score  = :enrichment_score,
-                    enriched_at       = :enriched_at
-                WHERE id = :lead_id
-            """), {**result, "lead_id": lead_id})
-            enriched += 1
+        # Also sum Tier 3 (takeoff) values from generated addresses
+        tier3_total = 0.0
+        for addr_data in state.get("addresses", {}).values():
+            slug = addr_data.get("slug")
+            if slug and addr_data.get("status") == "generated":
+                takeoff = _load_takeoff(slug)
+                if takeoff:
+                    tier3_total += sum(
+                        t.get("pricing", {}).get("total", 0)
+                        for t in takeoff.get("trades", [])
+                    )
 
-        db.commit()
-        db.close()
-        return jsonify({"ok": True, "enriched": enriched})
-    except Exception as e:
-        logger.exception("api_bulk_enrich failed")
-        return jsonify({"error": str(e)}), 500
+        pipeline_total = sum(r["total"] for r in tier1_by_bucket.values()) + tier3_total
 
+        # Bucket cards with Tier 1 data merged
+        bucket_cards = []
+        for b in buckets_raw:
+            name = b.get("bucket", "")
+            raw = b.get("count_raw") or 0
+            t1 = tier1_by_bucket.get(name, {"count": 0, "total": 0.0})
+            bucket_cards.append({
+                "name": name,
+                "label": BUCKET_LABELS.get(name, name),
+                "count_raw": raw,
+                "count_clustered": b.get("count_clustered", 0),
+                "tier1_count": t1["count"],
+                "tier1_total": t1["total"],
+                "total_initial_cost_usd": b.get("total_initial_cost_usd", 0),
+            })
 
-@app.route("/api/campaigns/leads/<int:lead_id>/proposal", methods=["POST"])
-def api_generate_proposal(lead_id):
-    """Generate outreach proposal for a lead."""
-    data = request.get_json() or {}
-    brand = data.get("brand", "skipp")
+        def _fmt_value(v):
+            if v >= 1e9:
+                return f"${v/1e9:.1f}B"
+            if v >= 1e6:
+                return f"${v/1e6:.1f}M"
+            if v >= 1e3:
+                return f"${v/1e3:.0f}K"
+            return f"${v:,.0f}"
 
-    try:
-        from sqlalchemy import text
-        from drafted.proposal_generator import generate_proposal
+        metrics = [
+            {"label": "Active Opportunities", "value": f"{total_permits:,}"},
+            {"label": "Pipeline Value", "value": _fmt_value(pipeline_total)},
+            {"label": "Proposals Sent", "value": str(sent_count)},
+            {"label": "Emails in Flight", "value": "0"},
+            {"label": "Jobs Won", "value": "0"},
+        ]
+        return render_template(
+            "dashboard.html",
+            metrics=metrics,
+            bucket_cards=bucket_cards,
+            scan_date=scan.get("generated_at", ""),
+            borough=scan.get("borough", ""),
+            active_page="dashboard",
+        )
 
-        db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
-        if not row:
-            return jsonify({"error": "Lead not found"}), 404
+    @app.route("/bucket/<name>")
+    def bucket_view(name: str):
+        scan = _latest_scan()
+        bucket = next(
+            (b for b in scan.get("buckets", []) if b.get("bucket") == name),
+            None,
+        )
+        if bucket is None:
+            abort(404)
 
-        lead_dict = dict(zip(row.keys(), row))
-        db.close()
+        state = load_state()
+        addrs = state.get("addresses", {})
+        tier1 = load_tier1_cache().get("permits", {})
 
-        result = generate_proposal(lead_dict, brand=brand)
-        return jsonify({"ok": True, "lead_id": lead_id, **result})
-    except Exception as e:
-        logger.exception("api_generate_proposal failed")
-        return jsonify({"error": str(e)}), 500
+        permits = []
+        neighborhoods = set()
+        tier1_total = 0.0
+        proposals_ready = 0
+        for p in bucket.get("top_10", []):
+            address = p.get("address", "")
+            slug = _slugify_address(address)
+            status = addrs.get(address, {}).get("status", "not_generated")
+            neighborhood = p.get("borough") or p.get("neighborhood") or ""
+            if neighborhood:
+                neighborhoods.add(neighborhood)
 
+            # Tier 3 (takeoff) value takes priority over Tier 1
+            takeoff = _load_takeoff(slug)
+            tier3_value = None
+            tier3_confidence = None
+            if takeoff:
+                tier3_value = sum(
+                    t.get("pricing", {}).get("total", 0)
+                    for t in takeoff.get("trades", [])
+                )
+                # Use average confidence from trades
+                confs = [t.get("confidence", "medium") for t in takeoff.get("trades", [])]
+                tier3_confidence = max(set(confs), key=confs.count) if confs else "medium"
+                proposals_ready += 1
 
-# ── API: Campaigns CRUD ────────────────────────────────────────────────────
+            t1_entry = tier1.get(slug, {})
+            t1_est = t1_entry.get("tier1_estimate_usd", 0)
+            tier1_total += tier3_value if tier3_value else t1_est
 
-@app.route("/api/campaigns", methods=["GET"])
-def api_list_campaigns():
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        rows = db.execute(text("""
-            SELECT c.*,
-                   COUNT(cl.id) AS lead_count
-            FROM campaigns c
-            LEFT JOIN campaign_leads cl ON cl.campaign_id = c.id
-            GROUP BY c.id
-            ORDER BY c.created_at DESC
-        """)).fetchall()
-        cols_raw = db.execute(text("SELECT * FROM campaigns LIMIT 0")).keys()
-        campaigns = []
-        for row in rows:
-            d = dict(zip(list(cols_raw) + ["lead_count"], list(row)))
-            campaigns.append(d)
-        db.close()
-        return jsonify({"campaigns": campaigns})
-    except Exception as e:
-        logger.exception("api_list_campaigns failed")
-        return jsonify({"campaigns": [], "error": str(e)}), 200
+            permits.append({
+                "address": address,
+                "year_built": p.get("year_built"),
+                "job_type": p.get("job_type"),
+                "bldg_area_sqft": p.get("bldg_area_sqft"),
+                "initial_cost_usd": p.get("initial_cost_usd"),
+                "neighborhood": neighborhood,
+                "status": status,
+                "slug": slug,
+                "tier1_estimate": t1_est,
+                "tier3_value": tier3_value,
+                "tier3_confidence": tier3_confidence,
+            })
 
+        avg_deal = tier1_total / len(permits) if permits else 0
+        return render_template(
+            "bucket.html",
+            bucket=bucket,
+            bucket_label=BUCKET_LABELS.get(name, name),
+            permits=permits,
+            tier1_total=tier1_total,
+            proposals_ready=proposals_ready,
+            avg_deal=avg_deal,
+            neighborhoods=sorted(neighborhoods),
+            active_page=f"bucket_{name}",
+        )
 
-@app.route("/api/campaigns", methods=["POST"])
-def api_create_campaign():
-    data = request.get_json() or {}
-    name = data.get("name", "").strip()
-    if not name:
-        return jsonify({"error": "name is required"}), 400
+    @app.route("/proposal/<slug>")
+    def proposal_view(slug: str):
+        takeoff = _load_takeoff(slug)
+        has_pdf = _find_proposal_pdf(slug) is not None
+        has_drip = _find_drip_schedule(slug) is not None
 
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        now = datetime.utcnow().isoformat()
-        db.execute(text("""
-            INSERT INTO campaigns (name, description, brand, status, target_trade, target_borough, created_at, updated_at)
-            VALUES (:name, :description, :brand, :status, :target_trade, :target_borough, :created_at, :updated_at)
-        """), {
-            "name": name,
-            "description": data.get("description", ""),
-            "brand": data.get("brand", "skipp"),
-            "status": data.get("status", "draft"),
-            "target_trade": data.get("target_trade", ""),
-            "target_borough": data.get("target_borough", ""),
-            "created_at": now,
-            "updated_at": now,
-        })
-        db.commit()
-        row = db.execute(text("SELECT * FROM campaigns ORDER BY id DESC LIMIT 1")).fetchone()
-        cols = db.execute(text("SELECT * FROM campaigns LIMIT 0")).keys()
-        campaign = dict(zip(cols, row))
-        db.close()
-        return jsonify({"ok": True, "campaign": campaign}), 201
-    except Exception as e:
-        logger.exception("api_create_campaign failed")
-        return jsonify({"error": str(e)}), 500
+        # Status from pipeline_state
+        state = load_state()
+        addr_entry = None
+        address_display = slug.replace("_", " ").title()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                addr_entry = entry
+                address_display = addr
+                break
 
+        status = (addr_entry or {}).get("status", "not_generated")
+        contact_email = (addr_entry or {}).get("contact_email", "")
 
-@app.route("/api/campaigns/<int:campaign_id>", methods=["GET"])
-def api_get_campaign(campaign_id):
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id}).fetchone()
-        if not row:
-            return jsonify({"error": "Campaign not found"}), 404
-        cols = db.execute(text("SELECT * FROM campaigns LIMIT 0")).keys()
-        campaign = dict(zip(cols, row))
-        db.close()
-        return jsonify({"campaign": campaign})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        grand_total = 0
+        if takeoff:
+            grand_total = sum(
+                t.get("pricing", {}).get("total", 0) for t in takeoff.get("trades", [])
+            )
 
+        # Documents from dob_output/<slug>/
+        doc_dir = DOB_OUTPUT_DIR / slug
+        documents = []
+        if doc_dir.exists():
+            for f in sorted(doc_dir.iterdir()):
+                if f.is_file():
+                    documents.append({
+                        "name": f.name,
+                        "size": f.stat().st_size,
+                        "ext": f.suffix.lower(),
+                    })
 
-@app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
-def api_update_campaign(campaign_id):
-    data = request.get_json() or {}
-    allowed = {"name", "description", "brand", "status", "target_trade", "target_borough", "launched_at"}
-    updates = {k: v for k, v in data.items() if k in allowed}
-    if not updates:
-        return jsonify({"error": "No valid fields"}), 400
+        # Drip schedule
+        drip_emails = []
+        drip_data = {}
+        drip_path = _find_drip_schedule(slug)
+        if drip_path:
+            with open(drip_path) as f:
+                drip_data = json.load(f)
+            drip_emails = _emails_from_drip(drip_data)
 
-    updates["updated_at"] = datetime.utcnow().isoformat()
-    updates["campaign_id"] = campaign_id
+        # Bucket info for breadcrumb
+        tier1 = load_tier1_cache().get("permits", {})
+        t1_entry = tier1.get(slug, {})
+        bucket_name = t1_entry.get("bucket", "")
 
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        set_clause = ", ".join(f"{k} = :{k}" for k in updates if k != "campaign_id")
-        db.execute(text(f"UPDATE campaigns SET {set_clause} WHERE id = :campaign_id"), updates)
-        db.commit()
-        db.close()
+        return render_template(
+            "proposal.html",
+            slug=slug,
+            takeoff=takeoff,
+            grand_total=grand_total,
+            has_pdf=has_pdf,
+            has_drip=has_drip,
+            status=status,
+            address=address_display,
+            contact_email=contact_email,
+            documents=documents,
+            drip_emails=drip_emails,
+            drip_data=drip_data,
+            bucket_name=bucket_name,
+            bucket_label=BUCKET_LABELS.get(bucket_name, bucket_name),
+            active_page="",
+        )
+
+    @app.route("/proposal/<slug>/pdf")
+    def proposal_pdf(slug: str):
+        pdf = _find_proposal_pdf(slug)
+        if pdf is None:
+            abort(404)
+        return send_file(
+            str(pdf),
+            mimetype="application/pdf",
+            as_attachment=False,
+            download_name=pdf.name,
+        )
+
+    @app.route("/outreach/<slug>")
+    def outreach_view(slug: str):
+        drip_path = _find_drip_schedule(slug)
+        if drip_path is None:
+            abort(404)
+        with open(drip_path) as f:
+            drip = json.load(f)
+        emails = _emails_from_drip(drip)
+        return render_template(
+            "outreach.html",
+            slug=slug,
+            drip=drip,
+            emails=emails,
+        )
+
+    @app.route("/generate", methods=["POST"])
+    def generate():
+        address = (request.form.get("address") or request.json.get("address") if request.is_json else request.form.get("address")) or ""
+        address = address.strip()
+        if not address:
+            return jsonify({"error": "address required"}), 400
+        set_address_state(address, status="queued", step="queued")
+        thread = threading.Thread(
+            target=_run_pipeline, args=(address,), daemon=True
+        )
+        thread.start()
+        return jsonify({"ok": True, "address": address})
+
+    @app.route("/generate/status")
+    def generate_status():
+        address = request.args.get("address", "").strip()
+        state = load_state()
+        if not address:
+            return jsonify(state)
+        return jsonify(state.get("addresses", {}).get(address, {"status": "unknown"}))
+
+    @app.route("/generate/stream")
+    def generate_stream():
+        address = request.args.get("address", "").strip()
+
+        @stream_with_context
+        def gen():
+            last = None
+            for _ in range(600):  # up to ~10 min
+                state = load_state()
+                cur = state.get("addresses", {}).get(address, {})
+                payload = json.dumps(cur)
+                if payload != last:
+                    yield f"data: {payload}\n\n"
+                    last = payload
+                if cur.get("status") in {"generated", "error"}:
+                    break
+                time.sleep(1)
+
+        return Response(gen(), mimetype="text/event-stream")
+
+    @app.route("/api/contact/<slug>", methods=["POST"])
+    def save_contact_email(slug: str):
+        """Save contact email to pipeline_state.json."""
+        data = request.get_json(force=True)
+        email = (data.get("email") or "").strip()
+        state = load_state()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                entry["contact_email"] = email
+                state["addresses"][addr] = entry
+                save_state(state)
+                return jsonify({"ok": True})
+        # Create entry if not found
+        addr_display = slug.replace("_", " ").title()
+        set_address_state(addr_display, contact_email=email, slug=slug)
         return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
-
-@app.route("/api/campaigns/<int:campaign_id>", methods=["DELETE"])
-def api_delete_campaign(campaign_id):
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        db.execute(text("DELETE FROM campaigns WHERE id = :id"), {"id": campaign_id})
-        db.commit()
-        db.close()
+    @app.route("/api/proposal/save/<slug>", methods=["POST"])
+    def save_proposal_edits(slug: str):
+        """Save edited proposal data back to takeoff.json."""
+        data = request.get_json(force=True)
+        takeoff_path = DOB_OUTPUT_DIR / slug / "takeoff.json"
+        if not takeoff_path.exists():
+            return jsonify({"error": "no takeoff"}), 404
+        with open(takeoff_path) as f:
+            takeoff = json.load(f)
+        # Update trades from posted data
+        takeoff["trades"] = data.get("trades", takeoff.get("trades", []))
+        takeoff["overhead_pct"] = data.get("overhead_pct", 0.10)
+        takeoff["profit_pct"] = data.get("profit_pct", 0.10)
+        tmp = takeoff_path.with_suffix(".json.tmp")
+        with open(tmp, "w") as f:
+            json.dump(takeoff, f, indent=2)
+        os.replace(tmp, takeoff_path)
         return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/approve/<slug>", methods=["POST"])
+    def approve_proposal(slug: str):
+        """Set proposal status to approved."""
+        state = load_state()
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                entry["status"] = "approved"
+                state["addresses"][addr] = entry
+                save_state(state)
+                return jsonify({"ok": True})
+        return jsonify({"error": "not found"}), 404
+
+    @app.route("/api/export/<slug>")
+    def export_excel(slug: str):
+        """Export proposal to Excel using openpyxl."""
+        takeoff = _load_takeoff(slug)
+        if not takeoff:
+            abort(404)
+        try:
+            from .excel_exporter import export_takeoff_to_excel
+        except ImportError:
+            return jsonify({"error": "openpyxl not installed"}), 500
+        import tempfile
+        out_path = Path(tempfile.mktemp(suffix=".xlsx"))
+        export_takeoff_to_excel(takeoff, out_path)
+        return send_file(
+            str(out_path),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=f"{slug}_sanz_construction_proposal.xlsx",
+        )
+
+    @app.route("/generate/progress/<slug>")
+    def generate_progress(slug: str):
+        address = request.args.get("address", "").strip()
+        return render_template(
+            "progress.html",
+            slug=slug,
+            address=address,
+            active_page="",
+        )
+
+    @app.route("/generate/status/<slug>")
+    def generate_status_by_slug(slug: str):
+        """Status endpoint by slug — scans pipeline_state for matching slug."""
+        state = load_state()
+        # Try matching by slug in address entries
+        for addr, entry in state.get("addresses", {}).items():
+            if _slugify_address(addr) == slug:
+                return jsonify(entry)
+        # Also check if passed as address query param
+        address = request.args.get("address", "").strip()
+        if address:
+            return jsonify(state.get("addresses", {}).get(address, {"status": "unknown"}))
+        return jsonify({"status": "unknown"})
+
+    @app.route("/healthz")
+    def healthz():
+        return {"ok": True}
+
+    return app
 
 
-@app.route("/api/campaigns/<int:campaign_id>/leads", methods=["GET"])
-def api_get_campaign_leads(campaign_id):
-    """Get leads assigned to a campaign."""
+def _emails_from_drip(drip: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten drip schedule into a list of 5 email rows."""
+    emails: list[dict[str, Any]] = []
+    initial = drip.get("initial_email") or {}
+    if initial:
+        emails.append(
+            {
+                "day": 0,
+                "subject": initial.get("subject", ""),
+                "body": initial.get("body", ""),
+                "send_date": initial.get("send_date", "today"),
+                "status": "sent" if initial.get("sent") else "scheduled",
+            }
+        )
+    for f in drip.get("followups", []) or []:
+        emails.append(
+            {
+                "day": f.get("day"),
+                "subject": f.get("subject", ""),
+                "body": f.get("body", ""),
+                "send_date": f.get("send_date", f"+{f.get('day')}d"),
+                "status": "sent" if f.get("sent") else "scheduled",
+            }
+        )
+    return emails
+
+
+def _run_pipeline(address: str) -> None:
+    """Run the full pipeline for a single address via pipeline_runner.
+
+    Chains: dob_puller → takeoff_engine → proposal_generator → outreach_engine.
+    Updates pipeline_state.json at each step so the progress page can show
+    live status.
+    """
+    import sys
+    # Ensure repo root is on sys.path so the engine imports work
+    repo_str = str(REPO_ROOT)
+    if repo_str not in sys.path:
+        sys.path.insert(0, repo_str)
+    # Must import here (not top-level) — the engine modules depend on being
+    # importable from repo root, which may not be on PYTHONPATH at Flask boot.
+    from permit_scanner.pipeline_runner import run_full_pipeline  # noqa: E402
+
+    slug = _slugify(address)
+    ranked = {"address": address, "score": 0}
+
     try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        result = db.execute(text("""
-            SELECT l.*, cl.outreach_status AS cl_outreach, cl.added_at, cl.sent_at, cl.replied_at
-            FROM leads l
-            JOIN campaign_leads cl ON cl.lead_id = l.id
-            WHERE cl.campaign_id = :cid
-            ORDER BY l.enrichment_score DESC
-        """), {"cid": campaign_id})
-        cols = list(result.keys())
-        rows = result.fetchall()
-        if not rows:
-            return jsonify({"leads": []})
-        leads = [dict(zip(cols, row)) for row in rows]
-        db.close()
-        return jsonify({"leads": leads})
-    except Exception as e:
-        return jsonify({"leads": [], "error": str(e)}), 200
+        set_address_state(address, status="running", step="dob_puller", slug=slug)
 
+        artifacts = run_full_pipeline(
+            ranked,
+            contractor="sanz_construction",
+            trades=["abatement", "concrete", "demo"],
+            use_playwright=False,
+        )
 
-@app.route("/api/campaigns/<int:campaign_id>/leads", methods=["POST"])
-def api_assign_leads(campaign_id):
-    """Assign lead_ids to a campaign."""
-    data = request.get_json() or {}
-    lead_ids = data.get("lead_ids", [])
-    if not lead_ids:
-        return jsonify({"error": "lead_ids required"}), 400
+        # Check for stage-level errors
+        for key in ("dob_puller_error", "takeoff_engine_error", "proposal_error"):
+            if key in artifacts:
+                failed_step = key.replace("_error", "")
+                set_address_state(
+                    address,
+                    status="error",
+                    step=failed_step,
+                    slug=slug,
+                    error=str(artifacts[key]),
+                )
+                return
 
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        now = datetime.utcnow().isoformat()
-        added = 0
-        for lid in lead_ids:
-            try:
-                db.execute(text("""
-                    INSERT OR IGNORE INTO campaign_leads (campaign_id, lead_id, added_at, outreach_status)
-                    VALUES (:cid, :lid, :now, 'pending')
-                """), {"cid": campaign_id, "lid": lid, "now": now})
-                added += 1
-            except Exception:
-                pass
-        db.commit()
-        db.close()
-        return jsonify({"ok": True, "added": added})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/campaigns/assign-leads", methods=["POST"])
-def api_assign_leads_by_name():
-    """Create or find campaign by name and assign leads."""
-    data = request.get_json() or {}
-    campaign_name = data.get("campaign_name", "").strip()
-    lead_ids = data.get("lead_ids", [])
-
-    if not campaign_name or not lead_ids:
-        return jsonify({"error": "campaign_name and lead_ids required"}), 400
-
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        row = db.execute(text("SELECT id FROM campaigns WHERE name = :name"), {"name": campaign_name}).fetchone()
-        if row:
-            campaign_id = row[0]
+        # Verify takeoff was written
+        takeoff_path = REPO_ROOT / "dob_output" / slug / "takeoff.json"
+        if takeoff_path.exists():
+            set_address_state(address, status="generated", step="complete", slug=slug)
         else:
-            now = datetime.utcnow().isoformat()
-            db.execute(text("""
-                INSERT INTO campaigns (name, brand, status, created_at, updated_at)
-                VALUES (:name, 'skipp', 'draft', :now, :now)
-            """), {"name": campaign_name, "now": now})
-            db.commit()
-            campaign_id = db.execute(text("SELECT id FROM campaigns ORDER BY id DESC LIMIT 1")).fetchone()[0]
-
-        now = datetime.utcnow().isoformat()
-        added = 0
-        for lid in lead_ids:
-            try:
-                db.execute(text("""
-                    INSERT OR IGNORE INTO campaign_leads (campaign_id, lead_id, added_at, outreach_status)
-                    VALUES (:cid, :lid, :now, 'pending')
-                """), {"cid": campaign_id, "lid": lid, "now": now})
-                added += 1
-            except Exception:
-                pass
-        db.commit()
-        db.close()
-        return jsonify({"ok": True, "campaign_id": campaign_id, "added": added})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            set_address_state(
+                address,
+                status="error",
+                step="pipeline",
+                slug=slug,
+                error="Pipeline finished but no takeoff.json was written.",
+            )
+    except Exception as e:  # noqa: BLE001
+        set_address_state(address, status="error", step="exception", slug=slug, error=str(e))
 
 
-@app.route("/api/campaigns/<int:campaign_id>/stats", methods=["GET"])
-def api_campaign_stats(campaign_id):
-    """Return engagement stats for a campaign."""
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        stats = db.execute(text("""
-            SELECT
-                COUNT(*) AS total,
-                SUM(CASE WHEN outreach_status = 'pending' THEN 1 ELSE 0 END) AS pending,
-                SUM(CASE WHEN outreach_status = 'sent' THEN 1 ELSE 0 END) AS sent,
-                SUM(CASE WHEN outreach_status = 'replied' THEN 1 ELSE 0 END) AS replied,
-                SUM(CASE WHEN outreach_status = 'converted' THEN 1 ELSE 0 END) AS converted,
-                SUM(CASE WHEN sent_at IS NOT NULL THEN 1 ELSE 0 END) AS delivered
-            FROM campaign_leads
-            WHERE campaign_id = :cid
-        """), {"cid": campaign_id}).fetchone()
-        db.close()
-        return jsonify({
-            "campaign_id": campaign_id,
-            "total": stats[0], "pending": stats[1], "sent": stats[2],
-            "replied": stats[3], "converted": stats[4], "delivered": stats[5],
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+def _slugify(address: str) -> str:
+    """Slugify address — must match portal's _slugify_address (inside create_app)."""
+    s = (address or "").lower().strip()
+    for ch in [",", ".", "'", '"']:
+        s = s.replace(ch, "")
+    return "_".join(s.split())
 
 
-# ── Bucket (permit list per trade) ────────────────────────────────────────
-
-@app.route("/bucket/<trade>")
-def bucket_page(trade):
-    return render_template("bucket.html", trade=trade)
-
-
-@app.route("/api/bucket/<trade>/leads", methods=["GET"])
-def api_bucket_leads(trade):
-    """Return permit leads for a given trade, with all enrichment columns."""
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        all_trades = trade.lower() == "all"
-        trade_filter = f"%{trade.lower()}%"
-        result = db.execute(text("""
-            SELECT id, name, email, phone, company, source, status, notes, score,
-                   enriched_email, enriched_phone, website,
-                   email_source, phone_source,
-                   enrichment_status, enrichment_score, enriched_at,
-                   campaign_tags, outreach_status, last_contacted_at,
-                   created_at, updated_at
-            FROM leads
-            WHERE is_active = 1
-              AND (
-                :all_trades = 1
-                OR LOWER(COALESCE(campaign_tags,'')) LIKE :trade
-                OR LOWER(COALESCE(source,'')) LIKE :trade
-              )
-            ORDER BY created_at DESC
-            LIMIT 500
-        """), {"trade": trade_filter, "all_trades": 1 if all_trades else 0})
-        cols = list(result.keys())
-        rows = result.fetchall()
-        leads = [dict(zip(cols, row)) for row in rows]
-        db.close()
-        return jsonify({"leads": leads, "total": len(leads), "trade": trade})
-    except Exception as e:
-        logger.exception("api_bucket_leads failed")
-        return jsonify({"leads": [], "total": 0, "error": str(e)}), 200
-
-
-@app.route("/api/bucket/<trade>/stats", methods=["GET"])
-def api_bucket_stats(trade):
-    """Return aggregate stats for the bucket stats bar.
-
-    Returns: total_permits, enriched_count, pipeline_value, proposals_ready,
-             avg_deal_size, avg_confidence, sent_count
-    """
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        all_trades = trade.lower() == "all"
-        trade_filter = f"%{trade.lower()}%"
-        row = db.execute(text("""
-            SELECT
-                COUNT(*)                                               AS total_permits,
-                SUM(CASE WHEN enrichment_status = 'complete' THEN 1 ELSE 0 END) AS enriched_count,
-                SUM(CASE WHEN score > 0 THEN score * 10000 ELSE 0 END) AS pipeline_value,
-                SUM(CASE WHEN outreach_status = 'proposal_ready' THEN 1 ELSE 0 END) AS proposals_ready,
-                AVG(CASE WHEN score > 0 THEN score * 10000 END)       AS avg_deal_size,
-                AVG(CASE WHEN score > 0 THEN score END)               AS avg_confidence,
-                SUM(CASE WHEN outreach_status IN ('sent','replied','interested') THEN 1 ELSE 0 END) AS sent_count
-            FROM leads
-            WHERE is_active = 1
-              AND (
-                :all_trades = 1
-                OR LOWER(COALESCE(campaign_tags,'')) LIKE :trade
-                OR LOWER(COALESCE(source,'')) LIKE :trade
-              )
-        """), {"trade": trade_filter, "all_trades": 1 if all_trades else 0}).fetchone()
-        db.close()
-
-        def _int(v): return int(v) if v else 0
-        def _flt(v): return round(float(v), 1) if v else 0.0
-
-        return jsonify({
-            "trade":          trade,
-            "total_permits":  _int(row[0]),
-            "enriched_count": _int(row[1]),
-            "pipeline_value": _int(row[2]),
-            "proposals_ready": _int(row[3]),
-            "avg_deal_size":  _int(row[4]),
-            "avg_confidence": _flt(row[5]),
-            "sent_count":     _int(row[6]),
-        })
-    except Exception as e:
-        logger.exception("api_bucket_stats failed")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/leads/<int:lead_id>", methods=["GET"])
-def api_get_lead_bucket(lead_id):
-    """Return a single lead with all enrichment contact fields for the expand panel."""
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        row = db.execute(text("""
-            SELECT id, name, email, phone, company, source, status, notes, score,
-                   enriched_email, enriched_phone, website,
-                   email_source, phone_source,
-                   enrichment_status, enrichment_score, enriched_at,
-                   campaign_tags, outreach_status, last_contacted_at,
-                   created_at, updated_at
-            FROM leads WHERE id = :id
-        """), {"id": lead_id}).fetchone()
-        if not row:
-            return jsonify({"error": "Lead not found"}), 404
-        cols = list(row.keys())
-        lead = dict(zip(cols, row))
-        db.close()
-        return jsonify({"lead": lead})
-    except Exception as e:
-        logger.exception("api_get_lead_bucket failed")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/leads/<int:lead_id>/enrich", methods=["POST"])
-def api_enrich_lead_bucket(lead_id):
-    """Alias for enriching a single lead — used by /bucket/<trade> UI."""
-    return api_enrich_lead(lead_id)
-
-
-@app.route("/api/leads/bulk-enrich", methods=["POST"])
-def api_bulk_enrich_bucket():
-    """Alias for bulk enrichment — used by /bucket/<trade> UI."""
-    return api_bulk_enrich()
-
-
-@app.route("/api/leads/credit-estimate", methods=["POST"])
-def api_credit_estimate():
-    """Return estimated API credit cost before running bulk enrichment.
-
-    Body: {"lead_ids": [...]}
-    Returns: {"lead_count": N, "credits_per_lead": 3, "total_credits": N*3,
-              "already_enriched": M, "net_leads": N-M}
-    """
-    data = request.get_json() or {}
-    lead_ids = data.get("lead_ids", [])
-    if not lead_ids:
-        return jsonify({"error": "lead_ids required"}), 400
-
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        placeholders = ",".join(str(int(i)) for i in lead_ids if str(i).lstrip("-").isdigit())
-        if not placeholders:
-            return jsonify({"error": "invalid lead_ids"}), 400
-
-        rows = db.execute(text(f"""
-            SELECT id, enrichment_status FROM leads
-            WHERE id IN ({placeholders})
-        """)).fetchall()
-        db.close()
-
-        already = sum(1 for r in rows if r[1] == "complete")
-        net = len(rows) - already
-        credits_per_lead = 3
-        return jsonify({
-            "lead_count":      len(rows),
-            "already_enriched": already,
-            "net_leads":       net,
-            "credits_per_lead": credits_per_lead,
-            "total_credits":   net * credits_per_lead,
-        })
-    except Exception as e:
-        logger.exception("api_credit_estimate failed")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/leads/<int:lead_id>", methods=["PATCH"])
-def api_update_lead_bucket(lead_id):
-    """Alias for lead patch — used by /bucket/<trade> UI."""
-    return api_update_lead(lead_id)
-
-
-# Valid outreach status values and allowed transitions
-_OUTREACH_STATUSES = {"not_started", "proposal_ready", "sent", "replied", "interested", "none"}
-
-
-@app.route("/api/leads/<int:lead_id>/status", methods=["POST"])
-def api_update_outreach_status(lead_id):
-    """Set outreach_status for a lead (campaign tag in the Status column).
-
-    Body: {"status": "sent"}
-    Valid values: not_started | proposal_ready | sent | replied | interested
-    Also stamps last_contacted_at when transitioning to sent/replied/interested.
-    """
-    data = request.get_json() or {}
-    status = data.get("status", "").strip()
-    if status not in _OUTREACH_STATUSES:
-        return jsonify({"error": f"Invalid status '{status}'. Valid: {sorted(_OUTREACH_STATUSES)}"}), 400
-
-    try:
-        from sqlalchemy import text
-        db, _ = _get_db()
-        now = datetime.utcnow().isoformat()
-        contact_statuses = {"sent", "replied", "interested"}
-        if status in contact_statuses:
-            db.execute(text("""
-                UPDATE leads SET outreach_status = :status, last_contacted_at = :now
-                WHERE id = :id
-            """), {"status": status, "now": now, "id": lead_id})
-        else:
-            db.execute(text("""
-                UPDATE leads SET outreach_status = :status WHERE id = :id
-            """), {"status": status, "id": lead_id})
-        db.commit()
-        db.close()
-        return jsonify({"ok": True, "lead_id": lead_id, "outreach_status": status})
-    except Exception as e:
-        logger.exception("api_update_outreach_status failed")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/leads/<int:lead_id>/proposal", methods=["POST"])
-def api_proposal_bucket(lead_id):
-    """Enrichment-aware proposal generation for /bucket/<trade> UI.
-
-    If the lead has enrichment data (enriched_email or enriched_phone),
-    the contact name and deal-size hook are injected into the proposal.
-    Falls back to generic proposal if no enrichment data exists.
-    """
-    data = request.get_json() or {}
-    brand = data.get("brand", "skipp")
-
-    try:
-        from sqlalchemy import text
-        from drafted.proposal_generator import generate_proposal
-
-        db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
-        if not row:
-            return jsonify({"error": "Lead not found"}), 404
-
-        lead_dict = dict(zip(row.keys(), row))
-        db.close()
-
-        # If enrichment data exists, promote enriched contact info into name/email
-        # so the proposal generator picks up the real contact details
-        has_enrichment = bool(lead_dict.get("enriched_email") or lead_dict.get("enriched_phone"))
-        if has_enrichment:
-            # Use enriched email as primary email so proposal can address the right contact
-            if lead_dict.get("enriched_email") and not lead_dict.get("email"):
-                lead_dict["email"] = lead_dict["enriched_email"]
-            # Inject estimated_job_costs from score for the permit hook
-            if not lead_dict.get("estimated_job_costs") and lead_dict.get("score"):
-                lead_dict["estimated_job_costs"] = int(lead_dict["score"]) * 10000
-
-        result = generate_proposal(lead_dict, brand=brand)
-        result["enrichment_used"] = has_enrichment
-        return jsonify({"ok": True, "lead_id": lead_id, **result})
-    except Exception as e:
-        logger.exception("api_proposal_bucket failed")
-        return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+# Module-level app for `flask --app portal.app run` and WSGI servers.
+app = create_app()

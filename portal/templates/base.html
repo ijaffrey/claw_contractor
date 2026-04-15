@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1A1A2E">
+  <title>{% block title %}ContractorAI{% endblock %} — Sanz Construction</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+  <a class="sidebar-brand" href="{{ url_for('dashboard') }}">
+    <div class="logo">S</div>
+    <span>Sanz Construction</span>
+  </a>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Pipeline</div>
+    <a class="sidebar-link {% if active_page == 'dashboard' %}active{% endif %}"
+       href="{{ url_for('dashboard') }}">
+      <span class="icon">&#9632;</span> Dashboard
+    </a>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Trade Buckets</div>
+    {% for b in sidebar_buckets|default([]) %}
+    <a class="sidebar-link {% if active_page == 'bucket_' ~ b.name %}active{% endif %}"
+       href="{{ url_for('bucket_view', name=b.name) }}">
+      <span class="icon">&#9654;</span> {{ b.label }}
+      {% if b.count %}<span class="count">{{ b.count }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="sidebar-spacer"></div>
+  <div class="sidebar-footer">ContractorAI · Sprint E2</div>
+</nav>
+
+<!-- Main -->
+<div class="main-area">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</button>
+      <div>
+        <div class="topbar-title">{% block topbar_title %}Manhattan Pipeline{% endblock %}</div>
+        <div class="topbar-subtitle">{% block topbar_subtitle %}{% endblock %}</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      {% block topbar_actions %}{% endblock %}
+    </div>
+  </header>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

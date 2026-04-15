@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% block title %}{{ address }} — Proposal{% endblock %}
+{% block topbar_title %}{{ address }}{% endblock %}
+{% block topbar_subtitle %}
+<span class="status-pill status-{{ status }}">{{ status|replace('_',' ')|title }}</span>
+{% endblock %}
+{% block topbar_actions %}
+{% if has_pdf %}
+<a class="btn btn-sm" href="{{ url_for('proposal_pdf', slug=slug) }}">Download PDF</a>
+{% endif %}
+{% if takeoff %}
+<a class="btn btn-sm" href="{{ url_for('export_excel', slug=slug) }}">Export Excel</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+  <span class="sep">&rsaquo;</span>
+  {% if bucket_name %}
+  <a href="{{ url_for('bucket_view', name=bucket_name) }}">{{ bucket_label }}</a>
+  <span class="sep">&rsaquo;</span>
+  {% endif %}
+  <span>{{ address }}</span>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="documents">Documents</button>
+  <button class="tab-btn" data-tab="proposal">Proposal</button>
+  <button class="tab-btn" data-tab="emails">Email Outreach</button>
+</div>
+
+<!-- ═══ OVERVIEW TAB ═══ -->
+<div class="tab-panel active" id="tab-overview">
+{% if takeoff %}
+<div class="detail-grid">
+  <!-- Left: Building details -->
+  <div class="detail-card">
+    <h3>Building Details</h3>
+    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">{{ takeoff.input_address or address }}</span></div>
+    {% if takeoff.resolved %}
+    <div class="detail-row"><span class="detail-label">Year Built</span><span class="detail-value">{{ takeoff.resolved.year_built or "—" }}</span></div>
+    <div class="detail-row"><span class="detail-label">Building Area</span><span class="detail-value">{{ "{:,.0f}".format(takeoff.resolved.bldg_area_sqft or 0) }} sqft</span></div>
+    <div class="detail-row"><span class="detail-label">Floors</span><span class="detail-value">{{ takeoff.resolved.num_floors or "—" }}</span></div>
+    <div class="detail-row"><span class="detail-label">Building Class</span><span class="detail-value">{{ takeoff.resolved.bldg_class or "—" }}</span></div>
+    {% endif %}
+    <div class="detail-row"><span class="detail-label">Job Type</span><span class="detail-value">{{ takeoff.job_type or takeoff.get('resolved', {}).get('job_type', '—') }}</span></div>
+    {% if takeoff.permit %}
+    <div class="detail-row"><span class="detail-label">Permit Filed</span><span class="detail-value">{{ takeoff.permit.filing_date or "—" }}</span></div>
+    <div class="detail-row"><span class="detail-label">Permit Cost</span><span class="detail-value">${{ "{:,.0f}".format(takeoff.permit.initial_cost_usd or 0) }}</span></div>
+    <div class="detail-row"><span class="detail-label">Applicant</span><span class="detail-value">{{ takeoff.permit.applicant_last_name or "—" }}</span></div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Scope summary -->
+  <div>
+    {% for trade in takeoff.trades %}
+    <div class="trade-card">
+      <div class="trade-card-left">
+        <span class="trade-card-name">{{ trade.name|title }}</span>
+        <span class="badge badge-{{ trade.confidence }}">{{ trade.confidence|title }}</span>
+      </div>
+      <span class="trade-card-amount">${{ "{:,.0f}".format(trade.pricing.total or 0) }}</span>
+    </div>
+    {% endfor %}
+
+    <div class="grand-total-bar">
+      <span class="label">Total Estimate</span>
+      <span class="amount">${{ "{:,.0f}".format(grand_total) }}</span>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="tab-btn-link btn btn-primary" data-target="proposal">Review Proposal</button>
+      <button class="tab-btn-link btn" data-target="documents">View Documents</button>
+      <button class="tab-btn-link btn" data-target="emails">View Emails</button>
+    </div>
+  </div>
+</div>
+{% else %}
+<!-- Not generated -->
+<div class="generate-cta">
+  <h2>No Proposal Yet</h2>
+  <p>Run the full pipeline to get a Vision-based takeoff and proposal for this address.</p>
+  <button class="btn btn-primary" id="gen-cta-btn" data-slug="{{ slug }}" data-address="{{ address }}">Generate Proposal</button>
+</div>
+{% endif %}
+</div>
+
+<!-- ═══ DOCUMENTS TAB ═══ -->
+<div class="tab-panel" id="tab-documents">
+{% if documents %}
+<div class="doc-grid">
+  <div class="detail-card">
+    <h3>Files</h3>
+    <ul class="file-list">
+      {% for doc in documents %}
+      <li class="file-item" data-name="{{ doc.name }}">
+        <span>
+          {% if doc.ext == '.pdf' %}&#128196;{% elif doc.ext == '.json' %}&#128203;{% else %}&#128196;{% endif %}
+          {{ doc.name }}
+        </span>
+        <span class="file-size">
+          {% if doc.size >= 1048576 %}{{ "%.1f"|format(doc.size / 1048576) }} MB
+          {% elif doc.size >= 1024 %}{{ "%.0f"|format(doc.size / 1024) }} KB
+          {% else %}{{ doc.size }} B{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="doc-viewer" id="doc-viewer">
+    <div class="empty-state">
+      <p>Select a file to preview</p>
+    </div>
+    {% if takeoff %}
+    <div class="vision-panel" style="margin-top:20px;">
+      <h4>Extracted by Vision</h4>
+      {% for trade in takeoff.trades %}
+      <div style="margin-bottom:8px;">
+        <strong>{{ trade.name|title }}</strong>:
+        {{ trade.line_items|length }} line items,
+        ${{ "{:,.0f}".format(trade.pricing.total or 0) }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="generate-cta">
+  <h2>No Documents Yet</h2>
+  <p>Run the pipeline to download DOB documents for this address.</p>
+  <button class="btn btn-primary" id="gen-docs-btn" data-slug="{{ slug }}" data-address="{{ address }}">Generate</button>
+</div>
+{% endif %}
+</div>
+
+<!-- ═══ PROPOSAL TAB ═══ -->
+<div class="tab-panel" id="tab-proposal">
+{% if takeoff %}
+<div class="card-panel" style="padding:0;">
+  <div class="table-wrap">
+    <table class="spreadsheet" id="proposal-spreadsheet">
+      <thead>
+        <tr>
+          <th style="width:28px"></th>
+          <th>Item</th>
+          <th style="width:80px">Qty</th>
+          <th style="width:60px">Unit</th>
+          <th style="width:100px">Material Rate</th>
+          <th style="width:100px">Labor Rate</th>
+          <th style="width:110px">Total</th>
+        </tr>
+      </thead>
+      <tbody id="spreadsheet-body">
+        {% for trade in takeoff.trades %}
+        <tr class="trade-header" data-trade="{{ trade.name }}">
+          <td colspan="6"><strong>{{ trade.name|title }}</strong></td>
+          <td class="trade-subtotal" data-trade="{{ trade.name }}"><strong>${{ "{:,.0f}".format(trade.pricing.subtotal or trade.pricing.total or 0) }}</strong></td>
+        </tr>
+        {% for li in trade.line_items %}
+        <tr class="line-item-row" data-trade="{{ trade.name }}">
+          <td><button class="row-delete" title="Delete row">&times;</button></td>
+          <td><input type="text" value="{{ li.item }}" class="cell-item"></td>
+          <td><input type="number" value="{{ li.quantity or 0 }}" class="cell-qty" step="any"></td>
+          <td><input type="text" value="{{ li.unit }}" class="cell-unit"></td>
+          <td><input type="number" value="{{ "%.2f"|format((li.unit_rate or 0) * 0.6) }}" class="cell-mat" step="any" placeholder="0"></td>
+          <td><input type="number" value="{{ "%.2f"|format((li.unit_rate or 0) * 0.4) }}" class="cell-lab" step="any" placeholder="0"></td>
+          <td class="cell-total readonly"></td>
+        </tr>
+        {% endfor %}
+        <tr class="subtotal-row" data-trade="{{ trade.name }}">
+          <td colspan="6" style="text-align:right;">Subtotal — {{ trade.name|title }}</td>
+          <td class="trade-sub-val" data-trade="{{ trade.name }}">$0</td>
+        </tr>
+        <tr>
+          <td colspan="7"><button class="add-line-btn" data-trade="{{ trade.name }}">+ Add line item</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="ohp-row">
+  <label>Overhead %</label>
+  <input type="number" id="oh-pct" value="10" min="0" max="100" step="0.5">
+  <label>Profit %</label>
+  <input type="number" id="profit-pct" value="10" min="0" max="100" step="0.5">
+</div>
+
+<div class="grand-total-bar">
+  <span class="label">Grand Total (incl. OH + Profit)</span>
+  <span class="amount" id="grand-total">${{ "{:,.0f}".format(grand_total) }}</span>
+</div>
+
+<div class="action-bar">
+  <button class="btn btn-green" id="approve-btn">Approve Proposal</button>
+  <button class="btn" id="regen-btn" data-slug="{{ slug }}" data-address="{{ address }}">Regenerate</button>
+  {% if has_pdf %}
+  <a class="btn" href="{{ url_for('proposal_pdf', slug=slug) }}">Download PDF</a>
+  {% endif %}
+  <a class="btn" href="{{ url_for('export_excel', slug=slug) }}">Export to Excel</a>
+</div>
+{% else %}
+<div class="generate-cta">
+  <h2>No Proposal Data</h2>
+  <p>Generate a proposal to see editable line items.</p>
+  <button class="btn btn-primary" id="gen-prop-btn" data-slug="{{ slug }}" data-address="{{ address }}">Generate Proposal</button>
+</div>
+{% endif %}
+</div>
+
+<!-- ═══ EMAIL OUTREACH TAB ═══ -->
+<div class="tab-panel" id="tab-emails">
+<div class="detail-card" style="max-width:700px;">
+  <div class="email-field">
+    <label>From</label>
+    <input type="text" value="{{ drip_data.get('contractor', 'Sanz Construction') }}" readonly>
+  </div>
+  <div class="email-field">
+    <label>To</label>
+    <input type="email" id="contact-email" value="{{ contact_email }}" placeholder="Enter contact email address">
+    {% if not contact_email %}
+    <div class="email-warning" id="email-warning">Add contact email to enable sending.</div>
+    {% endif %}
+  </div>
+  <button class="btn btn-sm" id="save-email-btn" style="margin-bottom:16px;">Save Contact</button>
+
+  {% if drip_emails %}
+  <div class="attachment-badge">&#128206; Proposal PDF attached to Day 0 email</div>
+
+  <div class="drip-tabs">
+    {% for e in drip_emails %}
+    <button class="drip-tab {% if loop.first %}active{% endif %}" data-drip="{{ loop.index0 }}">Day {{ e.day }}</button>
+    {% endfor %}
+  </div>
+
+  {% for e in drip_emails %}
+  <div class="drip-panel {% if loop.first %}active{% endif %}" id="drip-{{ loop.index0 }}">
+    <div class="email-field">
+      <label>Subject</label>
+      <input type="text" value="{{ e.subject }}">
+    </div>
+    <div class="email-field">
+      <label>Body</label>
+      <textarea>{{ e.body }}</textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-sm">Save Edits</button>
+      <button class="btn btn-sm btn-green">Approve</button>
+      <button class="btn btn-sm btn-blue" disabled data-tooltip="Send is coming in Sprint F">Send</button>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Drip sends automatically after approval.</p>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <p>No drip schedule found. Generate a proposal first to create outreach emails.</p>
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<!-- Confirmation modal -->
+<div class="modal-overlay" id="regen-modal">
+  <div class="modal-box">
+    <h3>Regenerate Proposal?</h3>
+    <p>Regenerating will overwrite your edits. Continue?</p>
+    <div class="modal-actions">
+      <button class="btn" id="regen-cancel">Cancel</button>
+      <button class="btn btn-danger" id="regen-confirm">Regenerate</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ─── Tab switching ───
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+  // Tab link buttons in overview
+  document.querySelectorAll('.tab-btn-link').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var target = btn.dataset.target;
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      document.querySelector('.tab-btn[data-tab="'+target+'"]').classList.add('active');
+      document.getElementById('tab-'+target).classList.add('active');
+    });
+  });
+
+  // ─── Drip sub-tabs ───
+  document.querySelectorAll('.drip-tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.drip-tab').forEach(function(b){ b.classList.remove('active'); });
+      document.querySelectorAll('.drip-panel').forEach(function(p){ p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('drip-' + btn.dataset.drip).classList.add('active');
+    });
+  });
+
+  // ─── Format item names (snake_case → Title Case) ───
+  function formatItemName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+  document.querySelectorAll('.cell-item').forEach(function(inp){
+    inp.value = formatItemName(inp.value);
+  });
+
+  // ─── Spreadsheet live recalc ───
+  function recalcAll() {
+    var trades = {};
+    document.querySelectorAll('.line-item-row').forEach(function(row){
+      var trade = row.dataset.trade;
+      var qty = parseFloat(row.querySelector('.cell-qty').value) || 0;
+      var mat = parseFloat(row.querySelector('.cell-mat').value) || 0;
+      var lab = parseFloat(row.querySelector('.cell-lab').value) || 0;
+      var total = qty * (mat + lab);
+      row.querySelector('.cell-total').textContent = '$' + total.toFixed(2);
+      trades[trade] = (trades[trade] || 0) + total;
+    });
+    var subtotal = 0;
+    for (var t in trades) {
+      subtotal += trades[t];
+      var els = document.querySelectorAll('.trade-sub-val[data-trade="'+t+'"]');
+      els.forEach(function(el){ el.textContent = '$' + trades[t].toLocaleString('en-US', {maximumFractionDigits:0}); });
+      var hdr = document.querySelectorAll('.trade-subtotal[data-trade="'+t+'"]');
+      hdr.forEach(function(el){ el.innerHTML = '<strong>$' + trades[t].toLocaleString('en-US', {maximumFractionDigits:0}) + '</strong>'; });
+    }
+    var oh = parseFloat(document.getElementById('oh-pct').value) || 0;
+    var pr = parseFloat(document.getElementById('profit-pct').value) || 0;
+    var grand = subtotal * (1 + oh/100 + pr/100);
+    document.getElementById('grand-total').textContent = '$' + grand.toLocaleString('en-US', {maximumFractionDigits:0});
+  }
+
+  document.querySelectorAll('.spreadsheet input').forEach(function(inp){
+    inp.addEventListener('input', recalcAll);
+  });
+  if (document.getElementById('oh-pct')) {
+    document.getElementById('oh-pct').addEventListener('input', recalcAll);
+    document.getElementById('profit-pct').addEventListener('input', recalcAll);
+  }
+  recalcAll();
+
+  // ─── Delete row ───
+  document.addEventListener('click', function(e){
+    if (e.target.closest('.row-delete')) {
+      e.target.closest('.line-item-row').remove();
+      recalcAll();
+    }
+  });
+
+  // ─── Add line item ───
+  document.querySelectorAll('.add-line-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var trade = btn.dataset.trade;
+      var subRow = btn.closest('tr');
+      var newRow = document.createElement('tr');
+      newRow.className = 'line-item-row';
+      newRow.dataset.trade = trade;
+      newRow.innerHTML = '<td><button class="row-delete" title="Delete row">&times;</button></td>'
+        + '<td><input type="text" class="cell-item" value="New item"></td>'
+        + '<td><input type="number" class="cell-qty" value="0" step="any"></td>'
+        + '<td><input type="text" class="cell-unit" value="SF"></td>'
+        + '<td><input type="number" class="cell-mat" value="0" step="any"></td>'
+        + '<td><input type="number" class="cell-lab" value="0" step="any"></td>'
+        + '<td class="cell-total readonly">$0</td>';
+      subRow.parentNode.insertBefore(newRow, subRow);
+      newRow.querySelectorAll('input').forEach(function(inp){
+        inp.addEventListener('input', recalcAll);
+      });
+    });
+  });
+
+  // ─── Approve ───
+  var approveBtn = document.getElementById('approve-btn');
+  if (approveBtn) {
+    approveBtn.addEventListener('click', function(){
+      fetch('/api/approve/{{ slug }}', {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          approveBtn.textContent = 'Approved';
+          approveBtn.disabled = true;
+          approveBtn.classList.remove('btn-green');
+        });
+    });
+  }
+
+  // ─── Regenerate with confirmation ───
+  var regenBtn = document.getElementById('regen-btn');
+  var regenModal = document.getElementById('regen-modal');
+  if (regenBtn && regenModal) {
+    regenBtn.addEventListener('click', function(){ regenModal.classList.add('show'); });
+    document.getElementById('regen-cancel').addEventListener('click', function(){ regenModal.classList.remove('show'); });
+    document.getElementById('regen-confirm').addEventListener('click', function(){
+      regenModal.classList.remove('show');
+      var addr = regenBtn.dataset.address;
+      var slug = regenBtn.dataset.slug;
+      var fd = new FormData();
+      fd.append('address', addr);
+      fetch('{{ url_for("generate") }}', {method:'POST', body:fd})
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          window.location.href = '/generate/progress/' + encodeURIComponent(slug) + '?address=' + encodeURIComponent(addr);
+        });
+    });
+  }
+
+  // ─── Generate CTA buttons ───
+  ['gen-cta-btn','gen-docs-btn','gen-prop-btn'].forEach(function(id){
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      var addr = btn.dataset.address;
+      var slug = btn.dataset.slug;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating...';
+      var fd = new FormData();
+      fd.append('address', addr);
+      fetch('{{ url_for("generate") }}', {method:'POST', body:fd})
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          window.location.href = '/generate/progress/' + encodeURIComponent(slug) + '?address=' + encodeURIComponent(addr);
+        });
+    });
+  });
+
+  // ─── Save contact email ───
+  var saveEmailBtn = document.getElementById('save-email-btn');
+  if (saveEmailBtn) {
+    saveEmailBtn.addEventListener('click', function(){
+      var email = document.getElementById('contact-email').value.trim();
+      fetch('/api/contact/{{ slug }}', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({email: email})
+      }).then(function(r){ return r.json(); }).then(function(){
+        saveEmailBtn.textContent = 'Saved';
+        var warn = document.getElementById('email-warning');
+        if (warn && email) warn.style.display = 'none';
+        setTimeout(function(){ saveEmailBtn.textContent = 'Save Contact'; }, 1500);
+      });
+    });
+  }
+})();
+</script>
+{% endblock %}

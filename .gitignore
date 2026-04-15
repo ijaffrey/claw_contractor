@@ -59,7 +59,18 @@ htmlcov/
 
 # Supabase local
 .supabase/
-nyc_dob_sample.json
-.env
-__pycache__/
-*.pyc
+
+# dob_puller generated output
+dob_output/
+
+# proposal_generator + outreach_engine generated output
+proposals/
+
+# permit_scanner generated output
+scan_results/
+
+# portal runtime state
+pipeline_state.json
+
+# Sprint E2 Tier 1 cache
+tier1_cache.json

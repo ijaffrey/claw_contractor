@@ -1,0 +1,36 @@
+{
+  "contractor": "sanz_construction",
+  "currency": "USD",
+  "notes": "Default unit rates for Sanz Construction. Edit to adjust.",
+  "trades": {
+    "abatement": {
+      "floor_tile_removal": { "unit": "sqft", "rate": 12.00 },
+      "ceiling_tile": { "unit": "sqft", "rate": 8.00 },
+      "pipe_insulation": { "unit": "lft", "rate": 18.00 },
+      "disposal_acm": { "unit": "ton", "rate": 450.00 }
+    },
+    "concrete": {
+      "slab_patching": { "unit": "sqft", "rate": 45.00 },
+      "core_drilling": { "unit": "each", "rate": 350.00 },
+      "new_pour": { "unit": "sqft", "rate": 18.00 }
+    },
+    "roofing": {
+      "tpo_membrane": { "unit": "sqft", "rate": 14.00 },
+      "epdm": { "unit": "sqft", "rate": 12.00 },
+      "tear_off": { "unit": "sqft", "rate": 5.00 }
+    },
+    "demo": {
+      "interior_demo": { "unit": "sqft", "rate": 8.00 },
+      "debris_removal": { "unit": "sqft", "rate": 4.00 }
+    },
+    "sitework": {
+      "excavation": { "unit": "cuyd", "rate": 85.00 },
+      "grading": { "unit": "sqft", "rate": 3.00 }
+    }
+  },
+  "markup": {
+    "overhead_pct": 0.12,
+    "profit_pct": 0.10,
+    "contingency_pct": 0.05
+  }
+}
