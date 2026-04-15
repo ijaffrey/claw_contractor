@@ -3,213 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campaign Leads</title>
+    <title>Leads - Portal</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
         <header class="page-header">
-            <h1>Campaign Leads</h1>
+            <h1>Leads</h1>
             <div class="header-actions">
-                <button class="btn btn-primary">Import Leads</button>
+                <a href="/" class="btn btn-secondary">Home</a>
+                <button class="btn btn-primary">Export Leads</button>
             </div>
         </header>
 
-        <!-- Filter Panel -->
-        <div class="filter-panel">
-            <div class="filter-group">
-                <label>Trade:</label>
-                <select id="trade-filter">
-                    <option value="">All Trades</option>
-                    <option value="General Contractor">General Contractor</option>
-                    <option value="Plumber">Plumber</option>
-                    <option value="Electrician">Electrician</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Borough:</label>
-                <select id="borough-filter">
-                    <option value="">All Boroughs</option>
-                    <option value="Manhattan">Manhattan</option>
-                    <option value="Brooklyn">Brooklyn</option>
-                    <option value="Queens">Queens</option>
-                    <option value="Bronx">Bronx</option>
-                    <option value="Staten Island">Staten Island</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Score Range:</label>
-                <input type="range" id="score-min" min="0" max="100" value="0">
-                <span id="score-range">0 - 100</span>
-                <input type="range" id="score-max" min="0" max="100" value="100">
-            </div>
-            <div class="filter-group">
-                <label>Outreach Status:</label>
-                <select id="status-filter">
-                    <option value="">All Status</option>
-                    <option value="Not Contacted">Not Contacted</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Responded">Responded</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Bulk Operations Bar -->
-        <div id="bulk-operations" class="bulk-operations" style="display: none;">
-            <div class="bulk-info">
-                <span id="selected-count">0</span> leads selected
-            </div>
-            <div class="bulk-actions">
-                <button class="btn btn-secondary" id="bulk-enrich">Enrich</button>
-                <button class="btn btn-secondary" id="bulk-proposals">Generate Proposals</button>
-                <button class="btn btn-secondary" id="bulk-export">Export CSV</button>
-                <button class="btn btn-secondary" id="bulk-tag">Tag Campaign</button>
-            </div>
-        </div>
-        <!-- Leads Table -->
-        <div class="leads-table-container">
-            <table class="leads-table">
+        <div class="table-container">
+            <table class="portal-table">
                 <thead>
                     <tr>
-                        <th><input type="checkbox" id="select-all"></th>
-                        <th>Company</th>
-                        <th>Contact</th>
-                        <th>Trade</th>
-                        <th>Borough</th>
-                        <th>Score</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Service</th>
                         <th>Status</th>
-                        <th>Actions</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for lead in leads %}
-                    <tr class="lead-row" data-lead-id="{{ lead.id }}">
-                        <td><input type="checkbox" class="lead-checkbox" value="{{ lead.id }}"></td>
-                        <td>{{ lead.company_name }}</td>
-                        <td>{{ lead.contact_name }}</td>
-                        <td>{{ lead.trade }}</td>
-                        <td>{{ lead.borough }}</td>
-                        <td>
-                            <span class="score-badge score-{{ 'high' if lead.enrichment_score >= 75 else 'medium' if lead.enrichment_score >= 25 else 'low' }}">
-                                {{ lead.enrichment_score }}
-                            </span>
-                        </td>
-                        <td>
-                            <span class="status-badge status-{{ lead.outreach_status.lower().replace(' ', '-') }}">
-                                {{ lead.outreach_status }}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-small btn-outline expand-btn" data-lead-id="{{ lead.id }}">
-                                <span class="expand-icon">▼</span> Details
-                            </button>
-                        </td>
-                    </tr>
-                    <tr class="lead-details" id="details-{{ lead.id }}" style="display: none;">
-                        <td colspan="8">
-                            <div class="details-content">
-                                <div class="details-section">
-                                    <h4>Contact Information</h4>
-                                    <p><strong>Phone:</strong> {{ lead.phone }}</p>
-                                    <p><strong>Email:</strong> {{ lead.email }}</p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Permit History</h4>
-                                    <p><strong>Total Permits:</strong> {{ lead.permit_count }}</p>
-                                    <p><em>Recent permits data would be loaded here...</em></p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Proposal Drafts</h4>
-                                    <p><em>No proposals generated yet</em></p>
-                                    <button class="btn btn-primary btn-small">Generate Proposal</button>
-                                </div>
-                            </div>
-                        </td>
+                    <tr>
+                        <td>{{ lead.name }}</td>
+                        <td>{{ lead.email }}</td>
+                        <td>{{ lead.phone }}</td>
+                        <td>{{ lead.service }}</td>
+                        <td><span class="status-badge status-{{ lead.status.lower() }}">{{ lead.status }}</span></td>
+                        <td>{{ lead.date }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-
-    <script src="{{ url_for('static', filename='leads.js') }}"></script>
-</body>
-</html>ass="score-badge {% if lead.score >= 75 %}score-high{% elif lead.score >= 25 %}score-medium{% else %}score-low{% endif %}">{{ lead.score }}</span>
-                        </td>
-                        <td>{{ lead.outreach_status }}</td>
-                        <td>
-                            <button class="btn btn-small btn-outline" onclick="toggleDetails({{ lead.id }})">Details</button>
-                        </td>
-                    </tr>
-                    <tr id="details-{{ lead.id }}" class="lead-details" style="display: none;">
-                        <td colspan="8">
-                            <div class="details-content">
-                                <div class="details-section">
-                                    <h4>Contact Information</h4>
-                                    <p><strong>Email:</strong> {{ lead.email }}</p>
-                                    <p><strong>Phone:</strong> {{ lead.phone }}</p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Permit History</h4>
-                                    <p><strong>Total Permits:</strong> {{ lead.permit_count }}</p>
-                                    <p><strong>Last Permit:</strong> {{ lead.last_permit }}</p>
-                                </div>
-                                <div class="details-section">
-                                    <h4>Proposal Drafts</h4>
-                                    <p><strong>Draft Count:</strong> {{ lead.proposal_drafts }}</p>
-                                    {% if lead.proposal_drafts > 0 %}
-                                    <button class="btn btn-primary btn-small">View Drafts</button>
-                                    {% else %}
-                                    <button class="btn btn-secondary btn-small">Create Proposal</button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script>
-        // Toggle lead details
-        function toggleDetails(leadId) {
-            const detailsRow = document.getElementById(`details-${leadId}`);
-            if (detailsRow.style.display === 'none') {
-                detailsRow.style.display = 'table-row';
-            } else {
-                detailsRow.style.display = 'none';
-            }
-        }
-
-        // Handle bulk operations
-        function updateBulkOperations() {
-            const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
-            const bulkBar = document.getElementById('bulk-operations');
-            const selectedCount = document.getElementById('selected-count');
-            
-            if (checkboxes.length > 0) {
-                bulkBar.style.display = 'flex';
-                selectedCount.textContent = checkboxes.length;
-            } else {
-                bulkBar.style.display = 'none';
-            }
-        }
-
-        // Select all checkbox
-        document.getElementById('select-all').addEventListener('change', function() {
-            const checkboxes = document.querySelectorAll('.lead-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = this.checked;
-            });
-            updateBulkOperations();
-        });
-
-        // Individual checkboxes
-        document.querySelectorAll('.lead-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', updateBulkOperations);
-        });
-    </script>
 </body>
 </html>
