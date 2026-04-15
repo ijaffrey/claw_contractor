@@ -11,7 +11,8 @@ def index():
 @app.route('/leads')
 def leads():
     """Leads management page"""
-    return render_template('leads.html')
+    leads_data = get_leads_data()
+    return render_template('leads.html', leads=leads_data)
 
 @app.route('/api/leads')
 def api_leads():
