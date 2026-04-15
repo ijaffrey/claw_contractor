@@ -1,4 +1,4 @@
-from .leads_endpoint import get_leads_data
+from leads_endpoint import get_leads_data
 from flask import Flask, render_template, jsonify
 
 app = Flask(__name__)
