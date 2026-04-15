@@ -2,14 +2,20 @@
 <html>
 <head>
     <title>Campaigns - Contractor AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         body { font-family: Arial, sans-serif; margin: 2rem; }
-        table { border-collapse: collapse; width: 100%; }
+        .filters { margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 5px; }
+        .filters select { margin-right: 1rem; padding: 8px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         .btn { background: #007bff; color: white; padding: 8px 16px; border: none; cursor: pointer; }
         .form { display: none; margin: 1rem 0; padding: 1rem; border: 1px solid #ddd; }
         .stats { display: none; margin: 1rem 0; padding: 1rem; border: 1px solid #ddd; }
+        .campaign-row { cursor: pointer; }
+        .campaign-row:hover { background-color: #f5f5f5; }
+        .filter-label { font-weight: bold; margin-right: 0.5rem; }
     </style>
 </head>
 <body>
@@ -26,55 +32,62 @@
         <button onclick="toggleForm()">Cancel</button>
     </div>
 
-    <table>
-        <tr>
-            <th>Campaign Name</th><th>Angle</th><th>Trade</th><th>Borough</th>
-            <th>Lead Count</th><th>Enriched Count</th><th>Proposals Sent</th><th>Replies</th><th>Interested</th>
-        </tr>
-        {% for campaign in campaigns %}
-        <tr onclick="showStats({{ campaign.id }}, '{{ campaign.name }}', {{ campaign.lead_count }}, {{ campaign.enriched_count }}, {{ campaign.proposals_sent }}, {{ campaign.replies }}, {{ campaign.interested }})" style="cursor: pointer;">
-            <td>{{ campaign.name }}</td>
-            <td>{{ campaign.angle }}</td>
-            <td>{{ campaign.trade }}</td>
-            <td>{{ campaign.borough }}</td>
-            <td>{{ campaign.lead_count }}</td>
-            <td>{{ campaign.enriched_count }}</td>
-            <td>{{ campaign.proposals_sent }}</td>
-            <td>{{ campaign.replies }}</td>
-            <td>{{ campaign.interested }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-
-    <div id="statsPanel" class="stats">
-        <h3 id="statsTitle">Campaign Statistics</h3>
-        <p>Total Leads: <span id="statLeads">0</span></p>
-        <p>Enriched: <span id="statEnriched">0</span></p>
-        <p>Proposals: <span id="statProposals">0</span></p>
-        <p>Replies: <span id="statReplies">0</span></p>
-        <p>Interested: <span id="statInterested">0</span></p>
+    <!-- Filters Section -->
+    <div class="filters">
+        <span class="filter-label">Filter by:</span>
+        <select id="tradeFilter" onchange="applyFilters()">
+            <option value="">All Trades</option>
+            <option value="Plumbing">Plumbing</option>
+            <option value="HVAC">HVAC</option>
+            <option value="Electrical">Electrical</option>
+            <option value="General Contracting">General Contracting</option>
+        </select>
+        
+        <select id="boroughFilter" onchange="applyFilters()">
+            <option value="">All Boroughs</option>
+            <option value="Manhattan">Manhattan</option>
+            <option value="Brooklyn">Brooklyn</option>
+            <option value="Queens">Queens</option>
+            <option value="Bronx">Bronx</option>
+            <option value="Staten Island">Staten Island</option>
+        </select>
+        
+        <button class="btn" onclick="clearFilters()">Clear Filters</button>
     </div>
 
-    <script>
-        function toggleForm() {
-            const form = document.getElementById('newForm');
-            form.style.display = form.style.display === 'block' ? 'none' : 'block';
-        }
-        
-        function createCampaign() {
-            alert('Campaign creation would be implemented here');
-            toggleForm();
-        }
-        
-        function showStats(id, name, leads, enriched, proposals, replies, interested) {
-            document.getElementById('statsTitle').textContent = name + ' - Statistics';
-            document.getElementById('statLeads').textContent = leads;
-            document.getElementById('statEnriched').textContent = enriched;
-            document.getElementById('statProposals').textContent = proposals;
-            document.getElementById('statReplies').textContent = replies;
-            document.getElementById('statInterested').textContent = interested;
-            document.getElementById('statsPanel').style.display = 'block';
-        }
-    </script>
+    <table id="campaignsTable">
+        <thead>
+            <tr>
+                <th>Campaign Name</th><th>Angle</th><th>Trade</th><th>Borough</th>
+                <th>Lead Count</th><th>Enriched Count</th><th>Proposals Sent</th><th>Replies</th><th>Interested</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for campaign in campaigns %}
+            <tr class="campaign-row" 
+                data-trade="{{ campaign.trade }}" 
+                data-borough="{{ campaign.borough }}"
+                onclick="showStats({{ campaign.id }}, '{{ campaign.name }}', {{ campaign.lead_count }}, {{ campaign.enriched_count }}, {{ campaign.proposals_sent }}, {{ campaign.replies }}, {{ campaign.interested }})">
+                <td>{{ campaign.name }}</td>
+                <td>{{ campaign.angle }}</td>
+                <td>{{ campaign.trade }}</td>
+                <td>{{ campaign.borough }}</td>
+                <td>{{ campaign.lead_count }}</td>
+                <td>{{ campaign.enriched_count }}</td>
+                <td>{{ campaign.proposals_sent }}</td>
+                <td>{{ campaign.replies }}</td>
+                <td>{{ campaign.interested }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div id="statsModal" class="stats">
+        <h3 id="statsTitle">Campaign Stats</h3>
+        <div id="statsContent"></div>
+        <button onclick="hideStats()">Close</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='campaigns.js') }}"></script>
 </body>
 </html>
