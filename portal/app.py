@@ -9,13 +9,13 @@ def index():
 
 @app.route('/api/leads')
 def api_leads():
-    """JSON endpoint that returns leads with all required fields."""
+    """JSON endpoint that returns leads with name, trade, borough, enrichment_score, date_created fields"""
     try:
-        leads = get_leads_data()
+        leads_data = get_leads_data()
         return jsonify({
             'status': 'success',
-            'data': leads,
-            'count': len(leads)
+            'count': len(leads_data),
+            'data': leads_data
         })
     except Exception as e:
         return jsonify({
@@ -23,9 +23,11 @@ def api_leads():
             'message': str(e)
         }), 500
 
+# Legacy route for backward compatibility
 @app.route('/leads')
-def leads_page():
-    return render_template('leads.html')
+def leads():
+    leads_data = get_leads_data()
+    return render_template('leads.html', leads=leads_data)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
