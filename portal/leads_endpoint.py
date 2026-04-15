@@ -3,61 +3,58 @@ from datetime import datetime, timedelta
 from flask import jsonify
 import logging
 
-# NYC boroughs for variety
-BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island']
+# NYC boroughs for realistic data
+BOROUGHS = [
+    'Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'
+]
 
-# Contractor trades with good variety
+# Construction trades
 TRADES = [
-    'Plumbing', 'Electrical', 'HVAC', 'General Contracting', 'Roofing',
-    'Flooring', 'Painting', 'Carpentry', 'Masonry', 'Tile Work',
-    'Kitchen Renovation', 'Bathroom Renovation', 'Insulation', 'Drywall',
-    'Windows & Doors', 'Landscaping', 'Concrete Work', 'Siding'
+    'General Contractor', 'Electrical', 'Plumbing', 'HVAC',
+    'Roofing', 'Flooring', 'Painting', 'Carpentry', 'Masonry',
+    'Drywall', 'Kitchen Renovation', 'Bathroom Renovation',
+    'Landscaping', 'Concrete', 'Insulation', 'Windows & Doors'
 ]
 
-# First and last names for realistic lead names
-FIRST_NAMES = [
-    'Michael', 'Sarah', 'David', 'Jennifer', 'Robert', 'Lisa', 'William', 'Karen',
-    'James', 'Nancy', 'John', 'Betty', 'Christopher', 'Helen', 'Daniel', 'Sandra',
-    'Matthew', 'Donna', 'Anthony', 'Carol', 'Mark', 'Ruth', 'Donald', 'Sharon',
-    'Steven', 'Michelle', 'Paul', 'Laura', 'Andrew', 'Emily'
+# Lead names for variety
+LEAD_NAMES = [
+    'John Martinez', 'Sarah Chen', 'Michael Rodriguez', 'Emily Johnson',
+    'David Kim', 'Lisa Thompson', 'Robert Garcia', 'Jennifer Lee',
+    'Christopher Brown', 'Amanda Davis', 'Daniel Wilson', 'Jessica Taylor',
+    'Matthew Anderson', 'Ashley Miller', 'Anthony Jackson', 'Stephanie White'
 ]
-
-LAST_NAMES = [
-    'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez',
-    'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas',
-    'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White',
-    'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker'
-]
-
-def generate_realistic_enrichment_score():
-    """Generate enrichment scores with realistic distribution (30-95 range)"""
-    # Weight towards middle-high scores (60-85) as most realistic
-    weights = [5, 10, 15, 25, 20, 15, 10]  # 30-39, 40-49, 50-59, 60-69, 70-79, 80-89, 90-95
-    ranges = [(30, 39), (40, 49), (50, 59), (60, 69), (70, 79), (80, 89), (90, 95)]
-    
-    selected_range = random.choices(ranges, weights=weights)[0]
-    return random.randint(selected_range[0], selected_range[1])
-
-def generate_mock_lead():
-    """Generate a single mock lead with all required fields"""
-    return {
-        'name': f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}",
-        'trade': random.choice(TRADES),
-        'borough': random.choice(BOROUGHS),
-        'enrichment_score': generate_realistic_enrichment_score(),
-        'date_created': (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
-    }
 
 def get_leads_data():
-    """Generate mock leads data with variety in trades and NYC boroughs"""
-    try:
-        # Generate 15-25 leads for good variety
-        num_leads = random.randint(15, 25)
-        leads = [generate_mock_lead() for _ in range(num_leads)]
+    """Generate mock lead data with all required fields."""
+    leads = []
+    
+    # Generate 50 leads with realistic distribution
+    for i in range(50):
+        # Create realistic enrichment score distribution (30-95)
+        # Most scores should be in 60-85 range with some outliers
+        score_rand = random.random()
+        if score_rand < 0.1:  # 10% low scores (30-50)
+            enrichment_score = random.randint(30, 50)
+        elif score_rand < 0.2:  # 10% very high scores (85-95)
+            enrichment_score = random.randint(85, 95)
+        else:  # 80% medium-high scores (55-84)
+            enrichment_score = random.randint(55, 84)
         
-        logging.info(f"Generated {len(leads)} mock leads")
-        return leads
+        # Random date within last 30 days
+        days_ago = random.randint(0, 30)
+        date_created = datetime.now() - timedelta(days=days_ago)
         
-    except Exception as e:
-        logging.error(f"Error generating leads data: {e}")
-        return []
+        lead = {
+            'id': i + 1,
+            'name': random.choice(LEAD_NAMES),
+            'trade': random.choice(TRADES),
+            'borough': random.choice(BOROUGHS),
+            'enrichment_score': enrichment_score,
+            'date_created': date_created.isoformat()
+        }
+        leads.append(lead)
+    
+    # Sort by enrichment score descending for better display
+    leads.sort(key=lambda x: x['enrichment_score'], reverse=True)
+    
+    return leads
