@@ -105,3 +105,60 @@ class ProjectAggregator:
         except Exception as e:
             self.logger.error(f"Error aggregating projects: {e}")
             raise
+
+def get_high_value_projects(min_value: Union[int, float, Decimal] = 50000) -> Dict[str, Dict[str, Any]]:
+    """Convenience function to get high-value projects."""
+    aggregator = ProjectAggregator()
+    return aggregator.aggregate_projects(min_value=min_value)
+
+
+if __name__ == '__main__':
+    import sys
+    
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Default to $50k threshold, allow command line override
+        min_value = 50000
+        if len(sys.argv) > 1:
+            min_value = float(sys.argv[1])
+        
+        logger.info(f"Aggregating projects with minimum value: ${min_value:,.2f}")
+        
+        # Test with sample data since permit_store may not have data
+        sample_permits = [
+            {
+                'address': '123 Main St Brooklyn NY',
+                'estimated_job_costs': '75000',
+                'job_type': 'Renovation'
+            },
+            {
+                'address': '123 MAIN ST BROOKLYN NY',
+                'estimated_job_costs': '25000',
+                'job_type': 'Alteration'
+            },
+            {
+                'address': '456 Oak Ave Queens NY',
+                'estimated_job_costs': '30000',
+                'job_type': 'New Building'
+            }
+        ]
+        
+        aggregator = ProjectAggregator()
+        projects = aggregator.aggregate_projects(sample_permits, min_value=min_value)
+        
+        if projects:
+            logger.info(f"\nFound {len(projects)} high-value projects:")
+            for address, project in projects.items():
+                logger.info(f"  {address}: ${project['total_value']:,.2f} ({project['permit_count']} permits)")
+        else:
+            logger.info("No high-value projects found")
+            
+        # Output JSON for programmatic use
+        print(json.dumps({k: {**v, 'total_value': str(v['total_value'])} for k, v in projects.items()}, 
+                        indent=2, default=str))
+        
+    except Exception as e:
+        logger.error(f"Failed to aggregate projects: {e}")
+        sys.exit(1)
