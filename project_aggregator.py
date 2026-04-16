@@ -58,3 +58,50 @@ class ProjectAggregator:
                     continue
         
         return None
+    def filter_high_value_projects(self, grouped_permits: Dict[str, List[Dict[str, Any]]], 
+                                  min_value: Union[int, float, Decimal] = 50000) -> Dict[str, Dict[str, Any]]:
+        """Filter projects with total value >= min_value (default $50k)."""
+        high_value_projects = {}
+        min_threshold = Decimal(str(min_value))
+        
+        for address, permits in grouped_permits.items():
+            total_value = self.calculate_project_value(permits)
+            
+            if total_value >= min_threshold:
+                high_value_projects[address] = {
+                    'address': address,
+                    'permits': permits,
+                    'total_value': total_value,
+                    'permit_count': len(permits),
+                    'created_at': datetime.now().isoformat()
+                }
+        
+        return high_value_projects
+    
+    def aggregate_projects(self, permits: Optional[List[Dict[str, Any]]] = None, 
+                          min_value: Union[int, float, Decimal] = 50000) -> Dict[str, Dict[str, Any]]:
+        """Main method to aggregate permits into high-value projects."""
+        try:
+            if permits is None:
+                self.logger.info("No permits provided, using empty list for testing")
+                permits = []
+            
+            if not permits:
+                self.logger.warning("No permits found")
+                return {}
+            
+            self.logger.info(f"Processing {len(permits)} permits")
+            
+            # Group permits by address
+            grouped = self.group_permits_by_address(permits)
+            self.logger.info(f"Grouped permits into {len(grouped)} unique addresses")
+            
+            # Filter for high-value projects
+            high_value = self.filter_high_value_projects(grouped, min_value)
+            self.logger.info(f"Found {len(high_value)} projects with value >= ${min_value}")
+            
+            return high_value
+            
+        except Exception as e:
+            self.logger.error(f"Error aggregating projects: {e}")
+            raise
