@@ -1,4 +1,4 @@
-from portal.leads_endpoint import get_leads_data, get_leads_summary
+from leads_endpoint import get_leads_data, get_leads_summary
 from flask import Flask, render_template, jsonify
 
 app = Flask(__name__)
