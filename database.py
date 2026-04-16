@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Enum
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Enum, JSON, Decimal
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.pool import StaticPool
@@ -413,3 +413,35 @@ class UserToken(Base):
     refresh_token = Column(String(2048))
     token_expires_at = Column(String(50))
     created_at = Column(String(50), default=lambda: datetime.utcnow().isoformat())
+
+
+# Project-related models
+class Project(Base):
+    __tablename__ = 'projects'
+    
+    id = Column(String, primary_key=True)
+    address = Column(String, nullable=False)
+    property_type = Column(String(50))
+    estimated_value = Column(Decimal(12,2))
+    status = Column(String(20), default='active')
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship to enrichments
+    enrichments = relationship('ProjectEnrichment', back_populates='project', cascade='all, delete-orphan')
+
+
+class ProjectEnrichment(Base):
+    __tablename__ = 'project_enrichments'
+    
+    id = Column(String, primary_key=True)
+    project_id = Column(String, ForeignKey('projects.id'), nullable=False)
+    enrichment_type = Column(String(50), nullable=False)
+    data_source = Column(String(100))
+    enrichment_data = Column(JSON)
+    confidence_score = Column(Decimal(3,2))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship back to project
+    project = relationship('Project', back_populates='enrichments')
