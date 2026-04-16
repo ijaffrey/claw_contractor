@@ -30,3 +30,31 @@ class ProjectAggregator:
         
         # Basic normalization - remove extra spaces, convert to uppercase
         return ' '.join(address.strip().upper().split())
+
+    def calculate_project_value(self, permits: List[Dict[str, Any]]) -> Decimal:
+        """Calculate total project value from permits."""
+        total_value = Decimal('0')
+        
+        for permit in permits:
+            value = self._extract_permit_value(permit)
+            if value is not None:
+                total_value += value
+        
+        return total_value
+    
+    def _extract_permit_value(self, permit: Dict[str, Any]) -> Optional[Decimal]:
+        """Extract numeric value from permit data."""
+        # Try common field names for permit values based on NYC DOB permit structure
+        value_fields = ['estimated_job_costs', 'estimated_cost', 'initial_cost', 'job_cost', 'cost', 'value']
+        
+        for field in value_fields:
+            if field in permit and permit[field]:
+                try:
+                    # Handle string values with $ and commas
+                    value_str = str(permit[field]).replace('$', '').replace(',', '').strip()
+                    if value_str and value_str.replace('.', '').replace('-', '').isdigit():
+                        return Decimal(value_str)
+                except (ValueError, TypeError, AttributeError):
+                    continue
+        
+        return None
