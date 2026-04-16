@@ -2,13 +2,33 @@ import os
 import sys
 import logging
 from sqlalchemy import text
+from decimal import Decimal
 
 # Add the parent directory to the path so we can import database
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import create_database_engine, get_db_session
+
+# Import create_database_engine directly to avoid the Decimal import issue
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def create_database_engine():
+    """Create database engine using the same pattern as database.py"""
+    DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///leads.db')
+    
+    if DATABASE_URL.startswith('sqlite'):
+        engine = create_engine(
+            DATABASE_URL,
+            poolclass=StaticPool,
+            connect_args={"check_same_thread": False},
+            echo=False
+        )
+    else:
+        engine = create_engine(DATABASE_URL, echo=False)
+    
+    return engine
 
 def run_migration():
     """Create projects and project_enrichments tables"""
