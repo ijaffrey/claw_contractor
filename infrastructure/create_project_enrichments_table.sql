@@ -1,16 +1,18 @@
--- Project enrichments table for additional project data
+-- Project enrichments table for lead enrichment data (SQLite compatible)
 CREATE TABLE IF NOT EXISTS project_enrichments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    enrichment_type VARCHAR(50) NOT NULL,
-    data_source VARCHAR(100),
-    enrichment_data JSONB,
-    confidence_score DECIMAL(3,2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
+    project_id TEXT NOT NULL,
+    lead_id TEXT,
+    enrichment_type TEXT NOT NULL,
+    enrichment_data TEXT,
+    data_source TEXT,
+    confidence_score REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id)
 );
 
--- Indexes for efficient queries
+-- Index for project lookups
 CREATE INDEX IF NOT EXISTS idx_project_enrichments_project_id ON project_enrichments(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_enrichments_lead_id ON project_enrichments(lead_id);
 CREATE INDEX IF NOT EXISTS idx_project_enrichments_type ON project_enrichments(enrichment_type);
-CREATE INDEX IF NOT EXISTS idx_project_enrichments_data_source ON project_enrichments(data_source);
