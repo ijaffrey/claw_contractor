@@ -1,12 +1,12 @@
--- Projects table for grouping leads by address/property
+-- Projects table for grouping leads by address/property (SQLite compatible)
 CREATE TABLE IF NOT EXISTS projects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
     address TEXT NOT NULL,
-    property_type VARCHAR(50),
-    estimated_value DECIMAL(12,2),
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    property_type TEXT,
+    estimated_value REAL,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Index for address lookups
