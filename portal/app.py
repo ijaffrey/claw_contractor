@@ -1,4 +1,4 @@
-from leads_endpoint import get_leads_data
+from portal.leads_endpoint import get_leads_data
 from flask import Flask, render_template, jsonify
 
 app = Flask(__name__)
@@ -9,38 +9,35 @@ def index():
 
 @app.route('/api/leads')
 def api_leads():
-    """API endpoint to return leads data with mock data including realistic enrichment scores"""
+    """API endpoint for leads data with realistic enrichment scores."""
     try:
-        leads_data = get_leads_data()
-        
-        response = {
-            'status': 'success',
-            'count': len(leads_data),
-            'data': leads_data
-        }
-        
-        return jsonify(response)
-    
+        data = get_leads_data()
+        return jsonify(data)
     except Exception as e:
         return jsonify({
-            'status': 'error',
-            'message': str(e)
+            'status': 'error', 
+            'message': 'Failed to fetch leads data',
+            'data': [],
+            'count': 0
         }), 500
 
-@app.route('/leads')
-def leads():
-    """Leads management page with data table"""
-    try:
-        leads_data = get_leads_data()
-        return render_template('leads.html', leads=leads_data)
-    except Exception as e:
-        return render_template('leads.html', leads=[], error=str(e))
+@app.route('/api/campaigns')
+def api_campaigns():
+    """Mock campaigns endpoint for testing."""
+    mock_campaigns = {
+        'status': 'success',
+        'data': [
+            {'id': 1, 'name': 'Summer Renovation Campaign', 'status': 'active'},
+            {'id': 2, 'name': 'Kitchen Remodel Outreach', 'status': 'paused'}
+        ],
+        'count': 2
+    }
+    return jsonify(mock_campaigns)
 
-# Additional routes for contractor portal functionality
-@app.route('/leads_dashboard')
-def leads_dashboard():
-    """Dashboard view for leads management"""
-    return render_template('leads_dashboard.html')
+@app.route('/health')
+def health_check():
+    """Health check endpoint."""
+    return jsonify({'status': 'healthy', 'service': 'contractor-portal'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
