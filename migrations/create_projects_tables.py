@@ -2,6 +2,9 @@ import os
 import sys
 import logging
 from sqlalchemy import text
+
+# Add the parent directory to the path so we can import database
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import create_database_engine, get_db_session
 
 logging.basicConfig(level=logging.INFO)
@@ -13,11 +16,13 @@ def run_migration():
         engine = create_database_engine()
         
         # Read and execute projects table SQL
-        with open('infrastructure/create_projects_table.sql', 'r') as f:
+        projects_sql_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'infrastructure', 'create_projects_table.sql')
+        with open(projects_sql_path, 'r') as f:
             projects_sql = f.read()
         
         # Read and execute project_enrichments table SQL
-        with open('infrastructure/create_project_enrichments_table.sql', 'r') as f:
+        enrichments_sql_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'infrastructure', 'create_project_enrichments_table.sql')
+        with open(enrichments_sql_path, 'r') as f:
             enrichments_sql = f.read()
         
         with engine.connect() as conn:
