@@ -27,6 +27,8 @@ import requests
 from datetime import datetime, timedelta
 from typing import Optional
 
+from scrapers.retry_utils import with_retry, rate_limit_delay
+
 logger = logging.getLogger(__name__)
 
 # NYC Open Data Socrata API endpoints (verified working)
@@ -74,23 +76,20 @@ class NYCPermitScraper:
         min_delay = 0.5 if self.app_token else 1.0
         elapsed = time.time() - self._last_request_time
         if elapsed < min_delay:
-            time.sleep(min_delay - elapsed)
+            rate_limit_delay(min_delay - elapsed)
         self._last_request_time = time.time()
 
+    @with_retry(max_attempts=3, backoff_seconds=[5, 15, 30])
     def _fetch_page(self, endpoint: str, params: dict) -> list:
         """Fetch a single page from the Socrata API."""
         self._rate_limit()
-        try:
-            resp = self.session.get(endpoint, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            if isinstance(data, list):
-                return data
-            logger.error(f"API returned non-list response: {str(data)[:200]}")
-            return []
-        except requests.exceptions.RequestException as e:
-            logger.error(f"API request failed: {e}")
-            return []
+        resp = self.session.get(endpoint, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        logger.error(f"API returned non-list response: {str(data)[:200]}")
+        return []
 
     def _fetch_all_pages(self, endpoint: str, base_params: dict) -> list:
         """Paginate through all results with safety cap."""
