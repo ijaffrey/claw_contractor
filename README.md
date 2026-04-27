@@ -1,3 +1,4 @@
+// Sprint 1C Validation 5
 # OpenClaw Trade Assistant
 
 A lead qualification assistant for small trade businesses (starting with plumbers). The assistant monitors a Gmail inbox, detects incoming leads, qualifies them with follow-up questions, collects photos, and sends the owner a structured lead summary.
