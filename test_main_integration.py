@@ -105,13 +105,12 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = Session()
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+            ):
 
                 # Setup mocks
                 mock_processor = AsyncMock()
@@ -163,13 +162,12 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = Session()
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+            ):
 
                 # Setup mocks
                 mock_processor = AsyncMock()
@@ -225,13 +223,12 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = Session()
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+            ):
 
                 # Setup mocks for non-qualified leads
                 mock_processor = AsyncMock()
@@ -285,15 +282,13 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = Session()
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler, patch(
-                "main.logger"
-            ) as mock_logger:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+                patch("main.logger") as mock_logger,
+            ):
 
                 # Setup mocks
                 mock_processor = AsyncMock()
@@ -365,13 +360,12 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = session
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+            ):
 
                 # Setup mocks
                 mock_processor = AsyncMock()
@@ -500,13 +494,12 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = Session()
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+            ):
 
                 mock_processor = AsyncMock()
                 mock_email_processor.return_value = mock_processor
@@ -569,13 +562,12 @@ class TestMainLoopIntegration:
                 session2,
             ] * 10  # Alternate sessions
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+            ):
 
                 mock_processor = AsyncMock()
                 mock_email_processor.return_value = mock_processor
@@ -641,15 +633,13 @@ class TestMainLoopIntegration:
         with patch("main.get_db_session") as mock_get_session:
             mock_get_session.return_value = session
 
-            with patch("main.EmailProcessor") as mock_email_processor, patch(
-                "main.LeadQualifier"
-            ) as mock_lead_qualifier, patch(
-                "main.ConversationManager"
-            ) as mock_conv_manager, patch(
-                "main.QualifiedLeadHandler"
-            ) as mock_handler, patch(
-                "main.logger"
-            ) as mock_logger:
+            with (
+                patch("main.EmailProcessor") as mock_email_processor,
+                patch("main.LeadQualifier") as mock_lead_qualifier,
+                patch("main.ConversationManager") as mock_conv_manager,
+                patch("main.QualifiedLeadHandler") as mock_handler,
+                patch("main.logger") as mock_logger,
+            ):
 
                 mock_processor = AsyncMock()
                 mock_email_processor.return_value = mock_processor
