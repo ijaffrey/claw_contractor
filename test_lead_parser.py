@@ -17,9 +17,9 @@ def test_parse_sample_leads():
     # Sample test data (in case no emails in inbox)
     sample_emails = [
         {
-            'from': 'John Smith <john.smith@example.com>',
-            'subject': 'Urgent - Leaking pipe in kitchen',
-            'body': '''Hi Mike,
+            "from": "John Smith <john.smith@example.com>",
+            "subject": "Urgent - Leaking pipe in kitchen",
+            "body": """Hi Mike,
 
 I have a leaking pipe under my kitchen sink that's getting worse. Water is starting to pool on the floor. Can you come take a look today?
 
@@ -27,33 +27,31 @@ My address is 123 Oak Street, Boston MA.
 You can reach me at 617-555-1234.
 
 Thanks,
-John Smith''',
-            'headers': []
+John Smith""",
+            "headers": [],
         },
         {
-            'from': 'leads@thumbtack.com',
-            'subject': 'New Lead: Bathroom Installation',
-            'body': '''New lead from Thumbtack:
+            "from": "leads@thumbtack.com",
+            "subject": "New Lead: Bathroom Installation",
+            "body": """New lead from Thumbtack:
 
 Customer: Sarah Johnson
 Phone: (555) 987-6543
 Project: Install new bathroom fixtures
 Description: Need to install a new toilet, sink, and shower in our basement bathroom. Looking to get this done in the next 2-3 weeks.
-Location: 456 Maple Ave, Cambridge MA''',
-            'headers': [
-                {'name': 'X-Forwarded-From', 'value': 'thumbtack.com'}
-            ]
+Location: 456 Maple Ave, Cambridge MA""",
+            "headers": [{"name": "X-Forwarded-From", "value": "thumbtack.com"}],
         },
         {
-            'from': 'emergency@homeowner.com',
-            'subject': 'EMERGENCY - Basement flooding',
-            'body': '''URGENT!!! My basement is flooding from a burst pipe. Water everywhere. Need someone NOW!
+            "from": "emergency@homeowner.com",
+            "subject": "EMERGENCY - Basement flooding",
+            "body": """URGENT!!! My basement is flooding from a burst pipe. Water everywhere. Need someone NOW!
 
 Call me ASAP: 555-2468
 
-Address: 789 Pine Road''',
-            'headers': []
-        }
+Address: 789 Pine Road""",
+            "headers": [],
+        },
     ]
 
     print("\n📋 Testing with sample email data...\n")

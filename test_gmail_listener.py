@@ -52,6 +52,7 @@ def test_poll_inbox():
     except Exception as e:
         print(f"✗ Poll inbox failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -106,7 +107,7 @@ def main():
     # Ask if user wants to test continuous polling
     print("\n" + "-" * 60)
     response = input("Run continuous polling test? (y/n): ").strip().lower()
-    if response == 'y':
+    if response == "y":
         results.append(("Continuous Polling", test_continuous_polling()))
 
     # Print summary

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 # ── DB helpers (lazy, tolerates missing Supabase creds) ──────────────────────
 
+
 def _get_db():
     """Return SQLAlchemy session using DATABASE_URL or sqlite fallback."""
     from sqlalchemy import create_engine, text
@@ -22,7 +23,9 @@ def _get_db():
 
     db_url = os.getenv("DATABASE_URL", "sqlite:///leads.db")
     if db_url.startswith("sqlite"):
-        engine = create_engine(db_url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        engine = create_engine(
+            db_url, connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
     else:
         engine = create_engine(db_url)
     Session = sessionmaker(bind=engine)
@@ -31,12 +34,14 @@ def _get_db():
 
 # ── Health ─────────────────────────────────────────────────────────────────
 
+
 @app.route("/health")
 def health():
     return jsonify({"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"})
 
 
 # ── Campaign dashboard pages ───────────────────────────────────────────────
+
 
 @app.route("/campaigns")
 def campaigns_page():
@@ -50,11 +55,13 @@ def campaign_leads_page():
 
 # ── API: Leads with enrichment data ────────────────────────────────────────
 
+
 @app.route("/api/campaigns/leads", methods=["GET"])
 def api_list_leads():
     """Return leads with enrichment columns."""
     try:
         from sqlalchemy import text
+
         db, engine = _get_db()
         result = db.execute(text("""
             SELECT id, name, email, phone, company, source, status,
@@ -83,10 +90,18 @@ def api_update_lead(lead_id):
     """Patch enrichment / outreach fields on a lead."""
     data = request.get_json() or {}
     allowed = {
-        "outreach_status", "last_contacted_at", "campaign_tags",
-        "notes", "enriched_email", "enriched_phone", "website",
-        "email_source", "phone_source", "enrichment_status",
-        "enrichment_score", "enriched_at",
+        "outreach_status",
+        "last_contacted_at",
+        "campaign_tags",
+        "notes",
+        "enriched_email",
+        "enriched_phone",
+        "website",
+        "email_source",
+        "phone_source",
+        "enrichment_status",
+        "enrichment_score",
+        "enriched_at",
     }
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
@@ -94,6 +109,7 @@ def api_update_lead(lead_id):
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         set_clause = ", ".join(f"{k} = :{k}" for k in updates)
         updates["lead_id"] = lead_id
@@ -114,7 +130,9 @@ def api_enrich_lead(lead_id):
         from drafted.enrichment_engine import enrich_lead
 
         db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
+        row = db.execute(
+            text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}
+        ).fetchone()
         if not row:
             return jsonify({"error": "Lead not found"}), 404
 
@@ -122,7 +140,8 @@ def api_enrich_lead(lead_id):
         result = enrich_lead(lead_dict)
 
         # Persist enrichment result
-        db.execute(text("""
+        db.execute(
+            text("""
             UPDATE leads SET
                 enriched_email      = :email,
                 enriched_phone      = :phone,
@@ -133,7 +152,9 @@ def api_enrich_lead(lead_id):
                 enrichment_score    = :enrichment_score,
                 enriched_at         = :enriched_at
             WHERE id = :lead_id
-        """), {**result, "lead_id": lead_id})
+        """),
+            {**result, "lead_id": lead_id},
+        )
         db.commit()
         db.close()
         return jsonify({"ok": True, "lead_id": lead_id, "result": result})
@@ -157,12 +178,15 @@ def api_bulk_enrich():
         db, _ = _get_db()
         enriched = 0
         for lead_id in lead_ids:
-            row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
+            row = db.execute(
+                text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}
+            ).fetchone()
             if not row:
                 continue
             lead_dict = dict(zip(row.keys(), row))
             result = enrich_lead(lead_dict)
-            db.execute(text("""
+            db.execute(
+                text("""
                 UPDATE leads SET
                     enriched_email    = :email,
                     enriched_phone    = :phone,
@@ -173,7 +197,9 @@ def api_bulk_enrich():
                     enrichment_score  = :enrichment_score,
                     enriched_at       = :enriched_at
                 WHERE id = :lead_id
-            """), {**result, "lead_id": lead_id})
+            """),
+                {**result, "lead_id": lead_id},
+            )
             enriched += 1
 
         db.commit()
@@ -195,7 +221,9 @@ def api_generate_proposal(lead_id):
         from drafted.proposal_generator import generate_proposal
 
         db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
+        row = db.execute(
+            text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}
+        ).fetchone()
         if not row:
             return jsonify({"error": "Lead not found"}), 404
 
@@ -211,10 +239,12 @@ def api_generate_proposal(lead_id):
 
 # ── API: Campaigns CRUD ────────────────────────────────────────────────────
 
+
 @app.route("/api/campaigns", methods=["GET"])
 def api_list_campaigns():
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         rows = db.execute(text("""
             SELECT c.*,
@@ -245,23 +275,29 @@ def api_create_campaign():
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         now = datetime.utcnow().isoformat()
-        db.execute(text("""
+        db.execute(
+            text("""
             INSERT INTO campaigns (name, description, brand, status, target_trade, target_borough, created_at, updated_at)
             VALUES (:name, :description, :brand, :status, :target_trade, :target_borough, :created_at, :updated_at)
-        """), {
-            "name": name,
-            "description": data.get("description", ""),
-            "brand": data.get("brand", "skipp"),
-            "status": data.get("status", "draft"),
-            "target_trade": data.get("target_trade", ""),
-            "target_borough": data.get("target_borough", ""),
-            "created_at": now,
-            "updated_at": now,
-        })
+        """),
+            {
+                "name": name,
+                "description": data.get("description", ""),
+                "brand": data.get("brand", "skipp"),
+                "status": data.get("status", "draft"),
+                "target_trade": data.get("target_trade", ""),
+                "target_borough": data.get("target_borough", ""),
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
         db.commit()
-        row = db.execute(text("SELECT * FROM campaigns ORDER BY id DESC LIMIT 1")).fetchone()
+        row = db.execute(
+            text("SELECT * FROM campaigns ORDER BY id DESC LIMIT 1")
+        ).fetchone()
         cols = db.execute(text("SELECT * FROM campaigns LIMIT 0")).keys()
         campaign = dict(zip(cols, row))
         db.close()
@@ -275,8 +311,11 @@ def api_create_campaign():
 def api_get_campaign(campaign_id):
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id}).fetchone()
+        row = db.execute(
+            text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id}
+        ).fetchone()
         if not row:
             return jsonify({"error": "Campaign not found"}), 404
         cols = db.execute(text("SELECT * FROM campaigns LIMIT 0")).keys()
@@ -290,7 +329,15 @@ def api_get_campaign(campaign_id):
 @app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
 def api_update_campaign(campaign_id):
     data = request.get_json() or {}
-    allowed = {"name", "description", "brand", "status", "target_trade", "target_borough", "launched_at"}
+    allowed = {
+        "name",
+        "description",
+        "brand",
+        "status",
+        "target_trade",
+        "target_borough",
+        "launched_at",
+    }
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
         return jsonify({"error": "No valid fields"}), 400
@@ -300,9 +347,12 @@ def api_update_campaign(campaign_id):
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         set_clause = ", ".join(f"{k} = :{k}" for k in updates if k != "campaign_id")
-        db.execute(text(f"UPDATE campaigns SET {set_clause} WHERE id = :campaign_id"), updates)
+        db.execute(
+            text(f"UPDATE campaigns SET {set_clause} WHERE id = :campaign_id"), updates
+        )
         db.commit()
         db.close()
         return jsonify({"ok": True})
@@ -314,6 +364,7 @@ def api_update_campaign(campaign_id):
 def api_delete_campaign(campaign_id):
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         db.execute(text("DELETE FROM campaigns WHERE id = :id"), {"id": campaign_id})
         db.commit()
@@ -328,14 +379,18 @@ def api_get_campaign_leads(campaign_id):
     """Get leads assigned to a campaign."""
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT l.*, cl.outreach_status AS cl_outreach, cl.added_at, cl.sent_at, cl.replied_at
             FROM leads l
             JOIN campaign_leads cl ON cl.lead_id = l.id
             WHERE cl.campaign_id = :cid
             ORDER BY l.enrichment_score DESC
-        """), {"cid": campaign_id})
+        """),
+            {"cid": campaign_id},
+        )
         cols = list(result.keys())
         rows = result.fetchall()
         if not rows:
@@ -357,15 +412,19 @@ def api_assign_leads(campaign_id):
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         now = datetime.utcnow().isoformat()
         added = 0
         for lid in lead_ids:
             try:
-                db.execute(text("""
+                db.execute(
+                    text("""
                     INSERT OR IGNORE INTO campaign_leads (campaign_id, lead_id, added_at, outreach_status)
                     VALUES (:cid, :lid, :now, 'pending')
-                """), {"cid": campaign_id, "lid": lid, "now": now})
+                """),
+                    {"cid": campaign_id, "lid": lid, "now": now},
+                )
                 added += 1
             except Exception:
                 pass
@@ -388,27 +447,38 @@ def api_assign_leads_by_name():
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
-        row = db.execute(text("SELECT id FROM campaigns WHERE name = :name"), {"name": campaign_name}).fetchone()
+        row = db.execute(
+            text("SELECT id FROM campaigns WHERE name = :name"), {"name": campaign_name}
+        ).fetchone()
         if row:
             campaign_id = row[0]
         else:
             now = datetime.utcnow().isoformat()
-            db.execute(text("""
+            db.execute(
+                text("""
                 INSERT INTO campaigns (name, brand, status, created_at, updated_at)
                 VALUES (:name, 'skipp', 'draft', :now, :now)
-            """), {"name": campaign_name, "now": now})
+            """),
+                {"name": campaign_name, "now": now},
+            )
             db.commit()
-            campaign_id = db.execute(text("SELECT id FROM campaigns ORDER BY id DESC LIMIT 1")).fetchone()[0]
+            campaign_id = db.execute(
+                text("SELECT id FROM campaigns ORDER BY id DESC LIMIT 1")
+            ).fetchone()[0]
 
         now = datetime.utcnow().isoformat()
         added = 0
         for lid in lead_ids:
             try:
-                db.execute(text("""
+                db.execute(
+                    text("""
                     INSERT OR IGNORE INTO campaign_leads (campaign_id, lead_id, added_at, outreach_status)
                     VALUES (:cid, :lid, :now, 'pending')
-                """), {"cid": campaign_id, "lid": lid, "now": now})
+                """),
+                    {"cid": campaign_id, "lid": lid, "now": now},
+                )
                 added += 1
             except Exception:
                 pass
@@ -424,8 +494,10 @@ def api_campaign_stats(campaign_id):
     """Return engagement stats for a campaign."""
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
-        stats = db.execute(text("""
+        stats = db.execute(
+            text("""
             SELECT
                 COUNT(*) AS total,
                 SUM(CASE WHEN outreach_status = 'pending' THEN 1 ELSE 0 END) AS pending,
@@ -435,18 +507,27 @@ def api_campaign_stats(campaign_id):
                 SUM(CASE WHEN sent_at IS NOT NULL THEN 1 ELSE 0 END) AS delivered
             FROM campaign_leads
             WHERE campaign_id = :cid
-        """), {"cid": campaign_id}).fetchone()
+        """),
+            {"cid": campaign_id},
+        ).fetchone()
         db.close()
-        return jsonify({
-            "campaign_id": campaign_id,
-            "total": stats[0], "pending": stats[1], "sent": stats[2],
-            "replied": stats[3], "converted": stats[4], "delivered": stats[5],
-        })
+        return jsonify(
+            {
+                "campaign_id": campaign_id,
+                "total": stats[0],
+                "pending": stats[1],
+                "sent": stats[2],
+                "replied": stats[3],
+                "converted": stats[4],
+                "delivered": stats[5],
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # ── Bucket (permit list per trade) ────────────────────────────────────────
+
 
 @app.route("/bucket/<trade>")
 def bucket_page(trade):
@@ -458,10 +539,12 @@ def api_bucket_leads(trade):
     """Return permit leads for a given trade, with all enrichment columns."""
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         all_trades = trade.lower() == "all"
         trade_filter = f"%{trade.lower()}%"
-        result = db.execute(text("""
+        result = db.execute(
+            text("""
             SELECT id, name, email, phone, company, source, status, notes, score,
                    enriched_email, enriched_phone, website,
                    email_source, phone_source,
@@ -477,7 +560,9 @@ def api_bucket_leads(trade):
               )
             ORDER BY created_at DESC
             LIMIT 500
-        """), {"trade": trade_filter, "all_trades": 1 if all_trades else 0})
+        """),
+            {"trade": trade_filter, "all_trades": 1 if all_trades else 0},
+        )
         cols = list(result.keys())
         rows = result.fetchall()
         leads = [dict(zip(cols, row)) for row in rows]
@@ -497,10 +582,12 @@ def api_bucket_stats(trade):
     """
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         all_trades = trade.lower() == "all"
         trade_filter = f"%{trade.lower()}%"
-        row = db.execute(text("""
+        row = db.execute(
+            text("""
             SELECT
                 COUNT(*)                                               AS total_permits,
                 SUM(CASE WHEN enrichment_status = 'complete' THEN 1 ELSE 0 END) AS enriched_count,
@@ -516,22 +603,29 @@ def api_bucket_stats(trade):
                 OR LOWER(COALESCE(campaign_tags,'')) LIKE :trade
                 OR LOWER(COALESCE(source,'')) LIKE :trade
               )
-        """), {"trade": trade_filter, "all_trades": 1 if all_trades else 0}).fetchone()
+        """),
+            {"trade": trade_filter, "all_trades": 1 if all_trades else 0},
+        ).fetchone()
         db.close()
 
-        def _int(v): return int(v) if v else 0
-        def _flt(v): return round(float(v), 1) if v else 0.0
+        def _int(v):
+            return int(v) if v else 0
 
-        return jsonify({
-            "trade":          trade,
-            "total_permits":  _int(row[0]),
-            "enriched_count": _int(row[1]),
-            "pipeline_value": _int(row[2]),
-            "proposals_ready": _int(row[3]),
-            "avg_deal_size":  _int(row[4]),
-            "avg_confidence": _flt(row[5]),
-            "sent_count":     _int(row[6]),
-        })
+        def _flt(v):
+            return round(float(v), 1) if v else 0.0
+
+        return jsonify(
+            {
+                "trade": trade,
+                "total_permits": _int(row[0]),
+                "enriched_count": _int(row[1]),
+                "pipeline_value": _int(row[2]),
+                "proposals_ready": _int(row[3]),
+                "avg_deal_size": _int(row[4]),
+                "avg_confidence": _flt(row[5]),
+                "sent_count": _int(row[6]),
+            }
+        )
     except Exception as e:
         logger.exception("api_bucket_stats failed")
         return jsonify({"error": str(e)}), 500
@@ -542,8 +636,10 @@ def api_get_lead_bucket(lead_id):
     """Return a single lead with all enrichment contact fields for the expand panel."""
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
-        row = db.execute(text("""
+        row = db.execute(
+            text("""
             SELECT id, name, email, phone, company, source, status, notes, score,
                    enriched_email, enriched_phone, website,
                    email_source, phone_source,
@@ -551,7 +647,9 @@ def api_get_lead_bucket(lead_id):
                    campaign_tags, outreach_status, last_contacted_at,
                    created_at, updated_at
             FROM leads WHERE id = :id
-        """), {"id": lead_id}).fetchone()
+        """),
+            {"id": lead_id},
+        ).fetchone()
         if not row:
             return jsonify({"error": "Lead not found"}), 404
         cols = list(row.keys())
@@ -590,8 +688,11 @@ def api_credit_estimate():
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
-        placeholders = ",".join(str(int(i)) for i in lead_ids if str(i).lstrip("-").isdigit())
+        placeholders = ",".join(
+            str(int(i)) for i in lead_ids if str(i).lstrip("-").isdigit()
+        )
         if not placeholders:
             return jsonify({"error": "invalid lead_ids"}), 400
 
@@ -604,13 +705,15 @@ def api_credit_estimate():
         already = sum(1 for r in rows if r[1] == "complete")
         net = len(rows) - already
         credits_per_lead = 3
-        return jsonify({
-            "lead_count":      len(rows),
-            "already_enriched": already,
-            "net_leads":       net,
-            "credits_per_lead": credits_per_lead,
-            "total_credits":   net * credits_per_lead,
-        })
+        return jsonify(
+            {
+                "lead_count": len(rows),
+                "already_enriched": already,
+                "net_leads": net,
+                "credits_per_lead": credits_per_lead,
+                "total_credits": net * credits_per_lead,
+            }
+        )
     except Exception as e:
         logger.exception("api_credit_estimate failed")
         return jsonify({"error": str(e)}), 500
@@ -623,7 +726,14 @@ def api_update_lead_bucket(lead_id):
 
 
 # Valid outreach status values and allowed transitions
-_OUTREACH_STATUSES = {"not_started", "proposal_ready", "sent", "replied", "interested", "none"}
+_OUTREACH_STATUSES = {
+    "not_started",
+    "proposal_ready",
+    "sent",
+    "replied",
+    "interested",
+    "none",
+}
 
 
 @app.route("/api/leads/<int:lead_id>/status", methods=["POST"])
@@ -637,22 +747,36 @@ def api_update_outreach_status(lead_id):
     data = request.get_json() or {}
     status = data.get("status", "").strip()
     if status not in _OUTREACH_STATUSES:
-        return jsonify({"error": f"Invalid status '{status}'. Valid: {sorted(_OUTREACH_STATUSES)}"}), 400
+        return (
+            jsonify(
+                {
+                    "error": f"Invalid status '{status}'. Valid: {sorted(_OUTREACH_STATUSES)}"
+                }
+            ),
+            400,
+        )
 
     try:
         from sqlalchemy import text
+
         db, _ = _get_db()
         now = datetime.utcnow().isoformat()
         contact_statuses = {"sent", "replied", "interested"}
         if status in contact_statuses:
-            db.execute(text("""
+            db.execute(
+                text("""
                 UPDATE leads SET outreach_status = :status, last_contacted_at = :now
                 WHERE id = :id
-            """), {"status": status, "now": now, "id": lead_id})
+            """),
+                {"status": status, "now": now, "id": lead_id},
+            )
         else:
-            db.execute(text("""
+            db.execute(
+                text("""
                 UPDATE leads SET outreach_status = :status WHERE id = :id
-            """), {"status": status, "id": lead_id})
+            """),
+                {"status": status, "id": lead_id},
+            )
         db.commit()
         db.close()
         return jsonify({"ok": True, "lead_id": lead_id, "outreach_status": status})
@@ -677,7 +801,9 @@ def api_proposal_bucket(lead_id):
         from drafted.proposal_generator import generate_proposal
 
         db, _ = _get_db()
-        row = db.execute(text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}).fetchone()
+        row = db.execute(
+            text("SELECT * FROM leads WHERE id = :id"), {"id": lead_id}
+        ).fetchone()
         if not row:
             return jsonify({"error": "Lead not found"}), 404
 
@@ -686,7 +812,9 @@ def api_proposal_bucket(lead_id):
 
         # If enrichment data exists, promote enriched contact info into name/email
         # so the proposal generator picks up the real contact details
-        has_enrichment = bool(lead_dict.get("enriched_email") or lead_dict.get("enriched_phone"))
+        has_enrichment = bool(
+            lead_dict.get("enriched_email") or lead_dict.get("enriched_phone")
+        )
         if has_enrichment:
             # Use enriched email as primary email so proposal can address the right contact
             if lead_dict.get("enriched_email") and not lead_dict.get("email"):

@@ -3,6 +3,7 @@
 
 from database import Base, engine, UserToken
 
+
 def create_user_tokens_table():
     """Create the user_tokens table"""
     try:
@@ -14,6 +15,7 @@ def create_user_tokens_table():
         print(f"✗ Error creating user_tokens table: {e}")
         return False
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     success = create_user_tokens_table()
     exit(0 if success else 1)

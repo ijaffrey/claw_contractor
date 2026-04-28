@@ -1,14 +1,14 @@
 import re
 
 # Read the log file
-with open('simulated_run_v4_fixed.log', 'r') as f:
+with open("simulated_run_v4_fixed.log", "r") as f:
     log = f.read()
 
 # Extract all violations
-violations = re.findall(r'    ❌ (.+)', log)
+violations = re.findall(r"    ❌ (.+)", log)
 
 # Extract all scenario names and violation counts
-scenario_blocks = re.split(r'\[\d+/\d+\] Running:', log)[1:]  # Skip header
+scenario_blocks = re.split(r"\[\d+/\d+\] Running:", log)[1:]  # Skip header
 
 print("=" * 60)
 print("PARTIAL RESULTS ANALYSIS (44/50 scenarios completed)")

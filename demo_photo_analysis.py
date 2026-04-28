@@ -10,22 +10,22 @@ from io import BytesIO
 
 # Sample images for demonstration (publicly available examples)
 SAMPLE_IMAGES = {
-    'plumbing': {
-        'url': 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=800',  # Water heater
-        'description': 'Water heater with visible label'
+    "plumbing": {
+        "url": "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=800",  # Water heater
+        "description": "Water heater with visible label",
     },
-    'roofing': {
-        'url': 'https://images.unsplash.com/photo-1632778149955-e80f8ceca2e7?w=800',  # Roof damage
-        'description': 'Roof with missing/damaged shingles'
+    "roofing": {
+        "url": "https://images.unsplash.com/photo-1632778149955-e80f8ceca2e7?w=800",  # Roof damage
+        "description": "Roof with missing/damaged shingles",
     },
-    'electrical': {
-        'url': 'https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=800',  # Electrical panel
-        'description': 'Electrical service panel'
+    "electrical": {
+        "url": "https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=800",  # Electrical panel
+        "description": "Electrical service panel",
     },
-    'general_contractor': {
-        'url': 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',  # Kitchen
-        'description': 'Kitchen space for remodel'
-    }
+    "general_contractor": {
+        "url": "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800",  # Kitchen
+        "description": "Kitchen space for remodel",
+    },
 }
 
 
@@ -49,7 +49,7 @@ def demo_trade_analysis(trade_type, image_info):
 
     # Download image
     print(f"Downloading sample image from: {image_info['url'][:60]}...")
-    image_data = download_image(image_info['url'])
+    image_data = download_image(image_info["url"])
 
     if not image_data:
         print("❌ Failed to download image")
@@ -60,9 +60,7 @@ def demo_trade_analysis(trade_type, image_info):
     # Analyze photo
     print(f"\nAnalyzing with Claude Vision ({trade_type} prompt)...")
     analysis = photo_analyzer.analyze_photo(
-        image_data=image_data,
-        trade_type=trade_type,
-        content_type='image/jpeg'
+        image_data=image_data, trade_type=trade_type, content_type="image/jpeg"
     )
 
     if analysis:
@@ -75,17 +73,17 @@ def demo_trade_analysis(trade_type, image_info):
 
 
 def main():
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PHOTO ANALYZER DEMONSTRATION")
     print("Showing Claude Vision analysis for each trade type")
-    print("="*80)
+    print("=" * 80)
 
     for trade_type, image_info in SAMPLE_IMAGES.items():
         demo_trade_analysis(trade_type, image_info)
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("DEMONSTRATION COMPLETE")
-    print("="*80)
+    print("=" * 80)
     print("\nNext steps:")
     print("1. Review analysis outputs for accuracy and tone")
     print("2. Verify outputs stay under 80 words")
@@ -93,5 +91,5 @@ def main():
     print("4. Once approved, wire into main.py email processing")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

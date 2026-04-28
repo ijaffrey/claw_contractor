@@ -29,53 +29,53 @@ def test_reply_generation():
     # Test scenarios
     test_leads = [
         {
-            'name': 'Emergency - Flooded Basement',
-            'lead_data': {
-                'customer_name': 'John Smith',
-                'customer_email': 'john@example.com',
-                'job_type': 'leak repair',
-                'description': 'Burst pipe flooding my basement',
-                'urgency': 'emergency',
-                'location': '123 Oak Street, Boston MA',
-                'phone': '617-555-1234'
-            }
+            "name": "Emergency - Flooded Basement",
+            "lead_data": {
+                "customer_name": "John Smith",
+                "customer_email": "john@example.com",
+                "job_type": "leak repair",
+                "description": "Burst pipe flooding my basement",
+                "urgency": "emergency",
+                "location": "123 Oak Street, Boston MA",
+                "phone": "617-555-1234",
+            },
         },
         {
-            'name': 'Urgent - Kitchen Sink Leak',
-            'lead_data': {
-                'customer_name': 'Sarah Johnson',
-                'customer_email': 'sarah@example.com',
-                'job_type': 'leak repair',
-                'description': 'Leaking kitchen sink, water pooling on floor',
-                'urgency': 'urgent',
-                'location': None,
-                'phone': None
-            }
+            "name": "Urgent - Kitchen Sink Leak",
+            "lead_data": {
+                "customer_name": "Sarah Johnson",
+                "customer_email": "sarah@example.com",
+                "job_type": "leak repair",
+                "description": "Leaking kitchen sink, water pooling on floor",
+                "urgency": "urgent",
+                "location": None,
+                "phone": None,
+            },
         },
         {
-            'name': 'Normal - Bathroom Installation',
-            'lead_data': {
-                'customer_name': 'Mike Chen',
-                'customer_email': 'mike@example.com',
-                'job_type': 'installation',
-                'description': 'Need to install new bathroom fixtures in basement',
-                'urgency': 'planning',
-                'location': '456 Maple Ave, Cambridge MA',
-                'phone': '555-987-6543'
-            }
+            "name": "Normal - Bathroom Installation",
+            "lead_data": {
+                "customer_name": "Mike Chen",
+                "customer_email": "mike@example.com",
+                "job_type": "installation",
+                "description": "Need to install new bathroom fixtures in basement",
+                "urgency": "planning",
+                "location": "456 Maple Ave, Cambridge MA",
+                "phone": "555-987-6543",
+            },
         },
         {
-            'name': 'Drain Cleaning Request',
-            'lead_data': {
-                'customer_name': 'Lisa Williams',
-                'customer_email': 'lisa@example.com',
-                'job_type': 'drain cleaning',
-                'description': 'Slow draining bathroom sink',
-                'urgency': 'soon',
-                'location': None,
-                'phone': None
-            }
-        }
+            "name": "Drain Cleaning Request",
+            "lead_data": {
+                "customer_name": "Lisa Williams",
+                "customer_email": "lisa@example.com",
+                "job_type": "drain cleaning",
+                "description": "Slow draining bathroom sink",
+                "urgency": "soon",
+                "location": None,
+                "phone": None,
+            },
+        },
     ]
 
     # Generate replies for each scenario
@@ -84,14 +84,14 @@ def test_reply_generation():
         print(f"SCENARIO #{i}: {scenario['name']}")
         print("=" * 60)
 
-        lead_data = scenario['lead_data']
+        lead_data = scenario["lead_data"]
 
         print(f"\nLead Details:")
         print(f"  Customer: {lead_data['customer_name']}")
         print(f"  Job Type: {lead_data['job_type']}")
         print(f"  Urgency: {lead_data['urgency']}")
         print(f"  Description: {lead_data['description']}")
-        if lead_data['location']:
+        if lead_data["location"]:
             print(f"  Location: {lead_data['location']}")
 
         print(f"\nGenerating branded reply with Claude API...")
@@ -130,7 +130,7 @@ def test_with_real_leads():
     print(f"\n✓ Using business: {business['name']}")
 
     # Get leads from database
-    leads = db.get_leads(business['id'], limit=5)
+    leads = db.get_leads(business["id"], limit=5)
 
     if not leads:
         print("\n⚠ No leads in database yet")

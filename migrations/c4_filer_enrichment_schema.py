@@ -39,9 +39,9 @@ def run_migration(engine=None):
 
     enrichment_columns = [
         ("job_type_classification", "TEXT"),
-        ("value_tier",              "TEXT"),
-        ("urgency_score",           "INTEGER"),
-        ("one_line_summary",        "TEXT"),
+        ("value_tier", "TEXT"),
+        ("urgency_score", "INTEGER"),
+        ("one_line_summary", "TEXT"),
     ]
 
     with engine.connect() as conn:
@@ -51,7 +51,10 @@ def run_migration(engine=None):
                 conn.commit()
                 logger.info(f"Added column leads.{col_name}")
             except Exception as e:
-                if "duplicate column" in str(e).lower() or "already exists" in str(e).lower():
+                if (
+                    "duplicate column" in str(e).lower()
+                    or "already exists" in str(e).lower()
+                ):
                     logger.debug(f"Column leads.{col_name} already exists, skipping")
                 else:
                     logger.warning(f"Could not add leads.{col_name}: {e}")
@@ -68,7 +71,12 @@ def test_schema():
 
     inspector = inspect(engine)
     lead_cols = {c["name"] for c in inspector.get_columns("leads")}
-    required = {"job_type_classification", "value_tier", "urgency_score", "one_line_summary"}
+    required = {
+        "job_type_classification",
+        "value_tier",
+        "urgency_score",
+        "one_line_summary",
+    }
     missing = required - lead_cols
     assert not missing, f"Missing lead columns: {missing}"
 

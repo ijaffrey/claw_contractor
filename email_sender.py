@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class EmailConfig:
     sender_email: str
     sender_name: str
+
 
 class EmailSender:
     def __init__(self, config: EmailConfig):
@@ -12,6 +14,7 @@ class EmailSender:
     def send_email(self, to_email, subject, body, is_html=False):
         try:
             from gmail_listener import get_gmail_service, send_email_via_gmail
+
             service = get_gmail_service()
             return send_email_via_gmail(service, to_email, subject, body)
         except Exception as e:

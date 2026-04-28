@@ -17,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Landing page route
 @app.get("/")
 async def landing_page():
@@ -25,10 +26,12 @@ async def landing_page():
         html_content = f.read()
     return HTMLResponse(content=html_content, status_code=200)
 
+
 # Health check endpoint
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
+
 
 # Mount static files
 static_path = Path(__file__).parent / "static"
@@ -37,4 +40,5 @@ if static_path.exists():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

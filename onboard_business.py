@@ -36,15 +36,17 @@ def get_input(prompt, required=True, default=None):
 def validate_email(email):
     """Basic email validation"""
     import re
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return re.match(pattern, email) is not None
 
 
 def validate_phone(phone):
     """Basic phone validation"""
     import re
+
     # Remove common formatting characters
-    cleaned = re.sub(r'[^0-9]', '', phone)
+    cleaned = re.sub(r"[^0-9]", "", phone)
     # Should have 10-11 digits (with or without country code)
     return len(cleaned) >= 10
 
@@ -73,7 +75,7 @@ def confirm_details(business_data):
     print("=" * 60)
 
     response = input("\nIs this information correct? (yes/no): ").strip().lower()
-    return response in ['yes', 'y']
+    return response in ["yes", "y"]
 
 
 def main():
@@ -137,26 +139,23 @@ def main():
     print("  • 'Warm, helpful, and community-focused'")
     print()
 
-    brand_voice = get_input(
-        "Brand voice description",
-        required=True
-    )
+    brand_voice = get_input("Brand voice description", required=True)
 
     # Prepare business data
     business_data = {
-        'name': business_name,
-        'trade_type': trade_type.lower(),
-        'brand_voice': brand_voice,
-        'email': email
+        "name": business_name,
+        "trade_type": trade_type.lower(),
+        "brand_voice": brand_voice,
+        "email": email,
     }
 
     # Add optional fields
     if owner_name:
-        business_data['owner_name'] = owner_name
+        business_data["owner_name"] = owner_name
     if phone:
-        business_data['phone'] = phone
+        business_data["phone"] = phone
     if service_area:
-        business_data['service_area'] = service_area
+        business_data["service_area"] = service_area
 
     # Confirm before saving
     if not confirm_details(business_data):
@@ -188,7 +187,7 @@ def main():
 
             # Ask if they want to onboard another business
             another = input("Onboard another business? (yes/no): ").strip().lower()
-            if another in ['yes', 'y']:
+            if another in ["yes", "y"]:
                 print("\n" + "=" * 60 + "\n")
                 main()  # Recursive call for another business
             else:
@@ -202,6 +201,7 @@ def main():
     except Exception as e:
         print(f"\n✗ Error saving business: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

@@ -32,7 +32,7 @@ else:
         print(f"Email ID:   {lead['id']}")
         print(f"\nBody Preview:")
         print("-" * 60)
-        print(lead['body'][:300] + "..." if len(lead['body']) > 300 else lead['body'])
+        print(lead["body"][:300] + "..." if len(lead["body"]) > 300 else lead["body"])
         print("-" * 60)
         print()
 

@@ -44,18 +44,22 @@ except ImportError:
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
 
 # Add parent directory to path to import production code
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 try:
     from reply_generator import build_system_prompt as production_build_system_prompt
+
     USE_PRODUCTION_PROMPT = True
 except ImportError:
-    print("Warning: Could not import production reply_generator. Using test harness prompt.")
+    print(
+        "Warning: Could not import production reply_generator. Using test harness prompt."
+    )
     USE_PRODUCTION_PROMPT = False
 
 from test_scenarios import ALL_SCENARIOS, BUSINESS_PROFILES
@@ -64,7 +68,9 @@ from test_scenarios import ALL_SCENARIOS, BUSINESS_PROFILES
 MODEL = "claude-sonnet-4-20250514"
 MAX_REPLY_WORDS = 100  # Hard cap from project spec
 EVALUATOR_MODEL = "claude-sonnet-4-20250514"
-HOMEOWNER_SIMULATOR_MODEL = "claude-3-haiku-20240307"  # Use haiku for fast, cost-effective simulation
+HOMEOWNER_SIMULATOR_MODEL = (
+    "claude-3-haiku-20240307"  # Use haiku for fast, cost-effective simulation
+)
 
 
 def get_client():
@@ -76,6 +82,7 @@ def get_client():
 
 
 # ─── System Prompt (this is the thing to iterate on) ───
+
 
 def build_system_prompt(business):
     """
@@ -180,7 +187,15 @@ Business phone: {business['phone']}"""
 
 # ─── Homeowner Simulator ───
 
-def simulate_homeowner_reply(client, scenario, business_profile, conversation_history, ai_last_message, step_number):
+
+def simulate_homeowner_reply(
+    client,
+    scenario,
+    business_profile,
+    conversation_history,
+    ai_last_message,
+    step_number,
+):
     """
     Simulate a realistic homeowner response using Claude API.
 
@@ -241,10 +256,12 @@ IMPORTANT: Reply ONLY as the homeowner. Do not include any meta-commentary, expl
         model=HOMEOWNER_SIMULATOR_MODEL,
         max_tokens=500,
         system=system_prompt,
-        messages=[{
-            "role": "user",
-            "content": "Generate the homeowner's reply to the contractor's message above."
-        }],
+        messages=[
+            {
+                "role": "user",
+                "content": "Generate the homeowner's reply to the contractor's message above.",
+            }
+        ],
     )
 
     return response.content[0].text.strip()
@@ -310,7 +327,15 @@ Respond in this exact JSON format (no markdown, no backticks):
 }"""
 
 
-def evaluate_reply(client, business, customer_message, ai_reply, should_rules, must_not_rules, conversation_history=None):
+def evaluate_reply(
+    client,
+    business,
+    customer_message,
+    ai_reply,
+    should_rules,
+    must_not_rules,
+    conversation_history=None,
+):
     """Use Claude as an evaluator to score reply quality."""
     context = f"""BUSINESS: {business['name']} ({business['trade_type']})
 BRAND VOICE: {business['brand_voice']}
@@ -339,21 +364,28 @@ MUST NOT: {json.dumps(must_not_rules)}"""
 
     text = response.content[0].text.strip()
     # Clean potential markdown fences
-    text = re.sub(r'^```json\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
+    text = re.sub(r"^```json\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
 
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         return {
-            "tone_match": 0, "question_quality": 0, "information_handling": 0,
-            "brevity": 0, "human_feel": 0, "safety": 0, "overall": 0,
+            "tone_match": 0,
+            "question_quality": 0,
+            "information_handling": 0,
+            "brevity": 0,
+            "human_feel": 0,
+            "safety": 0,
+            "overall": 0,
             "violations": [f"Evaluator returned unparseable response: {text[:200]}"],
-            "strengths": [], "suggestions": [],
+            "strengths": [],
+            "suggestions": [],
         }
 
 
 # ─── Conversation Runner ───
+
 
 def run_scenario(client, scenario, verbose=True, simulated=False):
     """Run a full multi-turn conversation for one scenario and evaluate each step."""
@@ -370,10 +402,12 @@ def run_scenario(client, scenario, verbose=True, simulated=False):
             model=MODEL,
             max_tokens=300,
             system=system_prompt,
-            messages=[{
-                "role": "user",
-                "content": f"From: {email['from']}\nSubject: {email['subject']}\n\n{email['body']}",
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"From: {email['from']}\nSubject: {email['subject']}\n\n{email['body']}",
+                }
+            ],
         )
         reply = response.content[0].text
         word_count = len(reply.split())
@@ -406,7 +440,9 @@ def run_scenario(client, scenario, verbose=True, simulated=False):
     step_results = []
 
     # Initial email
-    initial_content = f"From: {email['from']}\nSubject: {email['subject']}\n\n{email['body']}"
+    initial_content = (
+        f"From: {email['from']}\nSubject: {email['subject']}\n\n{email['body']}"
+    )
     messages.append({"role": "user", "content": initial_content})
 
     if verbose:
@@ -423,7 +459,9 @@ def run_scenario(client, scenario, verbose=True, simulated=False):
                 f"The customer has not responded for {step_num.replace('_silence', '').replace('h', ' hours').replace('d', ' days')}. "
                 f"Send a brief follow-up message. Keep it very short."
             )
-            messages.append({"role": "user", "content": f"[SYSTEM: {follow_up_prompt}]"})
+            messages.append(
+                {"role": "user", "content": f"[SYSTEM: {follow_up_prompt}]"}
+            )
 
         elif step_num > 1:
             # For steps > 1, we need a homeowner reply to the previous AI message
@@ -431,15 +469,23 @@ def run_scenario(client, scenario, verbose=True, simulated=False):
                 # Generate simulated homeowner reply
                 ai_last_message = messages[-1]["content"] if messages else ""
                 homeowner_reply = simulate_homeowner_reply(
-                    client, scenario, business, messages[:-1] if len(messages) > 1 else [],
-                    ai_last_message, step_num
+                    client,
+                    scenario,
+                    business,
+                    messages[:-1] if len(messages) > 1 else [],
+                    ai_last_message,
+                    step_num,
                 )
                 if verbose:
-                    print(f"    Customer (step {step_num}, simulated): {homeowner_reply[:80]}...")
+                    print(
+                        f"    Customer (step {step_num}, simulated): {homeowner_reply[:80]}..."
+                    )
             else:
                 # Use hardcoded reply from scenario
                 if "homeowner_reply" not in step_def:
-                    print(f"    WARNING: No homeowner_reply defined for step {step_num} in non-simulated mode")
+                    print(
+                        f"    WARNING: No homeowner_reply defined for step {step_num} in non-simulated mode"
+                    )
                     continue
                 homeowner_reply = step_def["homeowner_reply"]
                 if verbose:
@@ -467,21 +513,25 @@ def run_scenario(client, scenario, verbose=True, simulated=False):
         must_not_rules = step_def.get("ai_must_not", [])
 
         evaluation = evaluate_reply(
-            client, business,
+            client,
+            business,
             messages[-2]["content"],  # customer message
             reply,
-            should_rules, must_not_rules,
+            should_rules,
+            must_not_rules,
             messages[:-2] if len(messages) > 2 else None,
         )
 
-        step_results.append({
-            "step": step_num,
-            "customer_message": messages[-2]["content"],
-            "ai_reply": reply,
-            "word_count": word_count,
-            "over_word_limit": word_count > MAX_REPLY_WORDS,
-            "evaluation": evaluation,
-        })
+        step_results.append(
+            {
+                "step": step_num,
+                "customer_message": messages[-2]["content"],
+                "ai_reply": reply,
+                "word_count": word_count,
+                "over_word_limit": word_count > MAX_REPLY_WORDS,
+                "evaluation": evaluation,
+            }
+        )
 
         if verbose and evaluation.get("violations"):
             for v in evaluation["violations"]:
@@ -501,6 +551,7 @@ def run_scenario(client, scenario, verbose=True, simulated=False):
 
 # ─── Results Writer ───
 
+
 def write_results(results, output_dir):
     """Write detailed results to markdown files."""
     output_dir = Path(output_dir)
@@ -509,8 +560,13 @@ def write_results(results, output_dir):
 
     # Calculate aggregate scores
     all_scores = {
-        "tone_match": [], "question_quality": [], "information_handling": [],
-        "brevity": [], "human_feel": [], "safety": [], "overall": [],
+        "tone_match": [],
+        "question_quality": [],
+        "information_handling": [],
+        "brevity": [],
+        "human_feel": [],
+        "safety": [],
+        "overall": [],
     }
     all_violations = []
     failures = []
@@ -538,13 +594,23 @@ def write_results(results, output_dir):
             for step in result["steps"]:
                 f.write(f"## Step {step['step']}\n\n")
                 f.write(f"**Customer:** {step['customer_message']}\n\n")
-                f.write(f"**AI Reply ({step['word_count']} words):**\n> {step['ai_reply']}\n\n")
+                f.write(
+                    f"**AI Reply ({step['word_count']} words):**\n> {step['ai_reply']}\n\n"
+                )
 
                 ev = step["evaluation"]
                 if ev:
                     f.write("**Scores:**\n\n")
                     f.write(f"| Dimension | Score |\n|---|---|\n")
-                    for dim in ["tone_match", "question_quality", "information_handling", "brevity", "human_feel", "safety", "overall"]:
+                    for dim in [
+                        "tone_match",
+                        "question_quality",
+                        "information_handling",
+                        "brevity",
+                        "human_feel",
+                        "safety",
+                        "overall",
+                    ]:
                         score = ev.get(dim, 0)
                         emoji = "🟢" if score >= 4 else "🟡" if score >= 3 else "🔴"
                         f.write(f"| {dim} | {emoji} {score}/5 |\n")
@@ -568,8 +634,13 @@ def write_results(results, output_dir):
                             all_scores[dim].append(ev[dim])
                     if ev.get("violations"):
                         all_violations.extend(ev["violations"])
-                        if any(ev.get(d, 5) <= 2 for d in ["safety", "tone_match", "question_quality"]):
-                            failures.append((scenario_id, step["step"], ev["violations"]))
+                        if any(
+                            ev.get(d, 5) <= 2
+                            for d in ["safety", "tone_match", "question_quality"]
+                        ):
+                            failures.append(
+                                (scenario_id, step["step"], ev["violations"])
+                            )
 
                 if step.get("over_word_limit"):
                     word_count_violations += 1
@@ -584,17 +655,25 @@ def write_results(results, output_dir):
         f.write(f"**Model:** {MODEL}  \n\n")
 
         f.write("## Aggregate Scores\n\n")
-        f.write("| Dimension | Avg Score | Min | Max | Count |\n|---|---|---|---|---|\n")
+        f.write(
+            "| Dimension | Avg Score | Min | Max | Count |\n|---|---|---|---|---|\n"
+        )
         for dim, scores in all_scores.items():
             if scores:
                 avg = sum(scores) / len(scores)
                 emoji = "🟢" if avg >= 4 else "🟡" if avg >= 3 else "🔴"
-                f.write(f"| {dim} | {emoji} {avg:.1f} | {min(scores)} | {max(scores)} | {len(scores)} |\n")
+                f.write(
+                    f"| {dim} | {emoji} {avg:.1f} | {min(scores)} | {max(scores)} | {len(scores)} |\n"
+                )
 
         f.write(f"\n## Quick Stats\n\n")
-        f.write(f"- Word count violations (> {MAX_REPLY_WORDS} words): **{word_count_violations}**\n")
+        f.write(
+            f"- Word count violations (> {MAX_REPLY_WORDS} words): **{word_count_violations}**\n"
+        )
         f.write(f"- Total rule violations flagged: **{len(all_violations)}**\n")
-        f.write(f"- Critical failures (score ≤ 2 on safety/tone/questions): **{len(failures)}**\n")
+        f.write(
+            f"- Critical failures (score ≤ 2 on safety/tone/questions): **{len(failures)}**\n"
+        )
 
         if all_violations:
             f.write(f"\n## All Violations\n\n")
@@ -609,21 +688,36 @@ def write_results(results, output_dir):
                 f.write(f"## {scenario_id} — Step {step}\n\n")
                 for v in violations:
                     f.write(f"- ❌ {v}\n")
-                f.write(f"\n→ See full conversation: conversations/{scenario_id}.md\n\n")
+                f.write(
+                    f"\n→ See full conversation: conversations/{scenario_id}.md\n\n"
+                )
 
     return all_scores, all_violations, failures
 
 
 # ─── Main ───
 
+
 def main():
-    parser = argparse.ArgumentParser(description="OpenClaw Conversation Quality Test Harness")
+    parser = argparse.ArgumentParser(
+        description="OpenClaw Conversation Quality Test Harness"
+    )
     parser.add_argument("--scenario", help="Run a specific scenario by ID")
-    parser.add_argument("--trade", help="Run all scenarios for a trade (plumbing/roofing/electrical/gc)")
+    parser.add_argument(
+        "--trade", help="Run all scenarios for a trade (plumbing/roofing/electrical/gc)"
+    )
     parser.add_argument("--urgency", help="Run all scenarios for an urgency level")
     parser.add_argument("--quiet", action="store_true", help="Minimal output")
-    parser.add_argument("--no-eval", action="store_true", help="Skip AI evaluation (faster, just generate replies)")
-    parser.add_argument("--simulated", action="store_true", help="Use AI-simulated homeowner replies instead of hardcoded responses (enables dynamic conversation testing)")
+    parser.add_argument(
+        "--no-eval",
+        action="store_true",
+        help="Skip AI evaluation (faster, just generate replies)",
+    )
+    parser.add_argument(
+        "--simulated",
+        action="store_true",
+        help="Use AI-simulated homeowner replies instead of hardcoded responses (enables dynamic conversation testing)",
+    )
     args = parser.parse_args()
 
     # Filter scenarios
@@ -645,7 +739,9 @@ def main():
         if biz:
             scenarios = [s for s in scenarios if s.get("business") == biz]
         else:
-            print(f"Unknown trade: {args.trade}. Options: plumbing, roofing, electrical, gc")
+            print(
+                f"Unknown trade: {args.trade}. Options: plumbing, roofing, electrical, gc"
+            )
             sys.exit(1)
     elif args.urgency:
         scenarios = [s for s in scenarios if s.get("urgency") == args.urgency]
@@ -670,7 +766,9 @@ def main():
         if verbose:
             print(f"\n[{i+1}/{len(scenarios)}] Running: {scenario['name']}")
 
-        result = run_scenario(client, scenario, verbose=verbose, simulated=args.simulated)
+        result = run_scenario(
+            client, scenario, verbose=verbose, simulated=args.simulated
+        )
         results.append(result)
 
     # Write results
