@@ -476,3 +476,107 @@ The following tests will be marked `pytest.skip` with a `reason=` pointing to th
 Day 2 inspections complete. Manifest is now final for W1-D scope. Architectural escalations recorded for Phase 1 follow-up.
 
 Updated: 2026-04-29 by Ian / Claude during W1-D Day 2.
+
+
+---
+
+# Day 2 Execution Results & Corrections
+
+Updated: 2026-04-30 by Ian / Claude during W1-D Day 2 wrap-up.
+
+## Commits landed (Day 2)
+
+| Commit | Title |
+|---|---|
+| `970311e` | docs: W1-D Day 2 inspection results for Pair 5 and Pair 8 |
+| `0639acf` | pair4: delete redundant ./models/NotificationLog.py (CapitalCase fork) |
+| `c69093c` | blockE: skip-mark 15 broken test files; pytest collects 0 errors (was 15) |
+
+All three on `ci/black-and-upload-artifact-v4`, pushed to origin.
+
+## Pytest baseline progression
+
+| Phase | Errors | Tests collected |
+|---|---|---|
+| Day 2 start (baseline) | 15 | 23 |
+| After Pair 4 reconciliation | 15 | 23 |
+| After Block E skip sweep (15 files) | 1 | 23 |
+| After test_e2e.py syntax repair | **0** | **23** |
+
+Block E approach: each broken test file received a 4-line module-level skip preamble that prevents pytest from executing the broken imports during collection. `test_e2e.py` additionally required syntax repair (last line was an unterminated string literal with no trailing newline) before its skip preamble could be reached by the parser.
+
+W1-D charter goal achieved: CI's collection step now completes without errors. Future Patrick autonomous PRs will produce meaningful CI signal rather than noise on top of 15 phantom-import errors.
+
+## Manifest corrections (Day 1 reclassifications)
+
+Day 1 inspections classified files by name and partial reads. Day 2 verifications surfaced material discrepancies on three pairs. Recording the corrections here so future readers do not over-trust the Day 1 classifications.
+
+### Pair 1 (database) — reclassified as architectural escalation
+
+Day 1: marked "Decided. Path A vs B for `DatabaseManager` API to be selected during reconciliation."
+
+Day 2 reality: `database.py` does not contain a `Database` or `DatabaseManager` class. Three test files import three different APIs from `database`: `Database`, `DatabaseManager`, `database.connection_manager.DatabaseConnectionManager`. The file `database_manager.py` (the Day 1 loser) does contain a `DatabaseManager` class, but it imports `User`, `Transaction`, `Account` from `database` — symbols that do not exist there — so the loser is itself broken.
+
+Verdict: there is no coherent codebase expectation of which API is canonical. Promoting either file does not resolve the mismatch. **Added to architectural escalations queue as #6 (database API).** No reconciliation in W1-D. Affected tests skip-marked in Block E.
+
+### Pair 2 (conversation_manager) — reclassified as architectural escalation
+
+Day 1: marked "Decided. Phase 1: also fix `from database import Database`."
+
+Day 2 reality: `./conversation_manager.py` (root, Day 1 loser) and `./src/conversation_manager.py` (Day 1 winner) implement materially different APIs. Root has `__init__(self)` with no args and methods like `create_conversation(thread_id, lead_id, trade_type)`. Src has `__init__(self, database: Database)` requiring a Database parameter, and methods like `load_conversation_history(lead_id)`. They are competing designs, not duplicates.
+
+Production consumers (`reply_generator.py`, `main.py`) import the **root** version's API. Test consumers split — one uses src/, others use root. Replacing the root with a shim re-exporting src/ would break `reply_generator.py` (which currently passes its tests as-is — 3 of the 23 collectable tests).
+
+Verdict: same shape as Pair 5/Pair 8. **Added to architectural escalations queue as #7 (conversation_manager architecture).** No deletion in W1-D. The one test that imports from src/ (`tests/test_conversation_manager.py`) is skip-marked because src/ requires Pair 1's missing `Database` symbol.
+
+### Pair 7 (speculative dirs) — dissolved into Block E
+
+Day 1: marked "Decided. Mechanical rewrites" — implying delete `./backend/`, `./lead_management/`, `./messaging/` and rewrite their imports.
+
+Day 2 reality: none of the three directories exist. They are pure phantom imports — referenced only by 3 test files (and `workflow.py`, which is itself orphan code that nothing imports). There is nothing to delete and nothing to rewrite to. The phantom imports were addressed via skip markers in Block E.
+
+Verdict: Pair 7 has no mechanical work; it dissolved into the skip sweep.
+
+## Configuration finding — `pytest.ini` is silently no-op
+
+The repo's `pytest.ini` uses the section header `[tool:pytest]`, which is the legacy `setup.cfg`-style header and is **not honored** in a standalone `pytest.ini` file. Pytest reports no `configfile` when invoked, and `--ignore` directives in `addopts` are not respected. Effects observed:
+
+- `testpaths = tests` is ignored — pytest collects `test_*.py` files from the repo root, contrary to the apparent intent.
+- `--cov-fail-under=85` is silently not enforced.
+- `--ignore=test_e2e.py` (added during Day 2) is silently not enforced.
+- The `markers` block is not registered — explains why `--strict-markers` does not block invalid markers.
+
+The correct standalone-ini header is `[pytest]`. Fixing this is **NOT in W1-D scope** because it would silently change the set of tests being collected (from 23 root-level files to 1 file in `tests/`), which constitutes a behavioral change that needs its own review.
+
+**Phase 1 work item:** Decide whether to (a) fix the header and accept the scope reduction, (b) fix the header and remove `testpaths = tests` to keep current scope, or (c) consolidate tests into `tests/` and let scope follow. This is now escalation #8 (pytest configuration).
+
+## Updated Architectural Escalations Queue
+
+The following items were added or modified during Day 2 wrap-up. Numbering picks up from the original 5 in the Day 2 inspection results section.
+
+6. **Database API (Pair 1).** Pick the canonical API for `database.py`: a `Database` class, a `DatabaseManager` class with instance methods, both, or a refactor into a `database/` package with submodules. Three test files have three distinct expectations.
+7. **Conversation manager architecture (Pair 2).** Pick winner between `./conversation_manager.py` (root, no-database constructor, `create_conversation` API) and `./src/conversation_manager.py` (database-injected, `load_conversation_history` API). Production consumers currently use root; tests are split.
+8. **Pytest configuration.** Repair `pytest.ini` section header so the file is read at all. Decide on test scope (root + tests/ vs tests/ only). Decide whether to enforce `--cov-fail-under=85` once tests pass.
+
+## Lessons learned (Day 2)
+
+1. **Day 1 classifications by file name proved unreliable.** Three of seven pairs (Pair 1, 2, 7) were materially mis-classified on Day 1 based on file inventory and partial reads. Day 2 verifications via `diff`, `head`, and full grep audits surfaced the discrepancies. Going forward: any pair whose disposition turns on "the two files do the same thing, delete the loser" must be verified with a content diff before the disposition is locked.
+
+2. **The repo contains multiple architectural pivots that were never cleaned up.** The "competing designs hiding behind shared names" pattern appeared in Pair 1, Pair 2, Pair 5, and Pair 8. This is not random duplication — it is the residue of incomplete refactorings. Phase 1 should consider whether to commission an "architectural pivot archaeology" pass before per-pair reconciliation.
+
+3. **Skip-marking via `pytest.skip(allow_module_level=True)` works for import-broken files but not parse-broken files.** A file with a `SyntaxError` cannot be parsed at all, so the preamble at the top is never reached. `test_e2e.py` required minimal syntax repair (truncating the broken last line) before the skip preamble took effect.
+
+4. **`pytest.ini` with `[tool:pytest]` header is silently no-op.** This finding affects every assumption about what the test suite "currently does." The 23 currently-collected tests are pytest's defaults, not the repo's intended test surface. See escalation #8.
+
+5. **Tooling notes for next session.**
+   - The chat client renders all `.md`, `.py`, `.sh` filenames as `[name.ext](http://name.ext)` markdown autolinks in display only. Shell, scp, git, python all see the plain filenames. This is purely cosmetic and can be ignored.
+   - File-on-laptop → scp → cat approach is bulletproof for multi-line content. Heredoc paste lost data once during Day 2 (recovered via revert + re-attempt). No more heredoc for content longer than ~20 lines.
+   - Always run `hostname && pwd` after switching terminals or reconnecting SSH. Cost: 1 second. Avoided collisions caused: many.
+
+## Sign-off (Day 2 final)
+
+Day 2 work complete. CI collection step is green for the first time. Three commits on origin. Manifest reflects ground truth as of 2026-04-30.
+
+Phase 1 queue: 8 architectural escalations (#1-8 above), test scope decision, coverage enforcement decision, dead code cleanup (`workflow.py` and possibly others).
+
+Updated: 2026-04-30 by Ian / Claude during W1-D Day 2.
