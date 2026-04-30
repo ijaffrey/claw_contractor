@@ -1,3 +1,8 @@
+# W1-D skip sweep — see docs/W1D_RECONCILIATION_MANIFEST.md
+# Reason: escalation #1 (handoff orchestrator); imports phantom app.database
+import pytest
+pytest.skip("W1-D: escalation #1 (handoff orchestrator); imports phantom app.database", allow_module_level=True)
+
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, Mock, patch, MagicMock

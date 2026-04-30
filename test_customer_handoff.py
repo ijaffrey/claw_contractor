@@ -1,3 +1,8 @@
+# W1-D skip sweep — see docs/W1D_RECONCILIATION_MANIFEST.md
+# Reason: escalation #1 (handoff orchestrator) and #5 (test location); imports phantom models.lead, models.contractor, messaging
+import pytest
+pytest.skip("W1-D: escalation #1 (handoff orchestrator) and #5 (test location); imports phantom models.lead, models.contractor, messaging", allow_module_level=True)
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta

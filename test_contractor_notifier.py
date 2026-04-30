@@ -1,3 +1,8 @@
+# W1-D skip sweep — see docs/W1D_RECONCILIATION_MANIFEST.md
+# Reason: Pair 7 dissolution; imports phantom lead_management package
+import pytest
+pytest.skip("W1-D: Pair 7 dissolution; imports phantom lead_management package", allow_module_level=True)
+
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta

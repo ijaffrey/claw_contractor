@@ -1,3 +1,8 @@
+# W1-D skip sweep — see docs/W1D_RECONCILIATION_MANIFEST.md
+# Reason: escalation #2 (notification service architecture); imports phantom src.notification_manager
+import pytest
+pytest.skip("W1-D: escalation #2 (notification service architecture); imports phantom src.notification_manager", allow_module_level=True)
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
