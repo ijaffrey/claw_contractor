@@ -49,6 +49,7 @@ def test_send_reply_dry_run():
 
     # Parse lead
     from lead_parser import parse_lead
+
     lead_data = parse_lead(email_data)
 
     print(f"\nParsed lead data:")
@@ -95,9 +96,11 @@ def test_send_reply_live():
     print("3. ACTUALLY SEND the reply via Gmail")
     print("4. Mark the original email as read")
 
-    response = input("\n⚠  Are you SURE you want to send a real email? (type 'YES' to confirm): ").strip()
+    response = input(
+        "\n⚠  Are you SURE you want to send a real email? (type 'YES' to confirm): "
+    ).strip()
 
-    if response != 'YES':
+    if response != "YES":
         print("\n✓ Test cancelled. No emails sent.")
         return
 
@@ -131,6 +134,7 @@ def test_send_reply_live():
 
     # Parse lead
     from lead_parser import parse_lead
+
     lead_data = parse_lead(email_data)
 
     print(f"\nParsed lead data:")
@@ -152,7 +156,7 @@ def test_send_reply_live():
     print(f"\nReady to send to: {email_data['from']}")
     final_confirm = input("Send this email? (type 'SEND' to confirm): ").strip()
 
-    if final_confirm != 'SEND':
+    if final_confirm != "SEND":
         print("\n✓ Send cancelled.")
         return
 

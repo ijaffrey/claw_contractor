@@ -20,6 +20,7 @@ def _get_client():
     global _supabase_client
     if _supabase_client is None:
         from supabase import create_client
+
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_KEY")
         if not url or not key:
@@ -48,22 +49,22 @@ def upsert_lead(lead: dict) -> Optional[dict]:
     client = _get_client()
 
     record = {
-        "customer_name":          lead.get("customer_name"),
-        "customer_email":         lead.get("customer_email"),
-        "phone":                  lead.get("phone"),
-        "job_type":               lead.get("job_type"),
-        "description":            lead.get("description"),
-        "location":               lead.get("location"),
-        "source":                 lead.get("source"),
-        "urgency":                lead.get("urgency"),
-        "raw_subject":            lead.get("raw_subject"),
-        "raw_body":               lead.get("raw_body"),
+        "customer_name": lead.get("customer_name"),
+        "customer_email": lead.get("customer_email"),
+        "phone": lead.get("phone"),
+        "job_type": lead.get("job_type"),
+        "description": lead.get("description"),
+        "location": lead.get("location"),
+        "source": lead.get("source"),
+        "urgency": lead.get("urgency"),
+        "raw_subject": lead.get("raw_subject"),
+        "raw_body": lead.get("raw_body"),
         # Enrichment fields
         "job_type_classification": lead.get("job_type_classification"),
-        "value_tier":             lead.get("value_tier"),
-        "urgency_score":          lead.get("urgency_score"),
-        "one_line_summary":       lead.get("one_line_summary"),
-        "created_at":             datetime.utcnow().isoformat(),
+        "value_tier": lead.get("value_tier"),
+        "urgency_score": lead.get("urgency_score"),
+        "one_line_summary": lead.get("one_line_summary"),
+        "created_at": datetime.utcnow().isoformat(),
     }
 
     # Include email_thread_id for deduplication if available
@@ -83,7 +84,9 @@ def upsert_lead(lead: dict) -> Optional[dict]:
 
         if result.data:
             stored = result.data[0]
-            logger.info(f"Lead stored: id={stored.get('id')} email={record.get('customer_email')}")
+            logger.info(
+                f"Lead stored: id={stored.get('id')} email={record.get('customer_email')}"
+            )
             return stored
         return None
     except Exception as e:

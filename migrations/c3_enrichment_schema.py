@@ -39,19 +39,19 @@ def run_migration(engine=None):
         # --- Enrichment columns on leads ---
         enrichment_columns = [
             # Contact info (may differ from original email/phone already on the model)
-            ("enriched_email",       "TEXT"),
-            ("enriched_phone",       "TEXT"),
-            ("website",              "TEXT"),
-            ("email_source",         "TEXT"),
-            ("phone_source",         "TEXT"),
+            ("enriched_email", "TEXT"),
+            ("enriched_phone", "TEXT"),
+            ("website", "TEXT"),
+            ("email_source", "TEXT"),
+            ("phone_source", "TEXT"),
             # Enrichment metadata
-            ("enrichment_status",    "TEXT DEFAULT 'pending'"),
-            ("enrichment_score",     "REAL DEFAULT 0.0"),
-            ("enriched_at",          "TEXT"),
+            ("enrichment_status", "TEXT DEFAULT 'pending'"),
+            ("enrichment_score", "REAL DEFAULT 0.0"),
+            ("enriched_at", "TEXT"),
             # Campaign / outreach
-            ("campaign_tags",        "TEXT"),   # JSON array stored as string
-            ("outreach_status",      "TEXT DEFAULT 'none'"),
-            ("last_contacted_at",    "TEXT"),
+            ("campaign_tags", "TEXT"),  # JSON array stored as string
+            ("outreach_status", "TEXT DEFAULT 'none'"),
+            ("last_contacted_at", "TEXT"),
             # General notes (column already exists in the model as TEXT nullable,
             # so we skip it to avoid duplicate-column errors)
         ]
@@ -63,7 +63,10 @@ def run_migration(engine=None):
                 logger.info(f"Added column leads.{col_name}")
             except Exception as e:
                 # Column already exists — safe to continue
-                if "duplicate column" in str(e).lower() or "already exists" in str(e).lower():
+                if (
+                    "duplicate column" in str(e).lower()
+                    or "already exists" in str(e).lower()
+                ):
                     logger.debug(f"Column leads.{col_name} already exists, skipping")
                 else:
                     logger.warning(f"Could not add leads.{col_name}: {e}")
@@ -128,10 +131,17 @@ def test_schema():
     # Check enrichment columns on leads
     lead_cols = {c["name"] for c in inspector.get_columns("leads")}
     required = {
-        "enriched_email", "enriched_phone", "website",
-        "email_source", "phone_source",
-        "enrichment_status", "enrichment_score", "enriched_at",
-        "campaign_tags", "outreach_status", "last_contacted_at",
+        "enriched_email",
+        "enriched_phone",
+        "website",
+        "email_source",
+        "phone_source",
+        "enrichment_status",
+        "enrichment_score",
+        "enriched_at",
+        "campaign_tags",
+        "outreach_status",
+        "last_contacted_at",
     }
     missing = required - lead_cols
     assert not missing, f"Missing lead columns: {missing}"

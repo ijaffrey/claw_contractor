@@ -25,12 +25,14 @@ def build_system_prompt(business_profile):
     Returns:
         str: System prompt for Claude
     """
-    business_name = business_profile.get('name', 'Our Team')
-    trade_type = business_profile.get('trade_type', 'trade')
-    owner_name = business_profile.get('owner_name', 'the contractor')
-    location = business_profile.get('location', business_profile.get('service_area', 'your area'))
-    brand_voice = business_profile.get('brand_voice', 'Friendly and professional')
-    phone = business_profile.get('phone', '')
+    business_name = business_profile.get("name", "Our Team")
+    trade_type = business_profile.get("trade_type", "trade")
+    owner_name = business_profile.get("owner_name", "the contractor")
+    location = business_profile.get(
+        "location", business_profile.get("service_area", "your area")
+    )
+    brand_voice = business_profile.get("brand_voice", "Friendly and professional")
+    phone = business_profile.get("phone", "")
 
     return f"""You are the AI assistant for {business_name}, a {trade_type} business owned by {owner_name} in {location}.
 
@@ -245,11 +247,11 @@ def generate_reply(lead_data, business_profile):
     system_prompt = build_system_prompt(business_profile)
 
     # Build initial email content
-    customer_name = lead_data.get('customer_name', 'there')
-    job_type = lead_data.get('job_type', 'your request')
-    description = lead_data.get('description', '')
-    urgency = lead_data.get('urgency', 'normal')
-    location = lead_data.get('location')
+    customer_name = lead_data.get("customer_name", "there")
+    job_type = lead_data.get("job_type", "your request")
+    description = lead_data.get("description", "")
+    urgency = lead_data.get("urgency", "normal")
+    location = lead_data.get("location")
 
     initial_email = f"From: {customer_name}\n"
     initial_email += f"Subject: {job_type}\n\n"
@@ -265,10 +267,7 @@ def generate_reply(lead_data, business_profile):
             model="claude-sonnet-4-20250514",
             max_tokens=300,
             system=system_prompt,
-            messages=[{
-                "role": "user",
-                "content": initial_email
-            }]
+            messages=[{"role": "user", "content": initial_email}],
         )
 
         reply_body = message.content[0].text.strip()
@@ -292,16 +291,16 @@ def generate_fallback_reply(lead_data, business_profile):
     Returns:
         str: Template-based reply
     """
-    customer_name = lead_data.get('customer_name', 'there')
-    job_type = lead_data.get('job_type', 'your plumbing issue')
-    urgency = lead_data.get('urgency', 'normal')
-    business_name = business_profile.get('name', 'Our Team')
-    business_phone = business_profile.get('phone')
+    customer_name = lead_data.get("customer_name", "there")
+    job_type = lead_data.get("job_type", "your plumbing issue")
+    urgency = lead_data.get("urgency", "normal")
+    business_name = business_profile.get("name", "Our Team")
+    business_phone = business_profile.get("phone")
 
     # Select question based on urgency - collect customer's preferred times
-    if urgency == 'emergency':
+    if urgency == "emergency":
         question = "What times work best for you today? Share your availability and we'll follow up to coordinate."
-    elif urgency == 'urgent':
+    elif urgency == "urgent":
         question = "What times work best for you over the next day or two? Let us know and we'll be in touch to schedule."
     else:
         question = "What days or times typically work best for you? Share what works for you and we'll reach out to coordinate."
@@ -344,71 +343,74 @@ def send_reply(email_data, reply_text, from_email=None):
 
     try:
         # Extract recipient from original sender
-        original_from = email_data.get('from', '')
+        original_from = email_data.get("from", "")
 
         # Parse email from "Name <email@example.com>" format
         import re
-        email_match = re.search(r'<(.+?)>', original_from)
+
+        email_match = re.search(r"<(.+?)>", original_from)
         if email_match:
             to_email = email_match.group(1)
         else:
             to_email = original_from
 
         # Get original subject
-        original_subject = email_data.get('subject', '')
+        original_subject = email_data.get("subject", "")
 
         # Add "Re:" prefix if not already present
-        if not original_subject.lower().startswith('re:'):
+        if not original_subject.lower().startswith("re:"):
             subject = f"Re: {original_subject}"
         else:
             subject = original_subject
 
         # Create message
         message = MIMEText(reply_text)
-        message['to'] = to_email
-        message['from'] = from_email
-        message['subject'] = subject
+        message["to"] = to_email
+        message["from"] = from_email
+        message["subject"] = subject
 
         # Add threading headers
-        thread_id = email_data.get('thread_id')
-        message_id = email_data.get('id')
+        thread_id = email_data.get("thread_id")
+        message_id = email_data.get("id")
 
         # Add In-Reply-To and References headers for proper threading
         if message_id:
-            message['In-Reply-To'] = f'<{message_id}>'
-            message['References'] = f'<{message_id}>'
+            message["In-Reply-To"] = f"<{message_id}>"
+            message["References"] = f"<{message_id}>"
 
         # Encode message
-        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
 
         # Send message with thread ID for proper threading
-        send_request_body = {
-            'raw': raw_message,
-            'threadId': thread_id
-        }
+        send_request_body = {"raw": raw_message, "threadId": thread_id}
 
-        sent_message = service.users().messages().send(
-            userId='me',
-            body=send_request_body
-        ).execute()
+        sent_message = (
+            service.users()
+            .messages()
+            .send(userId="me", body=send_request_body)
+            .execute()
+        )
 
         print(f"✓ Reply sent to {to_email}")
         print(f"  Subject: {subject}")
         print(f"  Message ID: {sent_message['id']}")
 
         # Mark original email as read
-        mark_as_read(email_data['id'])
+        mark_as_read(email_data["id"])
 
         return sent_message
 
     except Exception as e:
         print(f"✗ Error sending reply: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 
 
-def generate_follow_up_reply(lead, business_profile, conversation_history, customer_reply):
+def generate_follow_up_reply(
+    lead, business_profile, conversation_history, customer_reply
+):
     """
     Generate a contextual follow-up response based on qualification sequence
 
@@ -429,24 +431,18 @@ def generate_follow_up_reply(lead, business_profile, conversation_history, custo
     # Build conversation messages in Claude's format
     messages = []
     for msg in conversation_history:
-        role = "user" if msg['role'] == 'customer' else "assistant"
-        messages.append({
-            "role": role,
-            "content": msg['message']
-        })
+        role = "user" if msg["role"] == "customer" else "assistant"
+        messages.append({"role": role, "content": msg["message"]})
 
     # Add latest customer reply
-    messages.append({
-        "role": "user",
-        "content": customer_reply
-    })
+    messages.append({"role": "user", "content": customer_reply})
 
     try:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=250,
             system=system_prompt,
-            messages=messages
+            messages=messages,
         )
 
         reply_body = message.content[0].text.strip()
@@ -457,7 +453,9 @@ def generate_follow_up_reply(lead, business_profile, conversation_history, custo
         print(f"✗ Error generating follow-up reply with Claude: {e}")
         # Fallback to simple template
         next_step = cm.determine_next_step(lead, conversation_history, customer_reply)
-        return generate_fallback_follow_up(lead, business_profile, next_step, customer_reply)
+        return generate_fallback_follow_up(
+            lead, business_profile, next_step, customer_reply
+        )
 
 
 def generate_fallback_follow_up(lead, business_profile, next_step, customer_reply):
@@ -473,9 +471,9 @@ def generate_fallback_follow_up(lead, business_profile, next_step, customer_repl
     Returns:
         str: Template-based follow-up reply
     """
-    business_name = business_profile.get('name', 'Our Team')
-    business_phone = business_profile.get('phone')
-    customer_name = lead.get('customer_name', 'there')
+    business_name = business_profile.get("name", "Our Team")
+    business_phone = business_profile.get("phone")
+    customer_name = lead.get("customer_name", "there")
 
     # Simple acknowledgment + next question templates
     templates = {
@@ -484,7 +482,7 @@ def generate_fallback_follow_up(lead, business_profile, next_step, customer_repl
         3: f"Perfect. What's the service address where you need this done?",
         4: f"Thanks! If you can, send over a photo or two of the issue - that really helps us understand what we're dealing with.",
         5: f"Sounds good! What days or times typically work best for you? Just let us know your general availability and we'll coordinate from there.",
-        6: f"Perfect, I've got everything we need. The contractor will reach out to you directly to confirm the schedule. Talk soon!"
+        6: f"Perfect, I've got everything we need. The contractor will reach out to you directly to confirm the schedule. Talk soon!",
     }
 
     reply = f"Hi {customer_name}!\n\n"
@@ -500,33 +498,33 @@ def generate_fallback_follow_up(lead, business_profile, next_step, customer_repl
 def generate_followup(lead_message, conversation_history, business_profile):
     """
     Generate a natural follow-up question based on conversation context.
-    
+
     Args:
         lead_message: Latest message from the lead
         conversation_history: List of previous messages in the conversation
         business_profile: Business information dictionary
-        
+
     Returns:
         str: Generated follow-up message
     """
     try:
         config = Config()
         client = Anthropic(api_key=config.CLAUDE_API_KEY)
-        
+
         # Build a specialized prompt for follow-up generation
         system_prompt = build_followup_prompt(business_profile)
-        
+
         # Format conversation history for context
         history_text = ""
         if conversation_history:
             for msg in conversation_history:
-                role = msg.get('role', 'assistant')
-                content = msg.get('message', '')
-                if role == 'customer':
+                role = msg.get("role", "assistant")
+                content = msg.get("message", "")
+                if role == "customer":
                     history_text += f"Customer: {content}\n"
                 else:
                     history_text += f"You: {content}\n"
-        
+
         # Create the user message with context
         user_message = f"""Previous conversation:
 {history_text}
@@ -534,19 +532,17 @@ def generate_followup(lead_message, conversation_history, business_profile):
 Latest customer message: {lead_message}
 
 Generate a natural follow-up question that acknowledges their response and moves the conversation forward. Follow all the conversation rules from your instructions."""
-        
+
         response = client.messages.create(
             model="claude-3-haiku-20240307",
             max_tokens=300,
             temperature=0.7,
             system=system_prompt,
-            messages=[
-                {"role": "user", "content": user_message}
-            ]
+            messages=[{"role": "user", "content": user_message}],
         )
-        
+
         return response.content[0].text.strip()
-        
+
     except Exception as e:
         print(f"Error generating followup: {e}")
         # Fallback to simple template
@@ -556,16 +552,16 @@ Generate a natural follow-up question that acknowledges their response and moves
 def build_followup_prompt(business_profile):
     """
     Build a specialized system prompt for follow-up generation.
-    
+
     Args:
         business_profile: Business information dictionary
-        
+
     Returns:
         str: System prompt for follow-up generation
     """
     # Reuse the main prompt but add follow-up specific instructions
     base_prompt = build_system_prompt(business_profile)
-    
+
     followup_instructions = """\n\nFOLLOW-UP SPECIFIC RULES:
 
 1. ALWAYS acknowledge what the customer just told you before asking your next question.
@@ -580,23 +576,23 @@ def build_followup_prompt(business_profile):
 4. If they've provided all key information (urgency, details, location, availability), transition to handoff.
 
 5. Match their communication style - if they're brief, be brief."""
-    
+
     return base_prompt + followup_instructions
 
 
 def generate_fallback_followup(lead_message, business_profile):
     """
     Simple fallback for follow-up generation if API fails.
-    
+
     Args:
         lead_message: Latest message from the lead
         business_profile: Business information dictionary
-        
+
     Returns:
         str: Template-based follow-up
     """
-    business_name = business_profile.get('name', 'Our Team')
-    
+    business_name = business_profile.get("name", "Our Team")
+
     # Simple acknowledgment templates
     templates = [
         f"Got it, thanks! What's the service address for this?",
@@ -604,6 +600,7 @@ def generate_fallback_followup(lead_message, business_profile):
         f"Thanks for that info. Can you tell me more about what's happening?",
         f"Understood. Is this urgent or are you planning ahead?",
     ]
-    
+
     import random
+
     return random.choice(templates) + f"\n\n- {business_name}"

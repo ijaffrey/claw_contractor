@@ -14,7 +14,6 @@ from googleapiclient.errors import HttpError
 
 from config import Config
 
-
 # Global service instance
 _gmail_service = None
 
@@ -35,28 +34,32 @@ def authenticate_gmail():
     creds = None
 
     # Check for environment variable (Railway/production)
-    gmail_token_json = os.getenv('GMAIL_TOKEN_JSON')
+    gmail_token_json = os.getenv("GMAIL_TOKEN_JSON")
 
     if gmail_token_json:
         # Production mode: Load from environment variable
         print("Loading Gmail credentials from GMAIL_TOKEN_JSON environment variable...")
         try:
             token_data = json.loads(gmail_token_json)
-            creds = Credentials.from_authorized_user_info(token_data, Config.GMAIL_SCOPES)
+            creds = Credentials.from_authorized_user_info(
+                token_data, Config.GMAIL_SCOPES
+            )
             print("✓ Gmail token loaded from environment")
         except Exception as e:
             print(f"✗ Error parsing GMAIL_TOKEN_JSON: {e}")
             raise RuntimeError("Invalid GMAIL_TOKEN_JSON environment variable")
     else:
         # Local development mode: Use token.json file
-        token_path = 'token.json'
+        token_path = "token.json"
 
         if os.path.exists(token_path):
             print(f"Loading Gmail credentials from {token_path}...")
-            creds = Credentials.from_authorized_user_file(token_path, Config.GMAIL_SCOPES)
+            creds = Credentials.from_authorized_user_file(
+                token_path, Config.GMAIL_SCOPES
+            )
         else:
             # Check if we're running on Railway (headless environment)
-            if os.getenv('RAILWAY_ENVIRONMENT'):
+            if os.getenv("RAILWAY_ENVIRONMENT"):
                 raise RuntimeError(
                     "No valid Gmail token found. "
                     "Please set GMAIL_TOKEN_JSON environment variable in Railway. "
@@ -71,18 +74,20 @@ def authenticate_gmail():
             print("✓ Token refreshed successfully")
 
             # Save refreshed token back to file (local only)
-            if not os.getenv('GMAIL_TOKEN_JSON') and os.path.exists('token.json'):
-                with open('token.json', 'w') as token:
+            if not os.getenv("GMAIL_TOKEN_JSON") and os.path.exists("token.json"):
+                with open("token.json", "w") as token:
                     token.write(creds.to_json())
                 print("✓ Refreshed token saved to token.json")
         except Exception as e:
             print(f"✗ Token refresh failed: {e}")
-            raise RuntimeError("Failed to refresh Gmail token. Please regenerate token locally.")
+            raise RuntimeError(
+                "Failed to refresh Gmail token. Please regenerate token locally."
+            )
 
     # If still no valid credentials, try interactive OAuth (local only)
     if not creds or not creds.valid:
         # Check if we're in a headless environment
-        if os.getenv('RAILWAY_ENVIRONMENT'):
+        if os.getenv("RAILWAY_ENVIRONMENT"):
             raise RuntimeError(
                 "No valid Gmail token found. "
                 "Cannot run interactive OAuth on Railway. "
@@ -104,7 +109,7 @@ def authenticate_gmail():
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "redirect_uris": ["http://localhost"]
+                "redirect_uris": ["http://localhost"],
             }
         }
 
@@ -113,12 +118,12 @@ def authenticate_gmail():
         print("✓ Authentication successful!")
 
         # Save credentials for next run
-        with open('token.json', 'w') as token:
+        with open("token.json", "w") as token:
             token.write(creds.to_json())
         print(f"✓ Token saved to token.json")
 
     # Build Gmail service
-    _gmail_service = build('gmail', 'v1', credentials=creds)
+    _gmail_service = build("gmail", "v1", credentials=creds)
     print("✓ Gmail service initialized")
 
     return _gmail_service
@@ -134,15 +139,16 @@ def poll_inbox():
 
     try:
         # Query for unread messages in inbox (not spam/trash)
-        query = 'is:unread in:inbox -from:noreply -from:no-reply'
+        query = "is:unread in:inbox -from:noreply -from:no-reply"
 
-        results = service.users().messages().list(
-            userId='me',
-            q=query,
-            maxResults=10
-        ).execute()
+        results = (
+            service.users()
+            .messages()
+            .list(userId="me", q=query, maxResults=10)
+            .execute()
+        )
 
-        messages = results.get('messages', [])
+        messages = results.get("messages", [])
 
         if not messages:
             return []
@@ -151,14 +157,14 @@ def poll_inbox():
         seen_ids = set()
         unique_messages = []
         for msg in messages:
-            if msg['id'] not in seen_ids:
-                seen_ids.add(msg['id'])
+            if msg["id"] not in seen_ids:
+                seen_ids.add(msg["id"])
                 unique_messages.append(msg)
 
         # Fetch full details for each message
         lead_emails = []
         for msg in unique_messages:
-            email_data = get_email_details(service, msg['id'])
+            email_data = get_email_details(service, msg["id"])
 
             # Filter out auto-replies and non-lead emails
             if not is_auto_reply(email_data) and is_potential_lead(email_data):
@@ -187,25 +193,23 @@ def extract_attachment(service, email_id, part):
     try:
         import base64
 
-        attachment_id = part['body'].get('attachmentId')
-        filename = part.get('filename', 'image.jpg')
-        mime_type = part.get('mimeType', 'image/jpeg')
+        attachment_id = part["body"].get("attachmentId")
+        filename = part.get("filename", "image.jpg")
+        mime_type = part.get("mimeType", "image/jpeg")
 
         # Download attachment data
-        attachment = service.users().messages().attachments().get(
-            userId='me',
-            messageId=email_id,
-            id=attachment_id
-        ).execute()
+        attachment = (
+            service.users()
+            .messages()
+            .attachments()
+            .get(userId="me", messageId=email_id, id=attachment_id)
+            .execute()
+        )
 
         # Decode base64 data
-        file_data = base64.urlsafe_b64decode(attachment['data'])
+        file_data = base64.urlsafe_b64decode(attachment["data"])
 
-        return {
-            'data': file_data,
-            'content_type': mime_type,
-            'filename': filename
-        }
+        return {"data": file_data, "content_type": mime_type, "filename": filename}
 
     except Exception as e:
         print(f"✗ Error extracting attachment: {e}")
@@ -220,61 +224,87 @@ def get_email_details(service, email_id):
         dict with id, thread_id, from, subject, date, body, snippet, attachments
     """
     try:
-        message = service.users().messages().get(
-            userId='me',
-            id=email_id,
-            format='full'
-        ).execute()
+        message = (
+            service.users()
+            .messages()
+            .get(userId="me", id=email_id, format="full")
+            .execute()
+        )
 
-        headers = message['payload']['headers']
+        headers = message["payload"]["headers"]
 
         # Extract key headers
-        subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '(No Subject)')
-        from_header = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
-        date_header = next((h['value'] for h in headers if h['name'].lower() == 'date'), '')
+        subject = next(
+            (h["value"] for h in headers if h["name"].lower() == "subject"),
+            "(No Subject)",
+        )
+        from_header = next(
+            (h["value"] for h in headers if h["name"].lower() == "from"), "Unknown"
+        )
+        date_header = next(
+            (h["value"] for h in headers if h["name"].lower() == "date"), ""
+        )
 
         # Extract email body (simplified - handles plain text)
-        body = ''
+        body = ""
         attachments = []
 
-        if 'parts' in message['payload']:
-            for part in message['payload']['parts']:
+        if "parts" in message["payload"]:
+            for part in message["payload"]["parts"]:
                 # Extract text body
-                if part['mimeType'] == 'text/plain' and 'data' in part['body']:
+                if part["mimeType"] == "text/plain" and "data" in part["body"]:
                     import base64
-                    body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+
+                    body = base64.urlsafe_b64decode(part["body"]["data"]).decode(
+                        "utf-8"
+                    )
 
                 # Extract image attachments
-                elif part['mimeType'].startswith('image/') and 'attachmentId' in part['body']:
+                elif (
+                    part["mimeType"].startswith("image/")
+                    and "attachmentId" in part["body"]
+                ):
                     attachment = extract_attachment(service, email_id, part)
                     if attachment:
                         attachments.append(attachment)
 
                 # Handle nested parts (multipart/mixed, multipart/alternative)
-                elif 'parts' in part:
-                    for subpart in part['parts']:
-                        if subpart['mimeType'] == 'text/plain' and 'data' in subpart['body']:
+                elif "parts" in part:
+                    for subpart in part["parts"]:
+                        if (
+                            subpart["mimeType"] == "text/plain"
+                            and "data" in subpart["body"]
+                        ):
                             import base64
-                            body = base64.urlsafe_b64decode(subpart['body']['data']).decode('utf-8')
-                        elif subpart['mimeType'].startswith('image/') and 'attachmentId' in subpart['body']:
+
+                            body = base64.urlsafe_b64decode(
+                                subpart["body"]["data"]
+                            ).decode("utf-8")
+                        elif (
+                            subpart["mimeType"].startswith("image/")
+                            and "attachmentId" in subpart["body"]
+                        ):
                             attachment = extract_attachment(service, email_id, subpart)
                             if attachment:
                                 attachments.append(attachment)
 
-        elif 'body' in message['payload'] and 'data' in message['payload']['body']:
+        elif "body" in message["payload"] and "data" in message["payload"]["body"]:
             import base64
-            body = base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
+
+            body = base64.urlsafe_b64decode(message["payload"]["body"]["data"]).decode(
+                "utf-8"
+            )
 
         return {
-            'id': email_id,
-            'thread_id': message['threadId'],
-            'from': from_header,
-            'subject': subject,
-            'date': date_header,
-            'body': body or message.get('snippet', ''),
-            'snippet': message.get('snippet', ''),
-            'headers': headers,
-            'attachments': attachments  # List of dicts with 'data' (bytes) and 'content_type' (str)
+            "id": email_id,
+            "thread_id": message["threadId"],
+            "from": from_header,
+            "subject": subject,
+            "date": date_header,
+            "body": body or message.get("snippet", ""),
+            "snippet": message.get("snippet", ""),
+            "headers": headers,
+            "attachments": attachments,  # List of dicts with 'data' (bytes) and 'content_type' (str)
         }
 
     except HttpError as error:
@@ -294,39 +324,39 @@ def is_auto_reply(email_data):
     if not email_data:
         return True
 
-    headers = email_data.get('headers', [])
-    subject = email_data.get('subject', '').lower()
-    from_addr = email_data.get('from', '').lower()
+    headers = email_data.get("headers", [])
+    subject = email_data.get("subject", "").lower()
+    from_addr = email_data.get("from", "").lower()
 
     # Check for auto-reply headers
     auto_reply_headers = [
-        'auto-submitted',
-        'x-autoreply',
-        'x-autorespond',
-        'precedence'
+        "auto-submitted",
+        "x-autoreply",
+        "x-autorespond",
+        "precedence",
     ]
 
     for header in headers:
-        if header['name'].lower() in auto_reply_headers:
+        if header["name"].lower() in auto_reply_headers:
             return True
 
     # Check subject line for auto-reply indicators
     auto_reply_keywords = [
-        'out of office',
-        'automatic reply',
-        'auto-reply',
-        'autoresponder',
-        'vacation reply',
-        'delivery status notification',
-        'undeliverable',
-        'mailer-daemon'
+        "out of office",
+        "automatic reply",
+        "auto-reply",
+        "autoresponder",
+        "vacation reply",
+        "delivery status notification",
+        "undeliverable",
+        "mailer-daemon",
     ]
 
     if any(keyword in subject for keyword in auto_reply_keywords):
         return True
 
     # Check sender for common auto-reply addresses
-    if 'mailer-daemon' in from_addr or 'postmaster' in from_addr:
+    if "mailer-daemon" in from_addr or "postmaster" in from_addr:
         return True
 
     return False
@@ -344,49 +374,51 @@ def is_potential_lead(email_data):
     if not email_data:
         return False
 
-    subject = email_data.get('subject', '').lower()
-    from_addr = email_data.get('from', '').lower()
-    body = email_data.get('body', '').lower()
+    subject = email_data.get("subject", "").lower()
+    from_addr = email_data.get("from", "").lower()
+    body = email_data.get("body", "").lower()
 
     # Filter out common non-lead patterns
     spam_keywords = [
-        'unsubscribe',
-        'newsletter',
-        'promotion',
-        'special offer',
-        'click here',
-        'limited time'
+        "unsubscribe",
+        "newsletter",
+        "promotion",
+        "special offer",
+        "click here",
+        "limited time",
     ]
 
     # If subject/body contains spam keywords, likely not a lead
-    spam_score = sum(1 for keyword in spam_keywords if keyword in subject or keyword in body)
+    spam_score = sum(
+        1 for keyword in spam_keywords if keyword in subject or keyword in body
+    )
     if spam_score >= 2:
         return False
 
     # Positive signals for leads (mentioning services, asking questions)
     lead_signals = [
-        'quote',
-        'estimate',
-        'repair',
-        'fix',
-        'install',
-        'service',
-        'help',
-        'need',
-        'urgent',
-        'emergency',
-        'plumbing',
-        'plumber',
-        'leak',
-        'drain',
-        'water',
-        'toilet',
-        'sink',
-        'pipe'
+        "quote",
+        "estimate",
+        "repair",
+        "fix",
+        "install",
+        "service",
+        "help",
+        "need",
+        "urgent",
+        "emergency",
+        "plumbing",
+        "plumber",
+        "leak",
+        "drain",
+        "water",
+        "toilet",
+        "sink",
+        "pipe",
     ]
 
     # At least one lead signal is a good indicator
-    has_lead_signal = any(signal in subject + ' ' + body for signal in lead_signals)
+    has_lead_signal = any(signal in subject + " " + body for signal in lead_signals)
 
     return has_lead_signal
 
@@ -395,9 +427,9 @@ def log_detected_email(email_data):
     """
     Log detected email with timestamp, sender, and subject
     """
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    sender = email_data.get('from', 'Unknown')
-    subject = email_data.get('subject', '(No Subject)')
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sender = email_data.get("from", "Unknown")
+    subject = email_data.get("subject", "(No Subject)")
 
     print(f"\n{'='*60}")
     print(f"📧 NEW LEAD DETECTED")
@@ -416,9 +448,7 @@ def mark_as_read(email_id):
 
     try:
         service.users().messages().modify(
-            userId='me',
-            id=email_id,
-            body={'removeLabelIds': ['UNREAD']}
+            userId="me", id=email_id, body={"removeLabelIds": ["UNREAD"]}
         ).execute()
 
         print(f"✓ Marked email {email_id} as read")

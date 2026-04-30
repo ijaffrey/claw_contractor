@@ -12,19 +12,21 @@ from sqlalchemy.exc import SQLAlchemyError
 # Configure logging
 logger = logging.getLogger(__name__)
 
+
 class NotificationService:
     """Production-ready email notification service for contractor lead management"""
-    
+
     def __init__(self, mail_instance: Mail = None, db_engine=None):
         self.mail = mail_instance
         self.db_engine = db_engine
-        
+
     def _validate_email(self, email: str) -> bool:
         """Validate email format"""
         import re
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return re.match(pattern, email) is not None
-    
+
     def _create_notification_log_table(self):
         """Create notification_logs table if it doesn't exist"""
         try:
@@ -45,11 +47,11 @@ class NotificationService:
                 conn.commit()
         except Exception as e:
             logger.error(f"Error creating notification_logs table: {str(e)}")
-    
+
     def send_contractor_notification(self, lead_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Send detailed lead notification to contractor with customer responses and photos
-        
+
         Args:
             lead_data: Dictionary containing lead information including:
                 - contractor_email: str
@@ -64,75 +66,83 @@ class NotificationService:
                 - photos: List of file paths
                 - responses: Dict of form responses
                 - lead_id: int
-                
+
         Returns:
             Dict with 'success' boolean and 'message' string
         """
         try:
             # Validate required fields
-            required_fields = ['contractor_email', 'customer_name', 'lead_id']
+            required_fields = ["contractor_email", "customer_name", "lead_id"]
             for field in required_fields:
                 if not lead_data.get(field):
                     raise ValueError(f"Missing required field: {field}")
-            
+
             # Validate contractor email
-            contractor_email = lead_data['contractor_email']
+            contractor_email = lead_data["contractor_email"]
             if not self._validate_email(contractor_email):
                 raise ValueError(f"Invalid contractor email: {contractor_email}")
-            
+
             # Create email message
             msg = Message(
                 subject=f"New Lead: {lead_data.get('service_type', 'Service Request')} - {lead_data['customer_name']}",
-                sender=current_app.config.get('MAIL_DEFAULT_SENDER'),
-                recipients=[contractor_email]
+                sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
+                recipients=[contractor_email],
             )
-            
+
             # Build email content
             html_content = self._build_contractor_email_html(lead_data)
             text_content = self._build_contractor_email_text(lead_data)
-            
+
             msg.html = html_content
             msg.body = text_content
-            
+
             # Attach photos if provided
-            if lead_data.get('photos'):
-                self._attach_photos(msg, lead_data['photos'])
-            
+            if lead_data.get("photos"):
+                self._attach_photos(msg, lead_data["photos"])
+
             # Send email
             self.mail.send(msg)
-            
+
             # Log successful notification
             self.log_notification(
-                lead_data['lead_id'],
-                'contractor_notification',
-                'sent',
+                lead_data["lead_id"],
+                "contractor_notification",
+                "sent",
                 recipient_email=contractor_email,
-                subject=msg.subject
+                subject=msg.subject,
             )
-            
-            logger.info(f"Contractor notification sent successfully to {contractor_email} for lead {lead_data['lead_id']}")
-            
+
+            logger.info(
+                f"Contractor notification sent successfully to {contractor_email} for lead {lead_data['lead_id']}"
+            )
+
             return {
-                'success': True,
-                'message': f'Notification sent successfully to {contractor_email}'
+                "success": True,
+                "message": f"Notification sent successfully to {contractor_email}",
             }
-            
+
         except ValueError as ve:
             error_msg = f"Validation error: {str(ve)}"
             logger.error(error_msg)
-            self._log_error_notification(lead_data.get('lead_id'), 'contractor_notification', error_msg)
-            return {'success': False, 'message': error_msg}
-            
+            self._log_error_notification(
+                lead_data.get("lead_id"), "contractor_notification", error_msg
+            )
+            return {"success": False, "message": error_msg}
+
         except Exception as e:
             error_msg = f"Error sending contractor notification: {str(e)}"
             logger.error(error_msg)
-            self._log_error_notification(lead_data.get('lead_id'), 'contractor_notification', error_msg)
-            return {'success': False, 'message': 'Failed to send notification'}
-    
-    def send_customer_handoff(self, customer_email: str, contractor_info: Dict[str, Any], lead_id: int = None) -> Dict[str, Any]:
+            self._log_error_notification(
+                lead_data.get("lead_id"), "contractor_notification", error_msg
+            )
+            return {"success": False, "message": "Failed to send notification"}
+
+    def send_customer_handoff(
+        self, customer_email: str, contractor_info: Dict[str, Any], lead_id: int = None
+    ) -> Dict[str, Any]:
         """
         Send professional handoff email to customer explaining next steps
-        
+
         Args:
             customer_email: Customer's email address
             contractor_info: Dictionary containing:
@@ -144,7 +154,7 @@ class NotificationService:
                 - rating: float (optional)
                 - response_time: str (optional)
             lead_id: Lead ID for logging purposes
-                
+
         Returns:
             Dict with 'success' boolean and 'message' string
         """
@@ -152,67 +162,76 @@ class NotificationService:
             # Validate inputs
             if not customer_email or not self._validate_email(customer_email):
                 raise ValueError(f"Invalid customer email: {customer_email}")
-            
-            if not contractor_info.get('name') or not contractor_info.get('email'):
+
+            if not contractor_info.get("name") or not contractor_info.get("email"):
                 raise ValueError("Contractor name and email are required")
-            
-            if not self._validate_email(contractor_info['email']):
-                raise ValueError(f"Invalid contractor email: {contractor_info['email']}")
-            
+
+            if not self._validate_email(contractor_info["email"]):
+                raise ValueError(
+                    f"Invalid contractor email: {contractor_info['email']}"
+                )
+
             # Create email message
             msg = Message(
                 subject="Your Service Request Has Been Matched - Next Steps",
-                sender=current_app.config.get('MAIL_DEFAULT_SENDER'),
+                sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
                 recipients=[customer_email],
-                cc=[contractor_info['email']]  # CC contractor for transparency
+                cc=[contractor_info["email"]],  # CC contractor for transparency
             )
-            
+
             # Build email content
             html_content = self._build_customer_handoff_html(contractor_info)
             text_content = self._build_customer_handoff_text(contractor_info)
-            
+
             msg.html = html_content
             msg.body = text_content
-            
+
             # Send email
             self.mail.send(msg)
-            
+
             # Log successful notification
             if lead_id:
                 self.log_notification(
                     lead_id,
-                    'customer_handoff',
-                    'sent',
+                    "customer_handoff",
+                    "sent",
                     recipient_email=customer_email,
-                    subject=msg.subject
+                    subject=msg.subject,
                 )
-            
+
             logger.info(f"Customer handoff email sent successfully to {customer_email}")
-            
+
             return {
-                'success': True,
-                'message': f'Handoff email sent successfully to {customer_email}'
+                "success": True,
+                "message": f"Handoff email sent successfully to {customer_email}",
             }
-            
+
         except ValueError as ve:
             error_msg = f"Validation error: {str(ve)}"
             logger.error(error_msg)
             if lead_id:
-                self._log_error_notification(lead_id, 'customer_handoff', error_msg)
-            return {'success': False, 'message': error_msg}
-            
+                self._log_error_notification(lead_id, "customer_handoff", error_msg)
+            return {"success": False, "message": error_msg}
+
         except Exception as e:
             error_msg = f"Error sending customer handoff email: {str(e)}"
             logger.error(error_msg)
             if lead_id:
-                self._log_error_notification(lead_id, 'customer_handoff', error_msg)
-            return {'success': False, 'message': 'Failed to send handoff email'}
-    
-    def log_notification(self, lead_id: int, notification_type: str, status: str, 
-                        recipient_email: str = None, subject: str = None, error_message: str = None) -> bool:
+                self._log_error_notification(lead_id, "customer_handoff", error_msg)
+            return {"success": False, "message": "Failed to send handoff email"}
+
+    def log_notification(
+        self,
+        lead_id: int,
+        notification_type: str,
+        status: str,
+        recipient_email: str = None,
+        subject: str = None,
+        error_message: str = None,
+    ) -> bool:
         """
         Log notification attempt to database with timestamp
-        
+
         Args:
             lead_id: ID of the lead
             notification_type: Type of notification (contractor_notification, customer_handoff, etc.)
@@ -220,7 +239,7 @@ class NotificationService:
             recipient_email: Email address of recipient
             subject: Email subject line
             error_message: Error message if applicable
-            
+
         Returns:
             Boolean indicating success of logging operation
         """
@@ -228,72 +247,86 @@ class NotificationService:
             if not self.db_engine:
                 logger.warning("No database engine configured for notification logging")
                 return False
-            
+
             # Ensure table exists
             self._create_notification_log_table()
-            
+
             # Insert notification log
             with self.db_engine.connect() as conn:
-                conn.execute(text("""
+                conn.execute(
+                    text("""
                     INSERT INTO notification_logs 
                     (lead_id, notification_type, status, recipient_email, subject, error_message, created_at)
                     VALUES (:lead_id, :notification_type, :status, :recipient_email, :subject, :error_message, :created_at)
-                """), {
-                    'lead_id': lead_id,
-                    'notification_type': notification_type,
-                    'status': status,
-                    'recipient_email': recipient_email,
-                    'subject': subject,
-                    'error_message': error_message,
-                    'created_at': datetime.utcnow()
-                })
+                """),
+                    {
+                        "lead_id": lead_id,
+                        "notification_type": notification_type,
+                        "status": status,
+                        "recipient_email": recipient_email,
+                        "subject": subject,
+                        "error_message": error_message,
+                        "created_at": datetime.utcnow(),
+                    },
+                )
                 conn.commit()
-            
-            logger.info(f"Notification logged: lead_id={lead_id}, type={notification_type}, status={status}")
+
+            logger.info(
+                f"Notification logged: lead_id={lead_id}, type={notification_type}, status={status}"
+            )
             return True
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Database error logging notification: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Error logging notification: {str(e)}")
             return False
-    
-    def _log_error_notification(self, lead_id: int, notification_type: str, error_message: str):
+
+    def _log_error_notification(
+        self, lead_id: int, notification_type: str, error_message: str
+    ):
         """Helper to log failed notifications"""
         if lead_id:
-            self.log_notification(lead_id, notification_type, 'failed', error_message=error_message)
-    
+            self.log_notification(
+                lead_id, notification_type, "failed", error_message=error_message
+            )
+
     def _attach_photos(self, msg: Message, photos: List[str]):
         """Attach photo files to email message"""
         try:
             for photo_path in photos:
-                if os.path.exists(photo_path) and os.path.getsize(photo_path) < 10 * 1024 * 1024:  # 10MB limit
+                if (
+                    os.path.exists(photo_path)
+                    and os.path.getsize(photo_path) < 10 * 1024 * 1024
+                ):  # 10MB limit
                     filename = secure_filename(os.path.basename(photo_path))
-                    with open(photo_path, 'rb') as f:
+                    with open(photo_path, "rb") as f:
                         msg.attach(filename, "image/jpeg", f.read())
                 else:
-                    logger.warning(f"Photo attachment skipped: {photo_path} (file not found or too large)")
+                    logger.warning(
+                        f"Photo attachment skipped: {photo_path} (file not found or too large)"
+                    )
         except Exception as e:
             logger.error(f"Error attaching photos: {str(e)}")
-    
+
     def _build_contractor_email_html(self, lead_data: Dict[str, Any]) -> str:
         """Build HTML email content for contractor notification"""
         photos_section = ""
-        if lead_data.get('photos'):
+        if lead_data.get("photos"):
             photos_section = f"""
             <div style="margin: 20px 0;">
                 <h3 style="color: #2c5aa0;">Photos Attached</h3>
                 <p>{len(lead_data['photos'])} photo(s) attached to this email</p>
             </div>
             """
-        
+
         responses_section = ""
-        if lead_data.get('responses'):
+        if lead_data.get("responses"):
             responses_list = ""
-            for key, value in lead_data['responses'].items():
+            for key, value in lead_data["responses"].items():
                 responses_list += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {value}</li>"
-            
+
             responses_section = f"""
             <div style="margin: 20px 0;">
                 <h3 style="color: #2c5aa0;">Additional Information</h3>
@@ -302,7 +335,7 @@ class NotificationService:
                 </ul>
             </div>
             """
-        
+
         return f"""
         <!DOCTYPE html>
         <html>
@@ -361,17 +394,21 @@ class NotificationService:
         </body>
         </html>
         """
-    
+
     def _build_contractor_email_text(self, lead_data: Dict[str, Any]) -> str:
         """Build plain text email content for contractor notification"""
-        photos_text = f"\n\nPHOTOS ATTACHED: {len(lead_data.get('photos', []))} photo(s) attached to this email\n" if lead_data.get('photos') else ""
-        
+        photos_text = (
+            f"\n\nPHOTOS ATTACHED: {len(lead_data.get('photos', []))} photo(s) attached to this email\n"
+            if lead_data.get("photos")
+            else ""
+        )
+
         responses_text = ""
-        if lead_data.get('responses'):
+        if lead_data.get("responses"):
             responses_text = "\n\nADDITIONAL INFORMATION:\n"
-            for key, value in lead_data['responses'].items():
+            for key, value in lead_data["responses"].items():
                 responses_text += f"- {key.replace('_', ' ').title()}: {value}\n"
-        
+
         return f"""
 🔥 NEW LEAD ALERT!
 
@@ -404,18 +441,28 @@ Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
 
 This is an automated notification. Please do not reply to this email.
         """
-    
+
     def _build_customer_handoff_html(self, contractor_info: Dict[str, Any]) -> str:
         """Build HTML email content for customer handoff"""
-        company_info = f" at {contractor_info['company']}" if contractor_info.get('company') else ""
-        rating_info = f"⭐ {contractor_info['rating']}/5.0 rating" if contractor_info.get('rating') else ""
+        company_info = (
+            f" at {contractor_info['company']}"
+            if contractor_info.get("company")
+            else ""
+        )
+        rating_info = (
+            f"⭐ {contractor_info['rating']}/5.0 rating"
+            if contractor_info.get("rating")
+            else ""
+        )
         specialties_info = ""
-        if contractor_info.get('specialties'):
-            specialties_list = ", ".join(contractor_info['specialties'])
-            specialties_info = f"<p><strong>Specialties:</strong> {specialties_list}</p>"
-        
-        response_time = contractor_info.get('response_time', 'within 24 hours')
-        
+        if contractor_info.get("specialties"):
+            specialties_list = ", ".join(contractor_info["specialties"])
+            specialties_info = (
+                f"<p><strong>Specialties:</strong> {specialties_list}</p>"
+            )
+
+        response_time = contractor_info.get("response_time", "within 24 hours")
+
         return f"""
         <!DOCTYPE html>
         <html>
@@ -475,18 +522,26 @@ This is an automated notification. Please do not reply to this email.
         </body>
         </html>
         """
-    
+
     def _build_customer_handoff_text(self, contractor_info: Dict[str, Any]) -> str:
         """Build plain text email content for customer handoff"""
-        company_info = f" at {contractor_info['company']}" if contractor_info.get('company') else ""
-        rating_info = f"Rating: {contractor_info['rating']}/5.0 stars" if contractor_info.get('rating') else ""
+        company_info = (
+            f" at {contractor_info['company']}"
+            if contractor_info.get("company")
+            else ""
+        )
+        rating_info = (
+            f"Rating: {contractor_info['rating']}/5.0 stars"
+            if contractor_info.get("rating")
+            else ""
+        )
         specialties_info = ""
-        if contractor_info.get('specialties'):
-            specialties_list = ", ".join(contractor_info['specialties'])
+        if contractor_info.get("specialties"):
+            specialties_list = ", ".join(contractor_info["specialties"])
             specialties_info = f"Specialties: {specialties_list}\n"
-        
-        response_time = contractor_info.get('response_time', 'within 24 hours')
-        
+
+        response_time = contractor_info.get("response_time", "within 24 hours")
+
         return f"""
 ✅ GREAT NEWS!
 
@@ -531,8 +586,10 @@ Thank you for using our service matching platform!
 This email was sent to confirm your contractor match. Both you and {contractor_info['name']} have received this information.
         """
 
+
 # Global notification service instance
 notification_service = None
+
 
 def init_notification_service(mail_instance: Mail, db_engine=None):
     """Initialize the global notification service instance"""
@@ -540,45 +597,58 @@ def init_notification_service(mail_instance: Mail, db_engine=None):
     notification_service = NotificationService(mail_instance, db_engine)
     return notification_service
 
+
 def send_contractor_notification(lead_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Send detailed lead summary to contractor with customer responses and photos
-    
+
     Args:
         lead_data: Dictionary containing complete lead information
-        
+
     Returns:
         Dict with 'success' boolean and 'message' string
     """
     if not notification_service:
         logger.error("Notification service not initialized")
-        return {'success': False, 'message': 'Notification service not available'}
-    
+        return {"success": False, "message": "Notification service not available"}
+
     return notification_service.send_contractor_notification(lead_data)
 
-def send_customer_handoff(customer_email: str, contractor_info: Dict[str, Any], lead_id: int = None) -> Dict[str, Any]:
+
+def send_customer_handoff(
+    customer_email: str, contractor_info: Dict[str, Any], lead_id: int = None
+) -> Dict[str, Any]:
     """
     Send professional handoff email to customer explaining next steps
-    
+
     Args:
         customer_email: Customer's email address
         contractor_info: Dictionary with contractor details
         lead_id: Optional lead ID for logging
-        
+
     Returns:
         Dict with 'success' boolean and 'message' string
     """
     if not notification_service:
         logger.error("Notification service not initialized")
-        return {'success': False, 'message': 'Notification service not available'}
-    
-    return notification_service.send_customer_handoff(customer_email, contractor_info, lead_id)
+        return {"success": False, "message": "Notification service not available"}
 
-def log_notification(lead_id: int, notification_type: str, status: str, 
-                    recipient_email: str = None, subject: str = None, error_message: str = None) -> bool:
+    return notification_service.send_customer_handoff(
+        customer_email, contractor_info, lead_id
+    )
+
+
+def log_notification(
+    lead_id: int,
+    notification_type: str,
+    status: str,
+    recipient_email: str = None,
+    subject: str = None,
+    error_message: str = None,
+) -> bool:
     """
     Log notification attempt to database with timestamp
-    
+
     Args:
         lead_id: ID of the lead
         notification_type: Type of notification
@@ -586,14 +656,14 @@ def log_notification(lead_id: int, notification_type: str, status: str,
         recipient_email: Optional recipient email
         subject: Optional email subject
         error_message: Optional error message
-        
+
     Returns:
         Boolean indicating success of logging operation
     """
     if not notification_service:
         logger.error("Notification service not initialized")
         return False
-    
+
     return notification_service.log_notification(
         lead_id, notification_type, status, recipient_email, subject, error_message
     )

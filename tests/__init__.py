@@ -21,5 +21,5 @@ FRAMEWORK_INFO = {
     "testing_approach": "import-only validation",
     "supported_test_types": ["unit", "integration", "fixtures", "utils"],
     "pytest_compatible": True,
-    "validation_method": "manual_import"
+    "validation_method": "manual_import",
 }

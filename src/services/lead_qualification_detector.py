@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class QualificationStatus(Enum):
     """Lead qualification status enumeration."""
+
     QUALIFIED = "qualified"
     PARTIALLY_QUALIFIED = "partially_qualified"
     UNQUALIFIED = "unqualified"
@@ -22,6 +23,7 @@ class QualificationStatus(Enum):
 
 class RequirementType(Enum):
     """Types of requirements for lead qualification."""
+
     CONTACT_INFO = "contact_info"
     PROJECT_DETAILS = "project_details"
     PHOTOS = "photos"
@@ -33,6 +35,7 @@ class RequirementType(Enum):
 @dataclass
 class QualificationResult:
     """Result of lead qualification analysis."""
+
     status: QualificationStatus
     completeness_score: float
     missing_requirements: List[str]
@@ -43,6 +46,7 @@ class QualificationResult:
 @dataclass
 class RequirementConfig:
     """Configuration for qualification requirements."""
+
     min_photos: int = 1
     required_contact_fields: List[str] = None
     required_project_fields: List[str] = None
@@ -53,9 +57,9 @@ class RequirementConfig:
 
     def __post_init__(self):
         if self.required_contact_fields is None:
-            self.required_contact_fields = ['name', 'email', 'phone']
+            self.required_contact_fields = ["name", "email", "phone"]
         if self.required_project_fields is None:
-            self.required_project_fields = ['project_type', 'description', 'location']
+            self.required_project_fields = ["project_type", "description", "location"]
         if self.required_response_questions is None:
             self.required_response_questions = []
 
@@ -63,7 +67,7 @@ class RequirementConfig:
 class LeadQualificationDetector:
     """
     Service class for detecting and analyzing lead qualification status.
-    
+
     This class evaluates leads based on completeness of contact information,
     project details, photo submissions, and required responses.
     """
@@ -71,7 +75,7 @@ class LeadQualificationDetector:
     def __init__(self, config: Optional[RequirementConfig] = None):
         """
         Initialize the lead qualification detector.
-        
+
         Args:
             config: Configuration for qualification requirements
         """
@@ -85,10 +89,10 @@ class LeadQualificationDetector:
     def is_lead_qualified(self, lead: Dict[str, Any]) -> bool:
         """
         Determine if a lead is qualified based on all requirements.
-        
+
         Args:
             lead: Lead data dictionary
-            
+
         Returns:
             True if lead meets qualification criteria, False otherwise
         """
@@ -102,10 +106,10 @@ class LeadQualificationDetector:
     def get_qualification_completeness(self, lead: Dict[str, Any]) -> float:
         """
         Calculate the completeness score of a lead (0.0 to 1.0).
-        
+
         Args:
             lead: Lead data dictionary
-            
+
         Returns:
             Completeness score as a float between 0.0 and 1.0
         """
@@ -156,10 +160,10 @@ class LeadQualificationDetector:
     def validate_required_data(self, lead: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """
         Validate that all required data is present in the lead.
-        
+
         Args:
             lead: Lead data dictionary
-            
+
         Returns:
             Tuple of (is_valid, list_of_missing_requirements)
         """
@@ -171,35 +175,39 @@ class LeadQualificationDetector:
             self.logger.error(f"Error validating required data: {str(e)}")
             return False, [f"Validation error: {str(e)}"]
 
-    def get_detailed_qualification_analysis(self, lead: Dict[str, Any]) -> QualificationResult:
+    def get_detailed_qualification_analysis(
+        self, lead: Dict[str, Any]
+    ) -> QualificationResult:
         """
         Get detailed qualification analysis including recommendations.
-        
+
         Args:
             lead: Lead data dictionary
-            
+
         Returns:
             QualificationResult with detailed analysis
         """
         try:
             return self._analyze_qualification(lead)
         except Exception as e:
-            self.logger.error(f"Error performing detailed qualification analysis: {str(e)}")
+            self.logger.error(
+                f"Error performing detailed qualification analysis: {str(e)}"
+            )
             return QualificationResult(
                 status=QualificationStatus.UNQUALIFIED,
                 completeness_score=0.0,
                 missing_requirements=[f"Analysis error: {str(e)}"],
                 satisfied_requirements=[],
-                recommendations=["Please contact support for assistance"]
+                recommendations=["Please contact support for assistance"],
             )
 
     def _analyze_qualification(self, lead: Dict[str, Any]) -> QualificationResult:
         """
         Perform comprehensive qualification analysis.
-        
+
         Args:
             lead: Lead data dictionary
-            
+
         Returns:
             QualificationResult with analysis details
         """
@@ -208,16 +216,28 @@ class LeadQualificationDetector:
         recommendations = []
 
         # Analyze each requirement category
-        self._analyze_contact_requirements(lead, missing_requirements, satisfied_requirements)
-        self._analyze_project_requirements(lead, missing_requirements, satisfied_requirements)
-        self._analyze_photo_requirements(lead, missing_requirements, satisfied_requirements)
-        self._analyze_response_requirements(lead, missing_requirements, satisfied_requirements)
+        self._analyze_contact_requirements(
+            lead, missing_requirements, satisfied_requirements
+        )
+        self._analyze_project_requirements(
+            lead, missing_requirements, satisfied_requirements
+        )
+        self._analyze_photo_requirements(
+            lead, missing_requirements, satisfied_requirements
+        )
+        self._analyze_response_requirements(
+            lead, missing_requirements, satisfied_requirements
+        )
 
         if self.config.budget_required:
-            self._analyze_budget_requirements(lead, missing_requirements, satisfied_requirements)
+            self._analyze_budget_requirements(
+                lead, missing_requirements, satisfied_requirements
+            )
 
         if self.config.timeline_required:
-            self._analyze_timeline_requirements(lead, missing_requirements, satisfied_requirements)
+            self._analyze_timeline_requirements(
+                lead, missing_requirements, satisfied_requirements
+            )
 
         # Calculate completeness score
         completeness_score = self.get_qualification_completeness(lead)
@@ -231,21 +251,24 @@ class LeadQualificationDetector:
             status = QualificationStatus.UNQUALIFIED
 
         # Generate recommendations
-        recommendations = self._generate_recommendations(missing_requirements, completeness_score)
+        recommendations = self._generate_recommendations(
+            missing_requirements, completeness_score
+        )
 
         return QualificationResult(
             status=status,
             completeness_score=completeness_score,
             missing_requirements=missing_requirements,
             satisfied_requirements=satisfied_requirements,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
-    def _analyze_contact_requirements(self, lead: Dict[str, Any], 
-                                    missing: List[str], satisfied: List[str]) -> None:
+    def _analyze_contact_requirements(
+        self, lead: Dict[str, Any], missing: List[str], satisfied: List[str]
+    ) -> None:
         """Analyze contact information requirements."""
-        contact_info = lead.get('contact_info', {})
-        
+        contact_info = lead.get("contact_info", {})
+
         for field in self.config.required_contact_fields:
             value = contact_info.get(field)
             if not value or (isinstance(value, str) and not value.strip()):
@@ -254,24 +277,25 @@ class LeadQualificationDetector:
                 satisfied.append(f"Contact {field}")
 
         # Validate email format if present
-        email = contact_info.get('email')
+        email = contact_info.get("email")
         if email and not self._is_valid_email(email):
             missing.append("Valid email format")
         elif email:
             satisfied.append("Valid email format")
 
         # Validate phone format if present
-        phone = contact_info.get('phone')
+        phone = contact_info.get("phone")
         if phone and not self._is_valid_phone(phone):
             missing.append("Valid phone format")
         elif phone:
             satisfied.append("Valid phone format")
 
-    def _analyze_project_requirements(self, lead: Dict[str, Any], 
-                                    missing: List[str], satisfied: List[str]) -> None:
+    def _analyze_project_requirements(
+        self, lead: Dict[str, Any], missing: List[str], satisfied: List[str]
+    ) -> None:
         """Analyze project details requirements."""
-        project_details = lead.get('project_details', {})
-        
+        project_details = lead.get("project_details", {})
+
         for field in self.config.required_project_fields:
             value = project_details.get(field)
             if not value or (isinstance(value, str) and not value.strip()):
@@ -280,17 +304,18 @@ class LeadQualificationDetector:
                 satisfied.append(f"Project {field}")
 
         # Check description length
-        description = project_details.get('description', '')
+        description = project_details.get("description", "")
         if isinstance(description, str) and len(description.strip()) < 20:
             missing.append("Detailed project description (minimum 20 characters)")
         elif description:
             satisfied.append("Detailed project description")
 
-    def _analyze_photo_requirements(self, lead: Dict[str, Any], 
-                                   missing: List[str], satisfied: List[str]) -> None:
+    def _analyze_photo_requirements(
+        self, lead: Dict[str, Any], missing: List[str], satisfied: List[str]
+    ) -> None:
         """Analyze photo submission requirements."""
-        photos = lead.get('photos', [])
-        
+        photos = lead.get("photos", [])
+
         if len(photos) < self.config.min_photos:
             missing.append(f"At least {self.config.min_photos} photo(s)")
         else:
@@ -307,11 +332,12 @@ class LeadQualificationDetector:
         elif valid_photos > 0:
             satisfied.append(f"{valid_photos} valid photo(s)")
 
-    def _analyze_response_requirements(self, lead: Dict[str, Any], 
-                                     missing: List[str], satisfied: List[str]) -> None:
+    def _analyze_response_requirements(
+        self, lead: Dict[str, Any], missing: List[str], satisfied: List[str]
+    ) -> None:
         """Analyze required response requirements."""
-        responses = lead.get('responses', {})
-        
+        responses = lead.get("responses", {})
+
         for question in self.config.required_response_questions:
             response = responses.get(question)
             if not response or (isinstance(response, str) and not response.strip()):
@@ -319,19 +345,21 @@ class LeadQualificationDetector:
             else:
                 satisfied.append(f"Response to: {question}")
 
-    def _analyze_budget_requirements(self, lead: Dict[str, Any], 
-                                   missing: List[str], satisfied: List[str]) -> None:
+    def _analyze_budget_requirements(
+        self, lead: Dict[str, Any], missing: List[str], satisfied: List[str]
+    ) -> None:
         """Analyze budget requirements."""
-        budget = lead.get('budget')
+        budget = lead.get("budget")
         if not budget:
             missing.append("Budget information")
         else:
             satisfied.append("Budget information")
 
-    def _analyze_timeline_requirements(self, lead: Dict[str, Any], 
-                                     missing: List[str], satisfied: List[str]) -> None:
+    def _analyze_timeline_requirements(
+        self, lead: Dict[str, Any], missing: List[str], satisfied: List[str]
+    ) -> None:
         """Analyze timeline requirements."""
-        timeline = lead.get('timeline')
+        timeline = lead.get("timeline")
         if not timeline:
             missing.append("Project timeline")
         else:
@@ -339,7 +367,7 @@ class LeadQualificationDetector:
 
     def _check_contact_completeness(self, lead: Dict[str, Any]) -> Tuple[int, int]:
         """Check contact information completeness."""
-        contact_info = lead.get('contact_info', {})
+        contact_info = lead.get("contact_info", {})
         satisfied = 0
         total = len(self.config.required_contact_fields)
 
@@ -352,7 +380,7 @@ class LeadQualificationDetector:
 
     def _check_project_completeness(self, lead: Dict[str, Any]) -> Tuple[int, int]:
         """Check project details completeness."""
-        project_details = lead.get('project_details', {})
+        project_details = lead.get("project_details", {})
         satisfied = 0
         total = len(self.config.required_project_fields)
 
@@ -365,9 +393,9 @@ class LeadQualificationDetector:
 
     def _check_photo_completeness(self, lead: Dict[str, Any]) -> Tuple[int, int]:
         """Check photo submission completeness."""
-        photos = lead.get('photos', [])
+        photos = lead.get("photos", [])
         valid_photos = sum(1 for photo in photos if self._is_valid_photo(photo))
-        
+
         satisfied = 1 if valid_photos >= self.config.min_photos else 0
         total = 1
 
@@ -375,7 +403,7 @@ class LeadQualificationDetector:
 
     def _check_response_completeness(self, lead: Dict[str, Any]) -> Tuple[int, int]:
         """Check required response completeness."""
-        responses = lead.get('responses', {})
+        responses = lead.get("responses", {})
         satisfied = 0
         total = len(self.config.required_response_questions)
 
@@ -388,14 +416,14 @@ class LeadQualificationDetector:
 
     def _check_budget_completeness(self, lead: Dict[str, Any]) -> Tuple[int, int]:
         """Check budget completeness."""
-        budget = lead.get('budget')
+        budget = lead.get("budget")
         satisfied = 1 if budget else 0
         total = 1
         return satisfied, total
 
     def _check_timeline_completeness(self, lead: Dict[str, Any]) -> Tuple[int, int]:
         """Check timeline completeness."""
-        timeline = lead.get('timeline')
+        timeline = lead.get("timeline")
         satisfied = 1 if timeline else 0
         total = 1
         return satisfied, total
@@ -403,14 +431,16 @@ class LeadQualificationDetector:
     def _is_valid_email(self, email: str) -> bool:
         """Validate email format."""
         import re
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email.strip()))
 
     def _is_valid_phone(self, phone: str) -> bool:
         """Validate phone format."""
         import re
+
         # Remove all non-digit characters
-        digits = re.sub(r'\D', '', phone)
+        digits = re.sub(r"\D", "", phone)
         # Check if it's a valid US phone number (10 or 11 digits)
         return len(digits) in [10, 11]
 
@@ -420,21 +450,22 @@ class LeadQualificationDetector:
             return False
 
         # Check for required photo fields
-        required_fields = ['url', 'filename']
+        required_fields = ["url", "filename"]
         for field in required_fields:
             if not photo.get(field):
                 return False
 
         # Check file extension
-        filename = photo.get('filename', '').lower()
-        valid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+        filename = photo.get("filename", "").lower()
+        valid_extensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
         if not any(filename.endswith(ext) for ext in valid_extensions):
             return False
 
         return True
 
-    def _generate_recommendations(self, missing_requirements: List[str], 
-                                completeness_score: float) -> List[str]:
+    def _generate_recommendations(
+        self, missing_requirements: List[str], completeness_score: float
+    ) -> List[str]:
         """Generate recommendations based on missing requirements."""
         recommendations = []
 
@@ -443,24 +474,32 @@ class LeadQualificationDetector:
             return recommendations
 
         # Priority recommendations based on missing items
-        contact_missing = any('Contact' in req for req in missing_requirements)
-        project_missing = any('Project' in req for req in missing_requirements)
-        photo_missing = any('photo' in req.lower() for req in missing_requirements)
+        contact_missing = any("Contact" in req for req in missing_requirements)
+        project_missing = any("Project" in req for req in missing_requirements)
+        photo_missing = any("photo" in req.lower() for req in missing_requirements)
 
         if contact_missing:
-            recommendations.append("Priority: Complete contact information to enable communication")
+            recommendations.append(
+                "Priority: Complete contact information to enable communication"
+            )
 
         if project_missing:
-            recommendations.append("Important: Provide detailed project information for accurate estimation")
+            recommendations.append(
+                "Important: Provide detailed project information for accurate estimation"
+            )
 
         if photo_missing:
-            recommendations.append("Helpful: Add project photos to improve assessment accuracy")
+            recommendations.append(
+                "Helpful: Add project photos to improve assessment accuracy"
+            )
 
         # Score-based recommendations
         if completeness_score < 0.3:
             recommendations.append("Lead requires significant additional information")
         elif completeness_score < 0.7:
-            recommendations.append("Lead is partially complete - focus on missing critical items")
+            recommendations.append(
+                "Lead is partially complete - focus on missing critical items"
+            )
         else:
             recommendations.append("Lead is mostly complete - minor items needed")
 

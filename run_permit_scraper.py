@@ -54,8 +54,16 @@ def extract_contractor_profile(permit: dict) -> dict | None:
     # DOB NOW codes: GC=General Contractor, P=Plumber, F=Fire Suppression,
     # RA=Registered Architect, PE=Professional Engineer, E=Electrician
     license_type = (permit.get("applicant_license_type") or "").upper().strip()
-    sub_types = {"P", "PLUMBER", "MASTER PLUMBER", "F", "FIRE SUPPRESSION",
-                 "E", "ELECTRICIAN", "MASTER ELECTRICIAN"}
+    sub_types = {
+        "P",
+        "PLUMBER",
+        "MASTER PLUMBER",
+        "F",
+        "FIRE SUPPRESSION",
+        "E",
+        "ELECTRICIAN",
+        "MASTER ELECTRICIAN",
+    }
     gc_types = {"GC", "GENERAL CONTRACTOR", "PE", "RA", "ARCHITECT", "ENGINEER"}
 
     if license_type in sub_types or any(t in license_type for t in sub_types):
@@ -81,7 +89,9 @@ def extract_contractor_profile(permit: dict) -> dict | None:
     }
 
 
-def run_pipeline(days_back: int = 90, borough: str | None = None, dry_run: bool = False):
+def run_pipeline(
+    days_back: int = 90, borough: str | None = None, dry_run: bool = False
+):
     """
     Full pipeline: scrape → extract profiles → match → store.
 
@@ -101,7 +111,9 @@ def run_pipeline(days_back: int = 90, borough: str | None = None, dry_run: bool 
     logger.info("Step 1: Scraping permits from NYC DOB NOW...")
 
     # Primary source: DOB NOW Approved Permits (rbx6-tga4) — current data with rich contractor info
-    approved_permits = scraper.scrape_approved_permits(days_back=days_back, borough=borough)
+    approved_permits = scraper.scrape_approved_permits(
+        days_back=days_back, borough=borough
+    )
     logger.info(f"Scraped {len(approved_permits)} approved permits")
 
     # Secondary source is opt-in (DOB Job Filings has older data and is slow)
@@ -121,14 +133,18 @@ def run_pipeline(days_back: int = 90, borough: str | None = None, dry_run: bool 
     if dry_run:
         logger.info("[DRY RUN] Would store %d permits. Sample:", len(all_permits))
         for p in all_permits[:3]:
-            logger.info(f"  {p['job_filing_number']} | {p['permit_type']} | {p['borough']} | {p['building_address']}")
+            logger.info(
+                f"  {p['job_filing_number']} | {p['permit_type']} | {p['borough']} | {p['building_address']}"
+            )
         return {"permits": len(all_permits), "profiles": 0, "matches": 0}
 
     # --- Step 2: Store permits in Supabase ---
     logger.info("Step 2: Storing permits in Supabase...")
     existing = get_recent_filing_numbers()
     new_permits = [p for p in all_permits if p.get("job_filing_number") not in existing]
-    logger.info(f"New permits to insert: {len(new_permits)} (skipping {len(all_permits) - len(new_permits)} existing)")
+    logger.info(
+        f"New permits to insert: {len(new_permits)} (skipping {len(all_permits) - len(new_permits)} existing)"
+    )
 
     if new_permits:
         stats = upsert_permits_batch(new_permits)
@@ -148,16 +164,20 @@ def run_pipeline(days_back: int = 90, borough: str | None = None, dry_run: bool 
                 existing_profile = profile_map[key]
                 existing_boroughs = set(existing_profile.get("boroughs_active", []))
                 new_boroughs = set(profile.get("boroughs_active", []))
-                existing_profile["boroughs_active"] = list(existing_boroughs | new_boroughs)
-                existing_profile["total_permits"] = existing_profile.get("total_permits", 0) + 1
+                existing_profile["boroughs_active"] = list(
+                    existing_boroughs | new_boroughs
+                )
+                existing_profile["total_permits"] = (
+                    existing_profile.get("total_permits", 0) + 1
+                )
                 # Running average of cost
                 old_cost = existing_profile.get("avg_project_cost") or 0
                 new_cost = profile.get("avg_project_cost") or 0
                 if old_cost and new_cost:
                     count = existing_profile["total_permits"]
                     existing_profile["avg_project_cost"] = (
-                        (old_cost * (count - 1) + new_cost) / count
-                    )
+                        old_cost * (count - 1) + new_cost
+                    ) / count
                 elif new_cost:
                     existing_profile["avg_project_cost"] = new_cost
                 # Merge trade types
@@ -180,17 +200,22 @@ def run_pipeline(days_back: int = 90, borough: str | None = None, dry_run: bool 
     logger.info("Step 4: Matching general contractors with subcontractors...")
     gc_profiles = get_contractor_profiles(role="general")
     sub_profiles = get_contractor_profiles(role="sub")
-    logger.info(f"Found {len(gc_profiles)} GCs and {len(sub_profiles)} subs in database")
+    logger.info(
+        f"Found {len(gc_profiles)} GCs and {len(sub_profiles)} subs in database"
+    )
 
     # Get stored permits (with IDs) for matching
     from permit_store import get_permits
+
     stored_permits = get_permits(borough=borough, limit=500)
 
     matches_created = 0
     for permit in stored_permits:
         # Find the GC associated with this permit
         permit_license = permit.get("applicant_license_number", "")
-        gc = next((g for g in gc_profiles if g.get("license_number") == permit_license), None)
+        gc = next(
+            (g for g in gc_profiles if g.get("license_number") == permit_license), None
+        )
         if not gc:
             continue
 
@@ -218,16 +243,31 @@ def run_pipeline(days_back: int = 90, borough: str | None = None, dry_run: bool 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NYC Permit Scraper Pipeline")
-    parser.add_argument("--days", type=int, default=90, help="Days back to scrape (default: 90)")
-    parser.add_argument("--borough", type=str, default=None,
-                        help="Filter by borough (Manhattan, Bronx, Brooklyn, Queens, Staten Island)")
-    parser.add_argument("--max-records", type=int, default=50000,
-                        help="Max records to fetch per dataset (default: 50000)")
-    parser.add_argument("--dry-run", action="store_true", help="Scrape and log without writing to Supabase")
+    parser.add_argument(
+        "--days", type=int, default=90, help="Days back to scrape (default: 90)"
+    )
+    parser.add_argument(
+        "--borough",
+        type=str,
+        default=None,
+        help="Filter by borough (Manhattan, Bronx, Brooklyn, Queens, Staten Island)",
+    )
+    parser.add_argument(
+        "--max-records",
+        type=int,
+        default=50000,
+        help="Max records to fetch per dataset (default: 50000)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Scrape and log without writing to Supabase",
+    )
     args = parser.parse_args()
 
     # Set max records on scraper module
     import nyc_permit_scraper
+
     nyc_permit_scraper.MAX_RECORDS = args.max_records
 
     run_pipeline(days_back=args.days, borough=args.borough, dry_run=args.dry_run)

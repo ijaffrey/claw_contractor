@@ -66,12 +66,12 @@ MOCK_APOLLO = {
 # ── Scoring weights ────────────────────────────────────────────────────────────
 
 SOURCE_QUALITY = {
-    "permit_data":     0.9,
-    "google_maps":     0.85,
+    "permit_data": 0.9,
+    "google_maps": 0.85,
     "website_scraper": 0.80,
-    "houzz":           0.75,
-    "hunter":          0.70,
-    "apollo":          0.65,
+    "houzz": 0.75,
+    "hunter": 0.70,
+    "apollo": 0.65,
 }
 
 
@@ -80,11 +80,12 @@ def _score(result: dict) -> float:
     base = SOURCE_QUALITY.get(result.get("source", ""), 0.5)
     has_email = 1 if result.get("email") else 0
     has_phone = 1 if result.get("phone") else 0
-    has_web   = 1 if result.get("website") else 0
+    has_web = 1 if result.get("website") else 0
     return round(base * (0.4 + 0.25 * has_email + 0.2 * has_phone + 0.15 * has_web), 3)
 
 
 # ── Step implementations ───────────────────────────────────────────────────────
+
 
 def _step_permit_data(lead: dict) -> dict:
     """Extract contact info directly from the permit fields on the lead."""
@@ -114,6 +115,7 @@ def _step_google_maps(lead: dict) -> dict:
         return dict(MOCK_GOOGLE)
 
     import requests
+
     api_key = os.getenv("GOOGLE_PLACES_API_KEY", "")
     if not api_key:
         logger.debug("GOOGLE_PLACES_API_KEY not set, skipping google_maps step")
@@ -185,9 +187,15 @@ def _step_website_scraper(lead: dict, current: dict) -> dict:
             html = r.text
 
             # Extract email with regex
-            emails = re.findall(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", html)
+            emails = re.findall(
+                r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", html
+            )
             # Filter out obvious non-contact emails
-            emails = [e for e in emails if not any(x in e.lower() for x in ("noreply", "no-reply", "example"))]
+            emails = [
+                e
+                for e in emails
+                if not any(x in e.lower() for x in ("noreply", "no-reply", "example"))
+            ]
 
             # Extract phone
             phones = re.findall(r"[\+\(]?[1-9][0-9 .\-\(\)]{8,}[0-9]", html)
@@ -226,7 +234,9 @@ def _step_houzz(lead: dict) -> dict:
         r.raise_for_status()
         html = r.text
         emails = re.findall(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", html)
-        emails = [e for e in emails if not any(x in e.lower() for x in ("noreply", "houzz"))]
+        emails = [
+            e for e in emails if not any(x in e.lower() for x in ("noreply", "houzz"))
+        ]
         result = {"source": "houzz"}
         if emails:
             result["email"] = emails[0]
@@ -316,6 +326,7 @@ def _step_apollo(lead: dict) -> dict:
 
 # ── Waterfall orchestrator ─────────────────────────────────────────────────────
 
+
 def enrich_lead(lead: dict) -> dict:
     """
     Run the 6-step enrichment waterfall on a lead dict.
@@ -325,20 +336,20 @@ def enrich_lead(lead: dict) -> dict:
         enrichment_status, enrichment_score, enriched_at
     """
     current: dict = {
-        "email":        lead.get("enriched_email") or lead.get("email"),
-        "phone":        lead.get("enriched_phone") or lead.get("phone"),
-        "website":      lead.get("website"),
+        "email": lead.get("enriched_email") or lead.get("email"),
+        "phone": lead.get("enriched_phone") or lead.get("phone"),
+        "website": lead.get("website"),
         "email_source": lead.get("email_source"),
         "phone_source": lead.get("phone_source"),
     }
 
     steps = [
-        ("permit_data",    lambda: _step_permit_data(lead)),
-        ("google_maps",    lambda: _step_google_maps(lead)),
+        ("permit_data", lambda: _step_permit_data(lead)),
+        ("google_maps", lambda: _step_google_maps(lead)),
         ("website_scraper", lambda: _step_website_scraper(lead, current)),
-        ("houzz",          lambda: _step_houzz(lead)),
-        ("hunter",         lambda: _step_hunter(lead, current)),
-        ("apollo",         lambda: _step_apollo(lead)),
+        ("houzz", lambda: _step_houzz(lead)),
+        ("hunter", lambda: _step_hunter(lead, current)),
+        ("apollo", lambda: _step_apollo(lead)),
     ]
 
     best_score = 0.0
@@ -348,7 +359,7 @@ def enrich_lead(lead: dict) -> dict:
         # Skip step if both email and phone are already found
         need_email = not current.get("email")
         need_phone = not current.get("phone")
-        need_web   = not current.get("website")
+        need_web = not current.get("website")
 
         if not (need_email or need_phone or need_web):
             logger.debug(f"Skipping {step_name} — all fields populated")
@@ -374,18 +385,22 @@ def enrich_lead(lead: dict) -> dict:
         if result.get("website") and not current.get("website"):
             current["website"] = result["website"]
 
-        logger.debug(f"Step {step_name}: email={result.get('email')}, phone={result.get('phone')}, web={result.get('website')}")
+        logger.debug(
+            f"Step {step_name}: email={result.get('email')}, phone={result.get('phone')}, web={result.get('website')}"
+        )
 
     return {
-        "email":             current.get("email"),
-        "phone":             current.get("phone"),
-        "website":           current.get("website"),
-        "email_source":      current.get("email_source"),
-        "phone_source":      current.get("phone_source"),
-        "enrichment_status": "complete" if (current.get("email") or current.get("phone")) else "partial",
-        "enrichment_score":  round(best_score, 3),
-        "enriched_at":       datetime.utcnow().isoformat(),
-        "steps_run":         steps_run,
+        "email": current.get("email"),
+        "phone": current.get("phone"),
+        "website": current.get("website"),
+        "email_source": current.get("email_source"),
+        "phone_source": current.get("phone_source"),
+        "enrichment_status": (
+            "complete" if (current.get("email") or current.get("phone")) else "partial"
+        ),
+        "enrichment_score": round(best_score, 3),
+        "enriched_at": datetime.utcnow().isoformat(),
+        "steps_run": steps_run,
     }
 
 
@@ -401,6 +416,7 @@ def enrich_batch(leads: list, delay: float = 0.0) -> list:
 
 
 # ── Test harness ───────────────────────────────────────────────────────────────
+
 
 def test_waterfall():
     """Verify the 6-step waterfall runs correctly in mock mode."""
@@ -424,7 +440,9 @@ def test_waterfall():
     assert result["email_source"], "Missing email_source"
     assert result["phone_source"], "Missing phone_source"
     assert result["enrichment_score"] > 0, "Score should be > 0"
-    assert result["enrichment_status"] == "complete", f"Expected complete, got {result['enrichment_status']}"
+    assert (
+        result["enrichment_status"] == "complete"
+    ), f"Expected complete, got {result['enrichment_status']}"
     assert result["enriched_at"], "Missing enriched_at"
     assert len(result["steps_run"]) > 0, "No steps were run"
 

@@ -22,6 +22,7 @@ def _get_client():
     global _supabase_client
     if _supabase_client is None:
         from supabase import create_client
+
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_KEY")
         if not url or not key:
@@ -79,7 +80,7 @@ def upsert_permits_batch(permits: list) -> dict:
     # Process in chunks to avoid payload limits
     chunk_size = 100
     for i in range(0, len(permits), chunk_size):
-        chunk = permits[i:i + chunk_size]
+        chunk = permits[i : i + chunk_size]
         records = []
         for p in chunk:
             if not p.get("job_filing_number"):
@@ -137,8 +138,9 @@ def upsert_contractor_profile(profile: dict) -> Optional[dict]:
         return None
 
 
-def get_contractor_profiles(role: Optional[str] = None,
-                            borough: Optional[str] = None) -> list:
+def get_contractor_profiles(
+    role: Optional[str] = None, borough: Optional[str] = None
+) -> list:
     """
     Fetch contractor profiles with optional filters.
 
@@ -198,12 +200,14 @@ def insert_match(match: dict) -> Optional[dict]:
         return None
 
 
-def get_permits(borough: Optional[str] = None,
-                permit_type: Optional[str] = None,
-                limit: int = 100) -> list:
+def get_permits(
+    borough: Optional[str] = None, permit_type: Optional[str] = None, limit: int = 100
+) -> list:
     """Fetch permits from Supabase with optional filters."""
     client = _get_client()
-    query = client.table("permits").select("*").order("filing_date", desc=True).limit(limit)
+    query = (
+        client.table("permits").select("*").order("filing_date", desc=True).limit(limit)
+    )
 
     if borough:
         query = query.eq("borough", borough)

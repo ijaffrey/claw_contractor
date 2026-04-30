@@ -115,8 +115,9 @@ class NYCPermitScraper:
         logger.info(f"Total records fetched: {len(all_records)}")
         return all_records
 
-    def scrape_job_filings(self, days_back: int = DEFAULT_DAYS_BACK,
-                           borough: Optional[str] = None) -> list:
+    def scrape_job_filings(
+        self, days_back: int = DEFAULT_DAYS_BACK, borough: Optional[str] = None
+    ) -> list:
         """
         Scrape from DOB Job Application Filings (ic3t-wcy2).
         Note: This dataset has historical data (may not be current).
@@ -144,8 +145,9 @@ class NYCPermitScraper:
         raw_filings = self._fetch_all_pages(DOB_JOB_FILINGS, params)
         return [self._normalize_job_filing(r) for r in raw_filings]
 
-    def scrape_approved_permits(self, days_back: int = DEFAULT_DAYS_BACK,
-                                borough: Optional[str] = None) -> list:
+    def scrape_approved_permits(
+        self, days_back: int = DEFAULT_DAYS_BACK, borough: Optional[str] = None
+    ) -> list:
         """
         Scrape from DOB NOW Build Approved Permits (rbx6-tga4).
         This dataset has richer contractor/applicant and cost details.
@@ -173,7 +175,9 @@ class NYCPermitScraper:
     def _normalize_job_filing(self, raw: dict) -> dict:
         """Normalize a DOB Job Application Filings record (ic3t-wcy2)."""
         borough_raw = raw.get("borough", "")
-        borough = BOROUGH_MAP.get(borough_raw.upper(), borough_raw) if borough_raw else None
+        borough = (
+            BOROUGH_MAP.get(borough_raw.upper(), borough_raw) if borough_raw else None
+        )
 
         owner_first = raw.get("owner_s_first_name", "") or ""
         owner_last = raw.get("owner_s_last_name", "") or ""
@@ -187,7 +191,8 @@ class NYCPermitScraper:
             "job_filing_number": raw.get("job__", ""),
             "permit_type": raw.get("job_type", ""),
             "permit_subtype": "",
-            "permit_status": raw.get("job_status_descrp", "") or raw.get("job_status", ""),
+            "permit_status": raw.get("job_status_descrp", "")
+            or raw.get("job_status", ""),
             "filing_date": self._parse_date(raw.get("pre__filing_date")),
             "issuance_date": self._parse_date(raw.get("fully_permitted")),
             "expiration_date": None,
@@ -215,14 +220,17 @@ class NYCPermitScraper:
     def _normalize_approved_permit(self, raw: dict) -> dict:
         """Normalize a DOB NOW Build Approved Permits record (rbx6-tga4)."""
         borough_raw = raw.get("borough", "")
-        borough = BOROUGH_MAP.get(borough_raw.upper(), borough_raw) if borough_raw else None
+        borough = (
+            BOROUGH_MAP.get(borough_raw.upper(), borough_raw) if borough_raw else None
+        )
 
         applicant_first = raw.get("applicant_first_name", "") or ""
         applicant_last = raw.get("applicant_last_name", "") or ""
         applicant_biz = raw.get("applicant_business_name", "") or ""
 
         return {
-            "job_filing_number": raw.get("tracking_number", "") or raw.get("job_filing_number", ""),
+            "job_filing_number": raw.get("tracking_number", "")
+            or raw.get("job_filing_number", ""),
             "permit_type": raw.get("filing_reason", ""),
             "permit_subtype": raw.get("work_type", ""),
             "permit_status": raw.get("permit_status", ""),
@@ -241,12 +249,14 @@ class NYCPermitScraper:
             "owner_name": raw.get("owner_name", ""),
             "owner_phone": "",
             "owner_email": "",
-            "applicant_name": f"{applicant_first} {applicant_last}".strip() or applicant_biz,
+            "applicant_name": f"{applicant_first} {applicant_last}".strip()
+            or applicant_biz,
             "applicant_license_number": raw.get("applicant_license", ""),
             "applicant_license_type": raw.get("permittee_s_license_type", ""),
             "filing_representative": (
-                (raw.get("filing_representative_first_name", "") or "") + " " +
-                (raw.get("filing_representative_last_name", "") or "")
+                (raw.get("filing_representative_first_name", "") or "")
+                + " "
+                + (raw.get("filing_representative_last_name", "") or "")
             ).strip(),
             "work_type": raw.get("work_type", ""),
             "building_type": "",

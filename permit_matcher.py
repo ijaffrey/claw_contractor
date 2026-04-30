@@ -14,7 +14,15 @@ logger = logging.getLogger(__name__)
 
 # Permit type → relevant sub trades
 PERMIT_TRADE_MAP = {
-    "NB": ["general", "plumbing", "electrical", "hvac", "steel", "concrete", "excavation"],
+    "NB": [
+        "general",
+        "plumbing",
+        "electrical",
+        "hvac",
+        "steel",
+        "concrete",
+        "excavation",
+    ],
     "A1": ["general", "plumbing", "electrical", "hvac", "carpentry", "drywall"],
     "A2": ["general", "plumbing", "electrical", "carpentry"],
     "A3": ["general", "carpentry", "drywall", "painting"],
@@ -86,7 +94,9 @@ def score_match(gc_profile: dict, sub_profile: dict, permit: dict) -> dict:
     relevant_trades = get_relevant_trades(permit_type)
     sub_trades = sub_profile.get("trade_types", []) or []
 
-    trade_overlap = set(t.lower() for t in sub_trades) & set(t.lower() for t in relevant_trades)
+    trade_overlap = set(t.lower() for t in sub_trades) & set(
+        t.lower() for t in relevant_trades
+    )
     if trade_overlap:
         scores["permit_type"] = min(40, len(trade_overlap) * 20)
         reasons.append(f"Trade match: {', '.join(trade_overlap)}")
@@ -111,7 +121,9 @@ def score_match(gc_profile: dict, sub_profile: dict, permit: dict) -> dict:
                 si = bracket_labels.index(sub_bracket)
                 if abs(pi - si) == 1:
                     scores["scope"] = 15
-                    reasons.append(f"Adjacent cost bracket: permit={permit_bracket}, sub={sub_bracket}")
+                    reasons.append(
+                        f"Adjacent cost bracket: permit={permit_bracket}, sub={sub_bracket}"
+                    )
             except ValueError:
                 pass
     elif permit_bracket == "unknown" and sub_bracket == "unknown":
@@ -145,8 +157,9 @@ def score_match(gc_profile: dict, sub_profile: dict, permit: dict) -> dict:
     }
 
 
-def find_matches(permit: dict, gc_profile: dict,
-                 sub_profiles: list, min_score: int = 30) -> list:
+def find_matches(
+    permit: dict, gc_profile: dict, sub_profiles: list, min_score: int = 30
+) -> list:
     """
     Find matching subcontractors for a GC's permit.
 
@@ -174,12 +187,14 @@ def find_matches(permit: dict, gc_profile: dict,
 
         result = score_match(gc_profile, sub, permit)
         if result["match_score"] >= min_score:
-            matches.append({
-                "gc_profile_id": gc_profile.get("id"),
-                "sub_profile_id": sub.get("id"),
-                "permit_id": permit.get("id"),
-                **result,
-            })
+            matches.append(
+                {
+                    "gc_profile_id": gc_profile.get("id"),
+                    "sub_profile_id": sub.get("id"),
+                    "permit_id": permit.get("id"),
+                    **result,
+                }
+            )
 
     matches.sort(key=lambda m: m["match_score"], reverse=True)
     return matches

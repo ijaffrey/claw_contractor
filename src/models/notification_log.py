@@ -25,71 +25,46 @@ class NotificationLog(Base):
     __tablename__ = "notification_logs"
 
     notification_id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-        index=True
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
-    
+
     lead_id = Column(
         UUID(as_uuid=True),
         ForeignKey("leads.lead_id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
-    
-    notification_type = Column(
-        Enum(NotificationTypeEnum),
-        nullable=False,
-        index=True
-    )
-    
-    recipient_email = Column(
-        String(255),
-        nullable=False,
-        index=True
-    )
-    
-    subject = Column(
-        String(500),
-        nullable=False
-    )
-    
-    content = Column(
-        Text,
-        nullable=False
-    )
-    
+
+    notification_type = Column(Enum(NotificationTypeEnum), nullable=False, index=True)
+
+    recipient_email = Column(String(255), nullable=False, index=True)
+
+    subject = Column(String(500), nullable=False)
+
+    content = Column(Text, nullable=False)
+
     sent_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=datetime.utcnow,
-        index=True
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True
     )
-    
+
     delivery_status = Column(
         Enum(DeliveryStatusEnum),
         nullable=False,
         default=DeliveryStatusEnum.PENDING,
-        index=True
+        index=True,
     )
-    
-    error_message = Column(
-        Text,
-        nullable=True
-    )
-    
+
+    error_message = Column(Text, nullable=True)
+
     created_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
     )
-    
+
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        onupdate=datetime.utcnow,
     )
 
     # Relationships
@@ -101,12 +76,18 @@ class NotificationLog(Base):
     @property
     def is_delivered(self):
         """Check if notification was successfully delivered"""
-        return self.delivery_status in [DeliveryStatusEnum.SENT, DeliveryStatusEnum.DELIVERED]
+        return self.delivery_status in [
+            DeliveryStatusEnum.SENT,
+            DeliveryStatusEnum.DELIVERED,
+        ]
 
     @property
     def has_failed(self):
         """Check if notification delivery failed"""
-        return self.delivery_status in [DeliveryStatusEnum.FAILED, DeliveryStatusEnum.BOUNCED]
+        return self.delivery_status in [
+            DeliveryStatusEnum.FAILED,
+            DeliveryStatusEnum.BOUNCED,
+        ]
 
     def mark_as_sent(self):
         """Mark notification as sent"""
