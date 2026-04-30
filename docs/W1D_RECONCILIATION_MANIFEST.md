@@ -364,3 +364,115 @@ Manifest authored: 2026-04-29 by Ian / Claude during W1-D Day 1.
 Manifest is provisional pending Day 2 inspections of Pair 5 and Pair 8.
 
 Updates to this manifest after Day 2 inspections should be made in-place with a revision note in this section.
+
+
+---
+
+# Day 2 Inspection Results
+
+Inspection performed: 2026-04-29 by Ian / Claude during W1-D Day 2.
+
+## Pair 5 — Handoff trio inspection
+
+**Files found (9 total handoff-related):**
+
+| Path | Disposition |
+|---|---|
+| `src/services/handoff_service.py` | Day 1 winner — repository pattern, exception types |
+| `src/workflows/handoff_workflow.py` | Day 1 winner — orchestrator, calls qualification + notification + lead services |
+| `src/services/lead_handoff_service.py` | **Architectural escalation** — third orchestration layer, distinct decomposition |
+| `services/LeadHandoffService.py` | **Architectural escalation** — root-level fork, repository-pattern variant (NOT same code as src/) |
+| `lead_handoff.py` | **Phase 1 escalation** — root orphan, referenced by `notification_manager.py:543` |
+| `customer_handoff_messenger.py` | Not yet inspected — out of scope for Pair 5 |
+| `routes/handoff_routes.py` | **Architectural escalation** — sole copy, no `src/routes/` exists |
+| `test_customer_handoff.py` | Test, fails on phantom `models.lead` import |
+| `test_final_handoff_integration.py` | Test, fails on phantom `app.database` import |
+| `tests/test_handoff_workflow.py` | Test, fails on phantom `claw_contractor` import |
+
+**Verdict on `lead_handoff_service.py`:** Functionally distinct from both Day 1 winners. Defines its own `HandoffStatus` enum, `QualificationCriteria` (evidence-based vs. score-based), `LeadSummary` dataclass. Calls 5 sibling services directly rather than going through repositories. **This is a competing design, not a duplicate.** Marked as architectural escalation pending Phase 1 review. No deletion in W1-D.
+
+## Pair 8 — Root-level services/routes/models inspection
+
+**Findings:**
+
+| File | Verdict | Action |
+|---|---|---|
+| `models/NotificationLog.py` | Confirmed loser — folds into Pair 4 (CapitalCase, redundant with `src/models/notification_log.py`) | Delete in Pair 4 reconciliation |
+| `services/NotificationService.py` | **Architectural escalation** — distinct from `src/services/notification_service.py`. Root version is sync-only (smtplib), src version is async-capable (aiosmtplib + asyncio), uses db session injection, has `NotificationType` enum | Keep, defer |
+| `services/LeadHandoffService.py` | **Architectural escalation** — distinct from `src/services/lead_handoff_service.py` (repository pattern vs. service-orchestration pattern, score-based vs. evidence-based qualification) | Keep, defer |
+| `routes/handoff_routes.py` | **Phase 1 escalation** — sole copy of route definitions; no `src/routes/` directory exists | Keep, defer |
+
+**Reframing:** Pair 8 is not a single pair. It is one confirmed loser folding into Pair 4 plus three architectural escalations. The root-level `services/`, `routes/`, `models/` directories cannot be deleted en bloc.
+
+**Import surface from root-level dirs:** Only 2 files reference them, and both imports are already broken:
+- `test_customer_handoff.py:12` imports `from models.lead import Lead` (file does not exist)
+- `test_main_integration.py:12` imports `from models import Base, Email, Lead, Conversation, QualifiedLead, User, Client` (no `__init__.py` exposing these)
+
+These broken imports will be addressed via skip markers (see "Skipped tests registry" below).
+
+## Pytest baseline (Day 2 start)
+
+Captured before any Day 2 reconciliation work. Saved at `/tmp/pytest_baseline_day2.txt` on the build host.
+
+- **Errors during collection:** 15
+- **Tests collected despite errors:** 23
+
+Error attribution to pairs:
+
+| Pair | Error count | Test files |
+|---|---|---|
+| Pair 1 (database imports) | 3 | `test_notification_logger.py`, `test_qualified_lead_handler.py`, `tests/test_conversation_manager.py` |
+| Pair 7 (phantom backend/lead_management/messaging) | 3 | `test_contractor_notifier.py`, `test_customer_handoff.py`, `tests/test_notification_service.py` |
+| Phantom src/ and app/ namespaces | 4 | `test_email_sender.py`, `test_final_handoff_integration.py`, `test_notification_manager.py`, `test_qualified_lead_detector.py` |
+| Self-reference (`claw_contractor` package) | 1 | `tests/test_handoff_workflow.py` |
+| Schema gap (`Conversations` symbol) | 1 | `test_conversations_table.py` |
+| Missing symbol (`main_loop`) | 1 | `test_main_integration.py` |
+| Config attribute (`GMAIL_USER_EMAIL`) | 1 | `test_poll.py` |
+| Syntax error (corrupted file) | 1 | `test_e2e.py` (line 741, unterminated string) |
+
+## Architectural escalations queue (for Phase 1)
+
+The following decisions are explicitly deferred per ADR-001. They surface as Phase 1 work items:
+
+1. **Lead handoff orchestrator.** Pick winner among `src/services/lead_handoff_service.py`, `services/LeadHandoffService.py`, and `src/workflows/handoff_workflow.py`. Three distinct designs for the same concept.
+2. **Notification service architecture.** `services/NotificationService.py` (sync, smtplib, env-vars) vs. `src/services/notification_service.py` (async, aiosmtplib, db session, settings injection). Pick one paradigm.
+3. **Routes namespace.** `routes/handoff_routes.py` is the sole copy of any route definitions. Decide: relocate to `src/routes/` (creating the dir), keep at root, or move into `src/api/`.
+4. **Root orphan: `lead_handoff.py`.** Used by `notification_manager.py:543`. Decide: fold into chosen handoff orchestrator, stub for compatibility, or delete with `notification_manager` rewrite.
+5. **Tests-at-root vs `tests/` directory.** Twelve test files at repo root, three in `tests/`. Consolidate.
+
+## Skipped tests registry (W1-D Phase 2 will add markers)
+
+The following tests will be marked `pytest.skip` with a `reason=` pointing to the architectural escalation they depend on. This unblocks CI without forcing premature architectural decisions.
+
+| Test file | Skip reason | Blocked on escalation |
+|---|---|---|
+| `test_customer_handoff.py` | Imports `models.lead`, `models.contractor` (phantom) | #1, #5 |
+| `test_final_handoff_integration.py` | Imports `app.database` (phantom) | #1 |
+| `tests/test_handoff_workflow.py` | Imports `claw_contractor` (self-package, not installed) | #1 |
+| `tests/test_notification_service.py` | Imports `backend` (phantom) | #2 |
+| `test_email_sender.py` | Imports `src.email_sender` (phantom) | Schema gap |
+| `test_notification_manager.py` | Imports `src.notification_manager` (phantom) | #2 |
+| `test_qualified_lead_detector.py` | Imports `app.modules` (phantom) | Schema gap |
+| `test_main_integration.py` | Imports `main_loop` (missing symbol) | Schema gap |
+| `test_conversations_table.py` | Imports `Conversations` (missing symbol) | Schema gap |
+| `test_e2e.py` | Syntax error line 741 (unterminated string) | Phase 2 file repair |
+| `test_poll.py` | Missing config attribute `Config.GMAIL_USER_EMAIL` | Phase 2 config repair |
+
+## Updated Pair-by-Pair Summary (post-Day 2)
+
+| Pair | Winner | Losers | Status |
+|---|---|---|---|
+| 1. database | `./database.py` | `./database_manager.py` | Decided. Path A vs B for `DatabaseManager` API to be selected during reconciliation |
+| 2. conversation_manager | `./src/conversation_manager.py` | `./conversation_manager.py` | Decided |
+| 3. notification_service | `./src/services/notification_service.py` | `./app/services/notification_service.py`, **root fork deferred — see escalation #2** | Day 1 plan stands; root fork escalated |
+| 4. notification_log | `./src/models/notification_log.py` | `./models/NotificationLog.py`, `./app/models/notification_log.py` | Decided. Confirmed Day 2 |
+| 5. handoff trio | `src/services/handoff_service.py`, `src/workflows/handoff_workflow.py` | None deleted in W1-D — `lead_handoff_service.py` and friends escalated | See escalation #1 |
+| 6. email_templates | `./src/utils/email_templates.py` (repair) | None | Phase 2 syntax repair |
+| 7. speculative dirs | None | `./backend/`, `./lead_management/`, `./messaging/` | Mechanical rewrites + phantom-import skip markers |
+| 8. services/routes/models at root | `models/NotificationLog.py` folds into Pair 4 | Three escalations: see #1, #2, #3 | Reframed as one delete + three escalations |
+
+## Sign-off (Day 2)
+
+Day 2 inspections complete. Manifest is now final for W1-D scope. Architectural escalations recorded for Phase 1 follow-up.
+
+Updated: 2026-04-29 by Ian / Claude during W1-D Day 2.
