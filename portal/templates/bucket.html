@@ -57,6 +57,7 @@
           <th>Est. Deal Size</th>
           <th>Confidence</th>
           <th>Status</th>
+          <th>Look Up</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -91,6 +92,14 @@
           </td>
           <td>
             <span class="status-pill status-{{ p.status }}">{{ p.status|replace('_',' ')|title }}</span>
+          </td>
+          <td>
+            {% set q = (p.filing_rep or p.owner_name or '') ~ ' ' ~ (p.applicant_last_name or '') ~ ' contact email' %}
+            {% if (p.filing_rep or p.owner_name) %}
+              <a href="https://www.google.com/search?q={{ q|urlencode }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Look Up</a>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
           </td>
           <td>
             {% if p.status == 'not_generated' or p.status == 'new' %}
