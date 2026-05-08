@@ -24,6 +24,7 @@ Schema::
           "affected_pct": float,
           "permit_cost_usd": float | null,
           "year_built": int | null,
+          "filing_date": str | null,
           "job_type": str | null,
           "initial_cost_usd": float | null,
           "neighborhood": str | null
@@ -129,6 +130,7 @@ def estimate_permit(permit: dict[str, Any], bucket: str) -> dict[str, Any] | Non
         "affected_pct": pct,
         "permit_cost_usd": permit_cost,
         "year_built": permit.get("year_built"),
+        "filing_date": permit.get("filing_date"),
         "job_type": permit.get("job_type"),
         "initial_cost_usd": permit_cost,
         "neighborhood": permit.get("neighborhood") or permit.get("borough"),

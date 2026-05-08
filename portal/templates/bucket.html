@@ -51,6 +51,7 @@
         <tr>
           <th>Address</th>
           <th>Year</th>
+          <th>Filed</th>
           <th>Neighborhood</th>
           <th>Job Type</th>
           <th>Est. Deal Size</th>
@@ -69,6 +70,7 @@
             data-address="{{ p.address }}">
           <td><strong>{{ p.address }}</strong></td>
           <td>{{ p.year_built or "—" }}</td>
+          <td>{{ p.filing_date[:10] if p.filing_date else "—" }}</td>
           <td>{{ (p.neighborhood or "—")|title }}</td>
           <td>{{ p.job_type or "—" }}</td>
           <td>
