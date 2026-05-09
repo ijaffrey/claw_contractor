@@ -209,9 +209,17 @@ def _enriched(permit: dict, pluto_by_bbl: dict) -> dict:
         "bldg_area_sqft": pluto.get("bldg_area_sqft"),
         "num_floors": pluto.get("num_floors"),
         "applicant_last_name": permit.get("applicant_last_name"),
+        "applicant_first_name": permit.get("applicant_first_name"),
+        "applicant_license": permit.get("applicant_license"),
+        "applicant_professional_title": permit.get("applicant_professional_title"),
         "filing_representative_business_name": permit.get(
             "filing_representative_business_name"
         ),
+        "filing_representative_first_name": permit.get("filing_representative_first_name"),
+        "filing_representative_last_name": permit.get("filing_representative_last_name"),
+        "filing_representative_city": permit.get("filing_representative_city"),
+        "filing_representative_state": permit.get("filing_representative_state"),
+        "filing_representative_zip": permit.get("filing_representative_zip"),
     }
 
 
