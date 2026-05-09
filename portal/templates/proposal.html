@@ -31,6 +31,7 @@
   <button class="tab-btn" data-tab="documents">Documents</button>
   <button class="tab-btn" data-tab="proposal">Proposal</button>
   <button class="tab-btn" data-tab="emails">Email Outreach</button>
+  <button class="tab-btn" data-tab="filer">Filer</button>
 </div>
 
 <!-- ═══ OVERVIEW TAB ═══ -->
@@ -51,7 +52,13 @@
     {% if takeoff.permit %}
     <div class="detail-row"><span class="detail-label">Permit Filed</span><span class="detail-value">{{ takeoff.permit.filing_date or "—" }}</span></div>
     <div class="detail-row"><span class="detail-label">Permit Cost</span><span class="detail-value">${{ "{:,.0f}".format(takeoff.permit.initial_cost_usd or 0) }}</span></div>
+    {% if filer %}
+    <div class="detail-row"><span class="detail-label">Applicant</span><span class="detail-value">{% if filer.first_name or filer.last_name %}{{ ((filer.first_name or '') ~ ' ' ~ (filer.last_name or ''))|trim }}{% if filer.title %} <span class="text-muted">{{ filer.title }}</span>{% endif %}{% else %}—{% endif %}</span></div>
+    {% if filer.license %}<div class="detail-row"><span class="detail-label">License #</span><span class="detail-value">{{ filer.license }}</span></div>{% endif %}
+    {% if filer.rep_business_name %}<div class="detail-row"><span class="detail-label">Filing Rep</span><span class="detail-value">{{ filer.rep_business_name }}{% if filer.rep_first_name %} <span class="text-muted">({{ filer.rep_first_name }})</span>{% endif %}</span></div>{% endif %}
+    {% else %}
     <div class="detail-row"><span class="detail-label">Applicant</span><span class="detail-value">{{ takeoff.permit.applicant_last_name or "—" }}</span></div>
+    {% endif %}
     {% endif %}
   </div>
 
@@ -454,4 +461,33 @@
   }
 })();
 </script>
+
+<!-- FILER TAB -->
+<div class="tab-panel" id="tab-filer">
+{% if filer %}
+<div class="detail-grid">
+  <div class="detail-card">
+    <h3>Applicant</h3>
+    <div class="detail-row"><span class="detail-label">Name</span><span class="detail-value"><strong>{{ ((filer.first_name or '') ~ ' ' ~ (filer.last_name or ''))|trim or '—' }}</strong></span></div>
+    <div class="detail-row"><span class="detail-label">Professional Title</span><span class="detail-value">{{ filer.title or '—' }}</span></div>
+    <div class="detail-row"><span class="detail-label">License Number</span><span class="detail-value">{{ filer.license or '—' }}</span></div>
+  </div>
+  <div class="detail-card">
+    <h3>Filing Representative</h3>
+    <div class="detail-row"><span class="detail-label">Firm</span><span class="detail-value"><strong>{{ filer.rep_business_name or '—' }}</strong></span></div>
+    <div class="detail-row"><span class="detail-label">Contact First Name</span><span class="detail-value">{{ filer.rep_first_name or '—' }}</span></div>
+    {% set q = ((filer.first_name or '') ~ ' ' ~ (filer.last_name or '') ~ ' ' ~ (filer.title or '') ~ ' ' ~ (filer.rep_business_name or '') ~ ' contact')|trim %}
+    <div style="margin-top:16px;">
+      <a href="https://www.google.com/search?q={{ q|urlencode }}" target="_blank" rel="noopener" class="btn btn-secondary">Look Up on Google</a>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="generate-cta">
+  <h2>No Filer Data</h2>
+  <p>Filer information is only available for permits in the top 10 ranked per trade bucket.</p>
+</div>
+{% endif %}
+</div>
+
 {% endblock %}

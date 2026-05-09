@@ -334,6 +334,18 @@ def create_app() -> Flask:
         t1_entry = tier1.get(slug, {})
         bucket_name = t1_entry.get("bucket", "")
 
+        # Filer info from tier1 cache (rich applicant + filing rep fields)
+        filer = None
+        if t1_entry.get("applicant_first_name") or t1_entry.get("applicant_last_name"):
+            filer = {
+                "first_name": t1_entry.get("applicant_first_name"),
+                "last_name": t1_entry.get("applicant_last_name"),
+                "title": t1_entry.get("applicant_professional_title"),
+                "license": t1_entry.get("applicant_license"),
+                "rep_first_name": t1_entry.get("filing_representative_first_name"),
+                "rep_business_name": t1_entry.get("filing_representative_business_name"),
+            }
+
         return render_template(
             "proposal.html",
             slug=slug,
@@ -349,6 +361,7 @@ def create_app() -> Flask:
             drip_data=drip_data,
             bucket_name=bucket_name,
             bucket_label=BUCKET_LABELS.get(bucket_name, bucket_name),
+            filer=filer,
             active_page="",
         )
 
