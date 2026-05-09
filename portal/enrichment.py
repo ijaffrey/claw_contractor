@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from urllib.parse import quote_plus, urljoin
+from urllib.parse import parse_qs, quote_plus, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -27,18 +27,19 @@ HTTP_TIMEOUT = 8
 
 AGGREGATOR_DOMAINS = {
     "linkedin.com", "yelp.com", "manta.com", "bbb.org", "dnb.com",
-    "zoominfo.com", "buildzoom.com", "wikipedia.org",
-    "facebook.com", "twitter.com", "instagram.com", "tiktok.com",
-    "youtube.com", "pinterest.com", "reddit.com",
+    "zoominfo.com", "buildzoom.com", "wikipedia.org", "indeed.com",
+    "glassdoor.com", "facebook.com", "twitter.com", "x.com",
+    "instagram.com", "youtube.com",
 }
 
 GENERIC_PREFIXES = {
     "info", "contact", "hello", "support", "admin", "sales",
-    "office", "mail", "team", "help", "service", "services", "noreply",
+    "office", "mail", "team", "help", "service", "services",
+    "noreply", "no-reply",
 }
 
 BUSINESS_SUFFIXES = re.compile(
-    r"\b(llc|inc|corp|corporation|co|company|ltd|lp|llp|pllc|pc|pbc|group|associates|consulting|consultants)\b",
+    r"\b(llc|inc|ltd|corp|co|pllc|pc|lp|associates|consultants|consulting)\b",
     re.IGNORECASE,
 )
 
@@ -56,7 +57,7 @@ class EnrichmentResult:
     emails: list[str] = field(default_factory=list)
     pages_scraped: list[str] = field(default_factory=list)
     error: Optional[str] = None
-    fetched_at: Optional[str] = None
+    fetched_at: Optional[float] = None
     cached: bool = False
 
 
@@ -86,7 +87,6 @@ def _save_cache(cache: dict) -> None:
     tmp = CACHE_PATH.with_suffix(".json.tmp")
     with open(tmp, "w") as f:
         json.dump(cache, f, indent=2)
-    import os
     os.replace(tmp, CACHE_PATH)
 
 
@@ -109,7 +109,6 @@ def find_firm_domain(firm_name: str) -> tuple[Optional[str], Optional[str]]:
     if key in overrides:
         return overrides[key], "override"
 
-    # DDG HTML search
     query = f"{firm_name} official website"
     url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
     sess = _session()
@@ -122,17 +121,14 @@ def find_firm_domain(firm_name: str) -> tuple[Optional[str], Optional[str]]:
     soup = BeautifulSoup(resp.text, "html.parser")
     for link in soup.select("a.result__a"):
         href = link.get("href", "")
-        # DDG wraps links in redirects — extract actual URL
         if "uddg=" in href:
-            from urllib.parse import parse_qs, urlparse
             qs = parse_qs(urlparse(href).query)
             href = qs.get("uddg", [href])[0]
         if not href.startswith("http"):
             continue
         if _is_aggregator(href):
             continue
-        from urllib.parse import urlparse as _urlparse
-        parsed = _urlparse(href)
+        parsed = urlparse(href)
         domain = parsed.netloc.lower()
         if domain.startswith("www."):
             domain = domain[4:]
@@ -148,7 +144,6 @@ def scrape_firm_emails(domain: str) -> tuple[list[str], list[str]]:
     emails_found: set[str] = set()
     pages_scraped: list[str] = []
 
-    # Domain root for filtering emails
     parts = domain.split(".")
     domain_root = parts[-2] if len(parts) >= 2 else domain
 
@@ -156,13 +151,11 @@ def scrape_firm_emails(domain: str) -> tuple[list[str], list[str]]:
     last_request_time = 0.0
 
     for path in paths_to_try:
-        # Already found emails on contact pages — skip fallback "/"
         if path == "/" and emails_found:
             break
 
         url = urljoin(base_url, path)
 
-        # Rate limit: 1 req/sec per domain
         elapsed = time.time() - last_request_time
         if elapsed < 1.0:
             time.sleep(1.0 - elapsed)
@@ -178,10 +171,8 @@ def scrape_firm_emails(domain: str) -> tuple[list[str], list[str]]:
                 e_lower = e.lower()
                 local_part = e_lower.split("@")[0]
                 e_domain = e_lower.split("@")[1]
-                # Must match target domain root
                 if domain_root not in e_domain:
                     continue
-                # Skip generic prefixes
                 if local_part in GENERIC_PREFIXES:
                     continue
                 emails_found.add(e_lower)
@@ -193,41 +184,35 @@ def scrape_firm_emails(domain: str) -> tuple[list[str], list[str]]:
 
 def enrich_firm(firm_name: str, force_refresh: bool = False) -> EnrichmentResult:
     key = normalize_firm_name(firm_name)
-    now = datetime.now(timezone.utc)
+    now = time.time()
 
-    # Check cache
     if not force_refresh:
         cache = _load_cache()
         if key in cache:
             entry = cache[key]
-            fetched_str = entry.get("fetched_at", "")
-            if fetched_str:
-                try:
-                    fetched_dt = datetime.fromisoformat(fetched_str)
-                    age_days = (now - fetched_dt).days
-                    if age_days < CACHE_TTL_DAYS:
-                        return EnrichmentResult(
-                            firm_name=entry.get("firm_name", firm_name),
-                            normalized_key=key,
-                            domain=entry.get("domain"),
-                            domain_source=entry.get("domain_source"),
-                            emails=entry.get("emails", []),
-                            pages_scraped=entry.get("pages_scraped", []),
-                            error=entry.get("error"),
-                            fetched_at=fetched_str,
-                            cached=True,
-                        )
-                except (ValueError, TypeError):
-                    pass
+            fetched_at = entry.get("fetched_at")
+            if isinstance(fetched_at, (int, float)):
+                age_days = (now - fetched_at) / 86400
+                if age_days < CACHE_TTL_DAYS:
+                    return EnrichmentResult(
+                        firm_name=entry.get("firm_name", firm_name),
+                        normalized_key=key,
+                        domain=entry.get("domain"),
+                        domain_source=entry.get("domain_source"),
+                        emails=entry.get("emails", []),
+                        pages_scraped=entry.get("pages_scraped", []),
+                        error=entry.get("error"),
+                        fetched_at=fetched_at,
+                        cached=True,
+                    )
 
-    # Resolve domain
     domain, domain_source = find_firm_domain(firm_name)
     result = EnrichmentResult(
         firm_name=firm_name,
         normalized_key=key,
         domain=domain,
         domain_source=domain_source,
-        fetched_at=now.isoformat(),
+        fetched_at=now,
     )
 
     if not domain:
@@ -237,7 +222,6 @@ def enrich_firm(firm_name: str, force_refresh: bool = False) -> EnrichmentResult
         result.emails = emails
         result.pages_scraped = pages
 
-    # Save to cache
     cache = _load_cache()
     cache[key] = asdict(result)
     cache[key].pop("cached", None)
