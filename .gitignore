@@ -74,3 +74,6 @@ pipeline_state.json
 
 # Sprint E2 Tier 1 cache
 tier1_cache.json
+
+# Enrichment runtime data
+enrichment_cache.json
