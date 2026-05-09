@@ -31,6 +31,7 @@ from .pipeline_state import (
     save_state,
     set_address_state,
 )
+from .enrichment import enrich_firm
 from .tier1_estimator import load_cache as load_tier1_cache, refresh_cache as refresh_tier1
 
 # Repo root = parent of portal/
@@ -260,6 +261,7 @@ def create_app() -> Flask:
                 "tier1_estimate": t1_est,
                 "tier3_value": tier3_value,
                 "tier3_confidence": tier3_confidence,
+                "filing_rep": p.get("filing_rep") or t1_entry.get("filing_rep"),
             })
 
         avg_deal = tier1_total / len(permits) if permits else 0
@@ -428,6 +430,20 @@ def create_app() -> Flask:
         addr_display = slug.replace("_", " ").title()
         set_address_state(addr_display, contact_email=email, slug=slug)
         return jsonify({"ok": True})
+
+    @app.route("/api/enrich/<slug>", methods=["POST"])
+    def enrich_filer(slug: str):
+        """Look up contact info for a permit's filing rep firm."""
+        tier1 = load_tier1_cache().get("permits", {})
+        entry = tier1.get(slug)
+        if entry is None:
+            return jsonify({"error": "slug not found"}), 404
+        filing_rep = entry.get("filing_rep")
+        if not filing_rep:
+            return jsonify({"error": "no filing_rep on permit"}), 502
+        from dataclasses import asdict
+        result = enrich_firm(filing_rep)
+        return jsonify(asdict(result))
 
     @app.route("/api/proposal/save/<slug>", methods=["POST"])
     def save_proposal_edits(slug: str):

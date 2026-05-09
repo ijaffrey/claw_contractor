@@ -1,0 +1,41 @@
+{
+  "milrose": {
+    "firm_name": "MILROSE CONSULTANTS",
+    "normalized_key": "milrose",
+    "domain": "milrose.com",
+    "domain_source": "override",
+    "emails": [],
+    "pages_scraped": [
+      "/contact",
+      "/"
+    ],
+    "error": null,
+    "fetched_at": "2026-05-08T21:48:50.393367+00:00"
+  },
+  "breeze national": {
+    "firm_name": "BREEZE NATIONAL INC",
+    "normalized_key": "breeze national",
+    "domain": "breezedemolition.com",
+    "domain_source": "ddg",
+    "emails": [],
+    "pages_scraped": [
+      "/contact-us",
+      "/"
+    ],
+    "error": null,
+    "fetched_at": "2026-05-08T21:48:58.433203+00:00"
+  },
+  "expedite dem": {
+    "firm_name": "EXPEDITE DEM INC",
+    "normalized_key": "expedite dem",
+    "domain": "expeditedem.com",
+    "domain_source": "override",
+    "emails": [],
+    "pages_scraped": [
+      "/contact-us",
+      "/"
+    ],
+    "error": null,
+    "fetched_at": "2026-05-08T21:49:06.622773+00:00"
+  }
+}

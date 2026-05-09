@@ -57,7 +57,7 @@
           <th>Est. Deal Size</th>
           <th>Confidence</th>
           <th>Status</th>
-          <th>Look Up</th>
+          <th>Enrich</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -93,12 +93,11 @@
           <td>
             <span class="status-pill status-{{ p.status }}">{{ p.status|replace('_',' ')|title }}</span>
           </td>
-          <td>
-            {% set q = (p.filing_rep or p.owner_name or '') ~ ' ' ~ (p.applicant_last_name or '') ~ ' contact email' %}
-            {% if (p.filing_rep or p.owner_name) %}
-              <a href="https://www.google.com/search?q={{ q|urlencode }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Look Up</a>
+          <td class="enrich-cell">
+            {% if p.filing_rep %}
+              <button class="btn btn-secondary btn-sm enrich-btn" data-slug="{{ p.slug }}" data-firm="{{ p.filing_rep }}">Enrich</button>
             {% else %}
-              <span class="text-muted">—</span>
+              <button class="btn btn-secondary btn-sm enrich-btn" disabled>Enrich</button>
             {% endif %}
           </td>
           <td>
@@ -162,6 +161,36 @@
         // Trigger generate
         row.querySelector('.gen-btn').click();
       }
+    });
+  });
+
+  // Enrich buttons
+  document.querySelectorAll('.enrich-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (btn.disabled) return;
+      var slug = btn.dataset.slug;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>';
+      fetch('/api/enrich/' + encodeURIComponent(slug), {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          var cell = btn.closest('.enrich-cell');
+          if (data.emails && data.emails.length > 0) {
+            var links = data.emails.map(function(em){
+              return '<a href="mailto:' + em + '">' + em + '</a>';
+            });
+            cell.innerHTML = links.join(', ');
+          } else if (data.domain) {
+            cell.innerHTML = '<a href="https://' + data.domain + '" target="_blank" rel="noopener">' + data.domain + '</a>';
+          } else {
+            cell.innerHTML = '<span class="text-muted">Not found</span>';
+          }
+        })
+        .catch(function(){
+          btn.disabled = false;
+          btn.textContent = 'Enrich';
+        });
     });
   });
 
