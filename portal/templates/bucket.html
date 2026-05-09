@@ -95,13 +95,13 @@
           </td>
           <td class="enrich-cell">
             {% set applicant_full = ((p.applicant_first_name or '') ~ ' ' ~ (p.applicant_last_name or ''))|trim %}
-            {% set rep_full = ((p.filing_rep_first_name or '') ~ ' ' ~ (p.filing_rep or ''))|trim %}
+            {% set rep_full = ((p.filing_representative_business_nameresentative_first_name or '') ~ ' ' ~ (p.filing_representative_business_name or ''))|trim %}
             {% if applicant_full %}
               <div class="filer-info">
-                <strong>{{ applicant_full }}</strong>{% if p.applicant_title %} <span class="text-muted">{{ p.applicant_title }}</span>{% endif %}
+                <strong>{{ applicant_full }}</strong>{% if p.applicant_professional_title %} <span class="text-muted">{{ p.applicant_professional_title }}</span>{% endif %}
                 {% if p.applicant_license %}<br><span class="text-muted">License #{{ p.applicant_license }}</span>{% endif %}
                 {% if rep_full and rep_full != applicant_full %}<br><span class="text-muted">via {{ rep_full }}</span>{% endif %}
-                {% set q = applicant_full ~ ' ' ~ (p.applicant_title or '') ~ ' ' ~ (p.filing_rep or '') ~ ' contact' %}
+                {% set q = applicant_full ~ ' ' ~ (p.applicant_professional_title or '') ~ ' ' ~ (p.filing_representative_business_name or '') ~ ' contact' %}
                 <br><a href="https://www.google.com/search?q={{ q|urlencode }}" target="_blank" rel="noopener" class="btn btn-secondary btn-xs">Look Up</a>
               </div>
             {% else %}
